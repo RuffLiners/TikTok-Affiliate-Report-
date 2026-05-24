@@ -7,10 +7,11 @@ export const revalidate = 60
 export default async function DashboardPage() {
   const { data: reports } = await supabase
     .from('weekly_reports')
-    .select('report_date, label, data_window, created_at, d30')
+    .select('report_date, label, data_window, created_at, d30, weekly_charts')
     .order('report_date', { ascending: false })
 
   const fmt$ = (n: number) => '$' + Math.round(n).toLocaleString('en-US')
+  const fmtN = (n: number) => Math.round(n).toLocaleString('en-US')
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -40,6 +41,9 @@ export default async function DashboardPage() {
               const d30 = r.d30 as { gmv?: number; gmvPct?: number }
               const gmv = d30?.gmv ?? 0
               const pct = d30?.gmvPct ?? 0
+              const wc = r.weekly_charts as { gmv?: number[]; vid?: number[] } | null
+              const wGmv = wc?.gmv?.length ? wc.gmv[wc.gmv.length - 1] : null
+              const wVid = wc?.vid?.length ? wc.vid[wc.vid.length - 1] : null
               return (
                 <Link key={r.report_date} href={`/dashboard/${r.report_date}`}
                   className="block bg-white rounded-xl border border-gray-100 px-6 py-4 hover:border-gray-300 hover:shadow-sm transition-all group">
@@ -53,7 +57,25 @@ export default async function DashboardPage() {
                         Saved {format(new Date(r.created_at), 'MMM d, yyyy h:mm a')}
                       </p>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-6">
+                      {/* Last-week stats */}
+                      {(wGmv != null || wVid != null) && (
+                        <div className="hidden sm:flex items-center gap-5 text-right">
+                          {wGmv != null && (
+                            <div>
+                              <p className="text-sm font-semibold text-gray-900">{fmt$(wGmv)}</p>
+                              <p className="text-xs text-gray-400">last wk GMV</p>
+                            </div>
+                          )}
+                          {wVid != null && (
+                            <div>
+                              <p className="text-sm font-semibold text-gray-900">{fmtN(wVid)}</p>
+                              <p className="text-xs text-gray-400">videos</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {/* 30-day total */}
                       <div className="text-right">
                         <p className="text-xl font-semibold text-gray-900">{fmt$(gmv)}</p>
                         <p className={`text-xs font-medium ${pct >= 0 ? 'text-green-600' : 'text-red-500'}`}>
