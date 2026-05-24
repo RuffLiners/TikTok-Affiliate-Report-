@@ -20,9 +20,14 @@ export default async function DashboardPage() {
             <h1 className="text-lg font-semibold text-gray-900">Ruff Liners · TikTok Shop</h1>
             <p className="text-sm text-gray-500">Weekly report archive</p>
           </div>
-          <span className="text-xs bg-green-50 text-green-700 px-3 py-1 rounded-full font-medium">
-            {reports?.length ?? 0} reports saved
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs bg-green-50 text-green-700 px-3 py-1 rounded-full font-medium">
+              {reports?.length ?? 0} reports saved
+            </span>
+            <Link href="/admin" className="text-xs bg-gray-900 text-white px-3 py-1 rounded-full font-medium hover:bg-gray-700 transition-colors">
+              + New Report
+            </Link>
+          </div>
         </div>
       </header>
 
