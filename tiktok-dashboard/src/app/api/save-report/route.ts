@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { supabaseAdmin } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
@@ -57,6 +58,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Database save failed: ' + dbErr.message }, { status: 500 })
   }
 
+  revalidatePath('/dashboard')
   return NextResponse.json({
     ok: true,
     reportDate: report.meta.reportDate,
