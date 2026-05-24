@@ -27,18 +27,30 @@ export async function POST(req: NextRequest) {
   if (!report.analysis) report.analysis = { d30: '', weekly: '', monthly: '' }
 
   const supabase = supabaseAdmin()
-  const { error: dbErr } = await supabase
+
+  const rowWithAnalysis = {
+    report_date:    report.meta.reportDate,
+    label:          report.meta.label,
+    data_window:    report.meta.dataWindow,
+    d30:            report.d30,
+    weekly_charts:  report.weeklyCharts,
+    monthly_charts: report.monthlyCharts,
+    tables:         report.tables,
+    analysis:       report.analysis
+  }
+
+  let { error: dbErr } = await supabase
     .from('weekly_reports')
-    .upsert({
-      report_date:    report.meta.reportDate,
-      label:          report.meta.label,
-      data_window:    report.meta.dataWindow,
-      d30:            report.d30,
-      weekly_charts:  report.weeklyCharts,
-      monthly_charts: report.monthlyCharts,
-      tables:         report.tables,
-      analysis:       report.analysis
-    }, { onConflict: 'report_date' })
+    .upsert(rowWithAnalysis, { onConflict: 'report_date' })
+
+  // If analysis column doesn't exist yet, retry without it
+  if (dbErr?.message?.toLowerCase().includes('analysis')) {
+    const { analysis: _omit, ...rowWithout } = rowWithAnalysis
+    const retry = await supabase
+      .from('weekly_reports')
+      .upsert(rowWithout, { onConflict: 'report_date' })
+    dbErr = retry.error
+  }
 
   if (dbErr) {
     console.error('Supabase save error:', dbErr)
