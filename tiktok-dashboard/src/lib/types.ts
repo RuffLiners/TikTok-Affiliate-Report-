@@ -82,6 +82,15 @@ export interface ReportTables {
   activeCreators: ActiveCreator[]
 }
 
+export interface Goals {
+  monthlyGmvTarget?: number
+  monthlyPeriod?: string
+  quarterlyGmvTarget?: number
+  quarterlyPeriod?: string
+  weeklyVideosTarget?: number
+  activeG3Target?: number
+}
+
 export interface WeeklyReport {
   id: string
   report_date: string
@@ -93,9 +102,13 @@ export interface WeeklyReport {
   monthly_charts: MonthlyCharts
   tables: ReportTables
   analysis?: {
-    d30: string
-    weekly: string
-    monthly: string
+    performance?: string
+    creators?: string
+    recruiting?: string
+    growth?: string
+    d30?: string
+    weekly?: string
+    monthly?: string
   }
 }
 

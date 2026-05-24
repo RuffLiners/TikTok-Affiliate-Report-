@@ -25,6 +25,9 @@ export default async function DashboardPage() {
             <span className="text-xs bg-green-50 text-green-700 px-3 py-1 rounded-full font-medium">
               {reports?.length ?? 0} reports saved
             </span>
+            <Link href="/admin?tab=manage" className="text-xs text-gray-500 px-3 py-1 rounded-full font-medium hover:bg-gray-100 transition-colors border border-gray-200">
+              Manage
+            </Link>
             <Link href="/admin" className="text-xs bg-gray-900 text-white px-3 py-1 rounded-full font-medium hover:bg-gray-700 transition-colors">
               + New Report
             </Link>
