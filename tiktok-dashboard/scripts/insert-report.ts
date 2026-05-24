@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
+import { config } from 'dotenv'
+config({ path: '.env.local' })
 
 // ─── PASTE THIS WEEK'S DATA HERE ──────────────────────────
 const REPORT_DATA = {
