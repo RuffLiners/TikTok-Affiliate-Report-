@@ -1,6 +1,25 @@
 'use client'
 import { useState } from 'react'
 import { format, subDays } from 'date-fns'
+import { ManageTab } from './ManageTab'
+
+function getLastMonday(from: Date = new Date()): Date {
+  const day = from.getDay() // 0=Sun,1=Mon,...,6=Sat
+  const daysBack = day === 0 ? 6 : day - 1
+  const d = new Date(from)
+  d.setDate(d.getDate() - daysBack)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+function getRecentMondays(n: number): Date[] {
+  const last = getLastMonday()
+  return Array.from({ length: n }, (_, i) => {
+    const d = new Date(last)
+    d.setDate(d.getDate() - i * 7)
+    return d
+  })
+}
 
 type SaveStatus = 'idle' | 'saving' | 'success' | 'error'
 type GenStatus  = 'idle' | 'running' | 'success' | 'error'
@@ -125,7 +144,9 @@ const GENERATE_STEPS = [
 ]
 
 export default function AdminPage() {
-  const [tab, setTab]           = useState<'paste' | 'auto'>('paste')
+  const [tab, setTab]           = useState<'paste' | 'auto' | 'manage'>('paste')
+  const [selectedDate, setSelectedDate] = useState<Date>(() => getLastMonday())
+  const mondays = getRecentMondays(5)
   const [json, setJson]         = useState('')
   const [saveStatus, setSave]   = useState<SaveStatus>('idle')
   const [saveError, setSaveErr] = useState('')
@@ -138,7 +159,10 @@ export default function AdminPage() {
   const [genStep, setGenStep]   = useState(0)
 
   const today = new Date()
-  const prompt = buildClaudePrompt(today)
+  const prompt = buildClaudePrompt(selectedDate)
+  const gmvEnd = subDays(selectedDate, 2)
+  const gmvStart = subDays(gmvEnd, 29)
+  const dataWindow = `${format(gmvStart, 'MMM d')} – ${format(gmvEnd, 'MMM d, yyyy')}`
   const fmt$ = (n: number) => '$' + Math.round(n).toLocaleString('en-US')
 
   async function copyPrompt() {
@@ -191,7 +215,7 @@ export default function AdminPage() {
       const res = await fetch('/api/generate-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ today: format(today, 'yyyy-MM-dd') }),
+        body: JSON.stringify({ today: format(selectedDate, 'yyyy-MM-dd') }),
         signal: AbortSignal.timeout(360000)
       })
 
@@ -248,7 +272,48 @@ export default function AdminPage() {
           >
             Auto-Generate
           </button>
+          <button
+            onClick={() => setTab('manage')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              tab === 'manage' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Manage
+          </button>
         </div>
+
+        {/* ── Report date selector (shown on paste + auto tabs) ── */}
+        {tab !== 'manage' && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Report date</p>
+                <p className="text-xs text-gray-400 mt-0.5">Select the Monday this report covers. Defaults to the most recent Monday.</p>
+              </div>
+              <span className="text-xs text-gray-400 bg-gray-50 border border-gray-100 px-2.5 py-1 rounded-full">
+                Data: {dataWindow}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {mondays.map((m, i) => {
+                const isSelected = format(m, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd')
+                return (
+                  <button
+                    key={i}
+                    onClick={() => setSelectedDate(m)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                      isSelected
+                        ? 'bg-gray-900 text-white border-gray-900'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                    }`}
+                  >
+                    {i === 0 ? `${format(m, 'MMM d')} ← last Mon` : format(m, 'MMM d')}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* ── PASTE JSON TAB ── */}
         {tab === 'paste' && (
@@ -271,7 +336,7 @@ export default function AdminPage() {
                   <span className="w-6 h-6 rounded-full bg-gray-900 text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">2</span>
                   <div className="flex-1">
                     <p className="text-sm font-medium text-gray-800">Copy and paste this prompt</p>
-                    <p className="text-xs text-gray-400 mt-0.5 mb-2">Date windows are pre-filled for today ({format(today, 'MMM d, yyyy')}).</p>
+                    <p className="text-xs text-gray-400 mt-0.5 mb-2">Date windows are pre-filled for <strong>{format(selectedDate, 'MMM d, yyyy')}</strong> · {dataWindow}.</p>
                     <div className="relative">
                       <pre className="bg-gray-50 border border-gray-100 rounded-lg p-3 text-xs text-gray-600 overflow-auto max-h-48 whitespace-pre-wrap leading-relaxed">
                         {prompt.slice(0, 300)}…
@@ -435,9 +500,9 @@ export default function AdminPage() {
             {(genStatus === 'idle' || genStatus === 'error') && genStatus !== 'error' && (
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
                 <div className="flex items-start justify-between mb-2">
-                  <h2 className="font-semibold text-gray-900">Generate {format(today, 'MMMM d, yyyy')}</h2>
+                  <h2 className="font-semibold text-gray-900">Generate {format(selectedDate, 'MMMM d, yyyy')}</h2>
                   <span className="text-xs bg-gray-50 text-gray-400 border border-gray-100 px-2.5 py-1 rounded-full">
-                    {format(subDays(today, 31), 'MMM d')} – {format(subDays(today, 2), 'MMM d')}
+                    {dataWindow}
                   </span>
                 </div>
                 <p className="text-sm text-gray-400 mb-5">
@@ -453,6 +518,10 @@ export default function AdminPage() {
             )}
           </div>
         )}
+
+        {/* ── MANAGE TAB ── */}
+        {tab === 'manage' && <ManageTab />}
+
       </main>
     </div>
   )
