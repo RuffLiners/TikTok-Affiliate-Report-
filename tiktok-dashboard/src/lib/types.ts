@@ -87,7 +87,14 @@ export interface Goals {
   monthlyPeriod?: string
   quarterlyGmvTarget?: number
   quarterlyPeriod?: string
+  // Videos per week — total and per tier
   weeklyVideosTarget?: number
+  weeklyVideosG1Target?: number
+  weeklyVideosG2Target?: number
+  weeklyVideosG3Target?: number
+  // Active creators (30-day) per tier
+  activeG1Target?: number
+  activeG2Target?: number
   activeG3Target?: number
 }
 

@@ -63,7 +63,9 @@ export function ManageTab() {
   const [goals, setGoals] = useState<{
     monthlyGmvTarget?: number; monthlyPeriod?: string
     quarterlyGmvTarget?: number; quarterlyPeriod?: string
-    weeklyVideosTarget?: number; activeG3Target?: number
+    weeklyVideosTarget?: number
+    weeklyVideosG1Target?: number; weeklyVideosG2Target?: number; weeklyVideosG3Target?: number
+    activeG1Target?: number; activeG2Target?: number; activeG3Target?: number
   }>({})
   const [goalsStatus, setGoalsStatus] = useState<'idle'|'saving'|'success'|'error'>('idle')
   const [goalsError, setGoalsError] = useState('')
@@ -503,81 +505,93 @@ export function ManageTab() {
           Set performance targets. These appear in the Insights tab and are referenced in AI-generated analysis prompts.
         </p>
 
-        <div className="space-y-4 max-w-sm">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-gray-600 block mb-1">Monthly GMV Target ($)</label>
-              <input
-                type="number"
-                min="0"
-                step="1000"
-                value={goals.monthlyGmvTarget ?? ''}
-                onChange={e => setGoals(prev => ({ ...prev, monthlyGmvTarget: e.target.value ? Number(e.target.value) : undefined }))}
-                placeholder="e.g. 50000"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-600 block mb-1">Monthly Period</label>
-              <input
-                type="text"
-                value={goals.monthlyPeriod ?? ''}
-                onChange={e => setGoals(prev => ({ ...prev, monthlyPeriod: e.target.value || undefined }))}
-                placeholder={getCurrentMonthPeriod()}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-              />
+        <div className="space-y-5 max-w-lg">
+
+          {/* Revenue Goals */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Revenue</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-gray-600 block mb-1">Monthly GMV Target ($)</label>
+                <input type="number" min="0" step="1000"
+                  value={goals.monthlyGmvTarget ?? ''}
+                  onChange={e => setGoals(prev => ({ ...prev, monthlyGmvTarget: e.target.value ? Number(e.target.value) : undefined }))}
+                  placeholder="e.g. 200000"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600 block mb-1">Monthly Period</label>
+                <input type="text"
+                  value={goals.monthlyPeriod ?? ''}
+                  onChange={e => setGoals(prev => ({ ...prev, monthlyPeriod: e.target.value || undefined }))}
+                  placeholder={getCurrentMonthPeriod()}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600 block mb-1">Quarterly GMV Target ($)</label>
+                <input type="number" min="0" step="1000"
+                  value={goals.quarterlyGmvTarget ?? ''}
+                  onChange={e => setGoals(prev => ({ ...prev, quarterlyGmvTarget: e.target.value ? Number(e.target.value) : undefined }))}
+                  placeholder="e.g. 550000"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600 block mb-1">Quarterly Period</label>
+                <input type="text"
+                  value={goals.quarterlyPeriod ?? ''}
+                  onChange={e => setGoals(prev => ({ ...prev, quarterlyPeriod: e.target.value || undefined }))}
+                  placeholder={getCurrentQuarterPeriod()}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                />
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-gray-600 block mb-1">Quarterly GMV Target ($)</label>
-              <input
-                type="number"
-                min="0"
-                step="1000"
-                value={goals.quarterlyGmvTarget ?? ''}
-                onChange={e => setGoals(prev => ({ ...prev, quarterlyGmvTarget: e.target.value ? Number(e.target.value) : undefined }))}
-                placeholder="e.g. 150000"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-600 block mb-1">Quarterly Period</label>
-              <input
-                type="text"
-                value={goals.quarterlyPeriod ?? ''}
-                onChange={e => setGoals(prev => ({ ...prev, quarterlyPeriod: e.target.value || undefined }))}
-                placeholder={getCurrentQuarterPeriod()}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-              />
+          {/* Videos Per Week */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Videos Per Week</p>
+            <div className="grid grid-cols-4 gap-3">
+              {([
+                { key: 'weeklyVideosTarget',    label: 'Total' },
+                { key: 'weeklyVideosG1Target',  label: 'G1' },
+                { key: 'weeklyVideosG2Target',  label: 'G2' },
+                { key: 'weeklyVideosG3Target',  label: 'G3' },
+              ] as const).map(({ key, label }) => (
+                <div key={key}>
+                  <label className="text-xs font-medium text-gray-600 block mb-1">{label}</label>
+                  <input type="number" min="0" step="1"
+                    value={goals[key] ?? ''}
+                    onChange={e => setGoals(prev => ({ ...prev, [key]: e.target.value ? Number(e.target.value) : undefined }))}
+                    placeholder="—"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                  />
+                </div>
+              ))}
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-gray-600 block mb-1">Weekly Videos Target</label>
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={goals.weeklyVideosTarget ?? ''}
-                onChange={e => setGoals(prev => ({ ...prev, weeklyVideosTarget: e.target.value ? Number(e.target.value) : undefined }))}
-                placeholder="e.g. 20"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-600 block mb-1">Active G3 Creators Target</label>
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={goals.activeG3Target ?? ''}
-                onChange={e => setGoals(prev => ({ ...prev, activeG3Target: e.target.value ? Number(e.target.value) : undefined }))}
-                placeholder="e.g. 5"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-              />
+          {/* Active Creators */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Active Creators (30-day)</p>
+            <div className="grid grid-cols-3 gap-3">
+              {([
+                { key: 'activeG1Target', label: 'G1' },
+                { key: 'activeG2Target', label: 'G2' },
+                { key: 'activeG3Target', label: 'G3' },
+              ] as const).map(({ key, label }) => (
+                <div key={key}>
+                  <label className="text-xs font-medium text-gray-600 block mb-1">{label}</label>
+                  <input type="number" min="0" step="1"
+                    value={goals[key] ?? ''}
+                    onChange={e => setGoals(prev => ({ ...prev, [key]: e.target.value ? Number(e.target.value) : undefined }))}
+                    placeholder="—"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                  />
+                </div>
+              ))}
             </div>
           </div>
 

@@ -40,11 +40,14 @@ export default async function ReportPage({ params }: Props) {
 
   // Compute last-week and current-month stats
   const wc = report.weekly_charts
-  const lastWeekGmv = wc.gmv.at(-1) ?? 0
-  const lastWeekVid = wc.vid.at(-1) ?? 0
+  const lastWeekGmv   = wc.gmv.at(-1) ?? 0
+  const lastWeekVid   = wc.vid.at(-1) ?? 0
+  const lastWeekVidG1 = wc.vg1.at(-1) ?? 0
+  const lastWeekVidG2 = wc.vg2.at(-1) ?? 0
+  const lastWeekVidG3 = wc.vg3.at(-1) ?? 0
   const lastWeekLabel = wc.labels.at(-1) ?? ''
   const mc = report.monthly_charts
-  const currentMonthGmv = mc.gmv.at(-1) ?? 0
+  const currentMonthGmv   = mc.gmv.at(-1) ?? 0
   const currentMonthLabel = (mc.labels.at(-1) ?? '').replace('*', '').trim()
   const qtdGmv = mc.gmv.slice(-3).reduce((a: number, b: number) => a + b, 0)
 
@@ -222,18 +225,43 @@ export default async function ReportPage({ params }: Props) {
                       </div>
                     )
                   })()}
-                  {goals.weeklyVideosTarget && (
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-gray-500">Weekly videos target</span>
-                      <span className={`font-semibold ${lastWeekVid >= goals.weeklyVideosTarget ? 'text-green-600' : 'text-amber-600'}`}>
-                        {lastWeekVid} / {goals.weeklyVideosTarget} {lastWeekVid >= goals.weeklyVideosTarget ? '✓' : ''}
-                      </span>
+                  {/* Videos per week by tier */}
+                  {(goals.weeklyVideosTarget || goals.weeklyVideosG1Target || goals.weeklyVideosG2Target || goals.weeklyVideosG3Target) && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Videos Posted · Last Week</p>
+                      <div className="grid grid-cols-4 gap-2 text-xs">
+                        {([
+                          { label: 'Total', actual: lastWeekVid,   target: goals.weeklyVideosTarget },
+                          { label: 'G1',    actual: lastWeekVidG1, target: goals.weeklyVideosG1Target },
+                          { label: 'G2',    actual: lastWeekVidG2, target: goals.weeklyVideosG2Target },
+                          { label: 'G3',    actual: lastWeekVidG3, target: goals.weeklyVideosG3Target },
+                        ]).map(({ label, actual, target }) => target != null ? (
+                          <div key={label} className="bg-gray-50 rounded-lg p-2.5 text-center">
+                            <p className="text-gray-400 mb-1">{label}</p>
+                            <p className={`font-semibold text-sm ${actual >= target ? 'text-green-600' : 'text-amber-600'}`}>{actual}</p>
+                            <p className="text-gray-400">/ {target}</p>
+                          </div>
+                        ) : null)}
+                      </div>
                     </div>
                   )}
-                  {goals.activeG3Target && (
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-gray-500">Active G3 creators target</span>
-                      <span className="text-xs text-gray-400">Target: {goals.activeG3Target} — see report for current count</span>
+                  {/* Active creators by tier */}
+                  {(goals.activeG1Target || goals.activeG2Target || goals.activeG3Target) && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Active Creators · 30-Day</p>
+                      <div className="grid grid-cols-3 gap-2 text-xs">
+                        {([
+                          { label: 'G1', actual: d.tiers.g1.creators, target: goals.activeG1Target },
+                          { label: 'G2', actual: d.tiers.g2.creators, target: goals.activeG2Target },
+                          { label: 'G3', actual: d.tiers.g3.creators, target: goals.activeG3Target },
+                        ]).map(({ label, actual, target }) => target != null ? (
+                          <div key={label} className="bg-gray-50 rounded-lg p-2.5 text-center">
+                            <p className="text-gray-400 mb-1">{label}</p>
+                            <p className={`font-semibold text-sm ${actual >= target ? 'text-green-600' : 'text-amber-600'}`}>{actual}</p>
+                            <p className="text-gray-400">/ {target}</p>
+                          </div>
+                        ) : null)}
+                      </div>
                     </div>
                   )}
                 </div>
