@@ -5,7 +5,7 @@ import { jwtVerify } from 'jose'
 const secret = new TextEncoder().encode(process.env.AUTH_SECRET!)
 const PUBLIC = ['/login', '/api/auth']
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname
   if (PUBLIC.some(p => path.startsWith(p))) return NextResponse.next()
 
