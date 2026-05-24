@@ -16,13 +16,26 @@ type ModalState =
 
 const fmt$ = (n: number) => '$' + Math.round(n).toLocaleString('en-US')
 
+function getCurrentMonthPeriod(): string {
+  const now = new Date()
+  return now.toLocaleString('en-US', { month: 'long', year: 'numeric' })
+}
+
+function getCurrentQuarterPeriod(): string {
+  const now = new Date()
+  const month = now.getMonth() // 0-indexed
+  const quarter = Math.floor(month / 3) + 1
+  const year = now.getFullYear()
+  return `Q${quarter} ${year}`
+}
+
 export function ManageTab() {
   const [reports, setReports]   = useState<ReportMeta[]>([])
   const [loading, setLoading]   = useState(true)
 
   // Edit analysis
   const [editingDate, setEditingDate]       = useState<string | null>(null)
-  const [editAnalysis, setEditAnalysis]     = useState({ d30: '', weekly: '', monthly: '' })
+  const [editAnalysis, setEditAnalysis]     = useState({ performance: '', creators: '', recruiting: '', growth: '' })
   const [editFullReport, setEditFullReport] = useState<any>(null)
   const [editStatus, setEditStatus]         = useState<'idle'|'loading'|'saving'|'success'|'error'>('idle')
   const [editError, setEditError]           = useState('')
@@ -46,16 +59,27 @@ export function ManageTab() {
   const [pwStatus, setPwStatus]             = useState<'idle'|'saving'|'success'|'error'>('idle')
   const [pwError, setPwError]               = useState('')
 
+  // Goals
+  const [goals, setGoals] = useState<{
+    monthlyGmvTarget?: number; monthlyPeriod?: string
+    quarterlyGmvTarget?: number; quarterlyPeriod?: string
+    weeklyVideosTarget?: number; activeG3Target?: number
+  }>({})
+  const [goalsStatus, setGoalsStatus] = useState<'idle'|'saving'|'success'|'error'>('idle')
+  const [goalsError, setGoalsError] = useState('')
+
   // Modal
   const [modal, setModal] = useState<ModalState>(null)
 
   useEffect(() => {
     Promise.all([
       fetch('/api/reports').then(r => r.json()),
-      fetch('/api/admin/super-password').then(r => r.json())
-    ]).then(([rpts, spw]) => {
+      fetch('/api/admin/super-password').then(r => r.json()),
+      fetch('/api/admin/goals').then(r => r.json()),
+    ]).then(([rpts, spw, g]) => {
       setReports(rpts || [])
       setSuperPwSet(spw?.set ?? false)
+      if (!g.error) setGoals(g)
       setLoading(false)
     })
   }, [])
@@ -65,6 +89,20 @@ export function ManageTab() {
     setDeletePw('')
     setDeleteStatus('idle')
     setDeleteError('')
+  }
+
+  // ── Goals ────────────────────────────────────────────────
+
+  async function saveGoals() {
+    setGoalsStatus('saving')
+    setGoalsError('')
+    const res = await fetch('/api/admin/goals', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(goals)
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setGoalsStatus('error'); setGoalsError(data.error || 'Save failed.') }
+    else { setGoalsStatus('success'); setTimeout(() => setGoalsStatus('idle'), 2000) }
   }
 
   // ── Edit Analysis ────────────────────────────────────────
@@ -82,9 +120,10 @@ export function ManageTab() {
     const data = await res.json()
     setEditFullReport(data)
     setEditAnalysis({
-      d30:     data.analysis?.d30     ?? '',
-      weekly:  data.analysis?.weekly  ?? '',
-      monthly: data.analysis?.monthly ?? '',
+      performance: data.analysis?.performance ?? '',
+      creators:    data.analysis?.creators    ?? '',
+      recruiting:  data.analysis?.recruiting  ?? '',
+      growth:      data.analysis?.growth      ?? '',
     })
     setEditStatus('idle')
   }
@@ -101,7 +140,12 @@ export function ManageTab() {
       weeklyCharts:  data.weekly_charts,
       monthlyCharts: data.monthly_charts,
       tables:        data.tables,
-      analysis:      editAnalysis,
+      analysis: {
+        d30:     editFullReport.analysis?.d30     ?? '',
+        weekly:  editFullReport.analysis?.weekly  ?? '',
+        monthly: editFullReport.analysis?.monthly ?? '',
+        ...editAnalysis,  // performance, creators, recruiting, growth
+      },
     }
 
     const res = await fetch('/api/save-report', {
@@ -369,9 +413,10 @@ export function ManageTab() {
                   {editStatus !== 'loading' && (
                     <div className="space-y-4 pt-4">
                       {([
-                        { key: 'd30',     label: '30-Day Analysis' },
-                        { key: 'weekly',  label: 'Weekly Trend Analysis' },
-                        { key: 'monthly', label: 'Monthly Analysis' },
+                        { key: 'performance', label: 'Performance (vs Goals)' },
+                        { key: 'creators',    label: 'Creator & Content Highlights' },
+                        { key: 'recruiting',  label: 'Recruiting Priorities' },
+                        { key: 'growth',      label: 'Growth Opportunities' },
                       ] as const).map(({ key, label }) => (
                         <div key={key}>
                           <label className="text-xs font-semibold text-blue-800 block mb-1">{label}</label>
@@ -448,6 +493,103 @@ export function ManageTab() {
 
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* ── Goals & Targets ── */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <h2 className="font-semibold text-gray-900 mb-1">Goals &amp; Targets</h2>
+        <p className="text-xs text-gray-400 mb-4">
+          Set performance targets. These appear in the Insights tab and are referenced in AI-generated analysis prompts.
+        </p>
+
+        <div className="space-y-4 max-w-sm">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">Monthly GMV Target ($)</label>
+              <input
+                type="number"
+                min="0"
+                step="1000"
+                value={goals.monthlyGmvTarget ?? ''}
+                onChange={e => setGoals(prev => ({ ...prev, monthlyGmvTarget: e.target.value ? Number(e.target.value) : undefined }))}
+                placeholder="e.g. 50000"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">Monthly Period</label>
+              <input
+                type="text"
+                value={goals.monthlyPeriod ?? ''}
+                onChange={e => setGoals(prev => ({ ...prev, monthlyPeriod: e.target.value || undefined }))}
+                placeholder={getCurrentMonthPeriod()}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">Quarterly GMV Target ($)</label>
+              <input
+                type="number"
+                min="0"
+                step="1000"
+                value={goals.quarterlyGmvTarget ?? ''}
+                onChange={e => setGoals(prev => ({ ...prev, quarterlyGmvTarget: e.target.value ? Number(e.target.value) : undefined }))}
+                placeholder="e.g. 150000"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">Quarterly Period</label>
+              <input
+                type="text"
+                value={goals.quarterlyPeriod ?? ''}
+                onChange={e => setGoals(prev => ({ ...prev, quarterlyPeriod: e.target.value || undefined }))}
+                placeholder={getCurrentQuarterPeriod()}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">Weekly Videos Target</label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={goals.weeklyVideosTarget ?? ''}
+                onChange={e => setGoals(prev => ({ ...prev, weeklyVideosTarget: e.target.value ? Number(e.target.value) : undefined }))}
+                placeholder="e.g. 20"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">Active G3 Creators Target</label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={goals.activeG3Target ?? ''}
+                onChange={e => setGoals(prev => ({ ...prev, activeG3Target: e.target.value ? Number(e.target.value) : undefined }))}
+                placeholder="e.g. 5"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+              />
+            </div>
+          </div>
+
+          {goalsError && <p className="text-xs text-red-600">{goalsError}</p>}
+          {goalsStatus === 'success' && <p className="text-xs text-green-600">✓ Goals saved</p>}
+          <button
+            onClick={saveGoals}
+            disabled={goalsStatus === 'saving'}
+            className="bg-gray-900 text-white text-sm font-medium px-5 py-2 rounded-xl hover:bg-gray-800 disabled:opacity-40 transition-colors"
+          >
+            {goalsStatus === 'saving' ? 'Saving…' : 'Save Goals'}
+          </button>
         </div>
       </div>
 

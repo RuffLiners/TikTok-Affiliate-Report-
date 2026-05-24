@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase'
 import { WeeklyReport } from '@/lib/types'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { KpiCard } from '@/components/KpiCard'
@@ -31,6 +32,22 @@ export default async function ReportPage({ params }: Props) {
   const report = data as WeeklyReport
   const d = report.d30
 
+  // Fetch goals from app_config
+  const adminSupabase = supabaseAdmin()
+  const { data: goalsConfig } = await adminSupabase
+    .from('app_config').select('value').eq('key', 'goals').single()
+  const goals = goalsConfig ? (() => { try { return JSON.parse(goalsConfig.value) } catch { return null } })() : null
+
+  // Compute last-week and current-month stats
+  const wc = report.weekly_charts
+  const lastWeekGmv = wc.gmv.at(-1) ?? 0
+  const lastWeekVid = wc.vid.at(-1) ?? 0
+  const lastWeekLabel = wc.labels.at(-1) ?? ''
+  const mc = report.monthly_charts
+  const currentMonthGmv = mc.gmv.at(-1) ?? 0
+  const currentMonthLabel = (mc.labels.at(-1) ?? '').replace('*', '').trim()
+  const qtdGmv = mc.gmv.slice(-3).reduce((a: number, b: number) => a + b, 0)
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 px-6 py-4 sticky top-0 z-10">
@@ -56,6 +73,7 @@ export default async function ReportPage({ params }: Props) {
             <TabsTrigger value="30d">Last 30 Days</TabsTrigger>
             <TabsTrigger value="weekly">Weekly · 13 wks</TabsTrigger>
             <TabsTrigger value="monthly">Monthly · 6 mo</TabsTrigger>
+            <TabsTrigger value="insights">Insights</TabsTrigger>
           </TabsList>
 
           {/* ── 30 DAY TAB ── */}
@@ -142,6 +160,100 @@ export default async function ReportPage({ params }: Props) {
           <TabsContent value="monthly">
             <AnalysisCard text={report.analysis?.monthly ?? ''} title="Monthly Analysis" />
             <MonthlyCharts data={report.monthly_charts} />
+          </TabsContent>
+
+          {/* ── INSIGHTS TAB ── */}
+          <TabsContent value="insights" className="space-y-6">
+            {/* Last week snapshot */}
+            <section>
+              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+                Last Week · week of {lastWeekLabel}
+              </h2>
+              <div className="grid grid-cols-2 gap-3">
+                <KpiCard label="Affiliate GMV" value={lastWeekGmv} format="currency" />
+                <KpiCard label="Videos Posted" value={lastWeekVid} format="number" />
+              </div>
+            </section>
+
+            {/* Goals progress — only if goals are set */}
+            {goals && (goals.monthlyGmvTarget || goals.quarterlyGmvTarget) && (
+              <section>
+                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+                  Goals &amp; Targets
+                </h2>
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
+                  {goals.monthlyGmvTarget && (() => {
+                    const pct = Math.min((currentMonthGmv / goals.monthlyGmvTarget) * 100, 100)
+                    const onTrack = currentMonthGmv >= goals.monthlyGmvTarget * 0.7
+                    return (
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs font-medium text-gray-600">Monthly GMV · {goals.monthlyPeriod ?? currentMonthLabel}</span>
+                          <span className="text-xs font-semibold text-gray-900">
+                            ${Math.round(currentMonthGmv).toLocaleString('en-US')} / ${Math.round(goals.monthlyGmvTarget).toLocaleString('en-US')}
+                          </span>
+                        </div>
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full transition-all ${onTrack ? 'bg-green-500' : 'bg-amber-400'}`} style={{ width: `${pct}%` }} />
+                        </div>
+                        <p className={`text-xs mt-1 ${onTrack ? 'text-green-600' : 'text-amber-600'}`}>
+                          {pct.toFixed(0)}% of goal · {onTrack ? 'On track' : 'Behind pace'}
+                        </p>
+                      </div>
+                    )
+                  })()}
+                  {goals.quarterlyGmvTarget && (() => {
+                    const pct = Math.min((qtdGmv / goals.quarterlyGmvTarget) * 100, 100)
+                    const onTrack = qtdGmv >= goals.quarterlyGmvTarget * 0.6
+                    return (
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs font-medium text-gray-600">Quarterly GMV · {goals.quarterlyPeriod ?? 'Current Quarter'}</span>
+                          <span className="text-xs font-semibold text-gray-900">
+                            ${Math.round(qtdGmv).toLocaleString('en-US')} / ${Math.round(goals.quarterlyGmvTarget).toLocaleString('en-US')}
+                          </span>
+                        </div>
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full transition-all ${onTrack ? 'bg-green-500' : 'bg-amber-400'}`} style={{ width: `${pct}%` }} />
+                        </div>
+                        <p className={`text-xs mt-1 ${onTrack ? 'text-green-600' : 'text-amber-600'}`}>
+                          {pct.toFixed(0)}% of goal · {onTrack ? 'On track' : 'Behind pace'}
+                        </p>
+                      </div>
+                    )
+                  })()}
+                  {goals.weeklyVideosTarget && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-500">Weekly videos target</span>
+                      <span className={`font-semibold ${lastWeekVid >= goals.weeklyVideosTarget ? 'text-green-600' : 'text-amber-600'}`}>
+                        {lastWeekVid} / {goals.weeklyVideosTarget} {lastWeekVid >= goals.weeklyVideosTarget ? '✓' : ''}
+                      </span>
+                    </div>
+                  )}
+                  {goals.activeG3Target && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-500">Active G3 creators target</span>
+                      <span className="text-xs text-gray-400">Target: {goals.activeG3Target} — see report for current count</span>
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* New analysis format */}
+            <AnalysisCard text={report.analysis?.performance ?? ''} title="Performance" variant="green" />
+            <AnalysisCard text={report.analysis?.creators ?? ''} title="Creator & Content Highlights" variant="purple" />
+            <AnalysisCard text={report.analysis?.recruiting ?? ''} title="Recruiting Priorities" variant="orange" />
+            <AnalysisCard text={report.analysis?.growth ?? ''} title="Growth Opportunities" variant="blue" />
+
+            {/* Fallback: show legacy analysis if no new-format content */}
+            {!report.analysis?.performance && !report.analysis?.creators && !report.analysis?.recruiting && !report.analysis?.growth && (
+              <div className="space-y-4">
+                <AnalysisCard text={report.analysis?.d30 ?? ''} title="30-Day Analysis" />
+                <AnalysisCard text={report.analysis?.weekly ?? ''} title="Weekly Trend Analysis" />
+                <AnalysisCard text={report.analysis?.monthly ?? ''} title="Monthly Analysis" />
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </main>

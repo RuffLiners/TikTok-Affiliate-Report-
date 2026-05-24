@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { format, subDays } from 'date-fns'
 import { ManageTab } from './ManageTab'
 
@@ -26,13 +26,31 @@ type GenStatus  = 'idle' | 'running' | 'success' | 'error'
 
 const STORE_ID = '455ea4f9-a404-411b-b748-9ba1929efb93'
 
-function buildClaudePrompt(today: Date): string {
+function buildClaudePrompt(today: Date, goals?: any): string {
   const gmvEnd   = subDays(today, 2)
   const gmvStart = subDays(gmvEnd, 29)
   const priorEnd  = subDays(gmvStart, 1)
   const priorStart = subDays(priorEnd, 29)
   const f = (d: Date) => format(d, 'yyyy-MM-dd')
   const fLabel = (d: Date) => format(d, 'MMM d')
+
+  let goalsSection = ''
+  if (goals && (goals.monthlyGmvTarget || goals.quarterlyGmvTarget || goals.weeklyVideosTarget || goals.activeG3Target)) {
+    goalsSection = `\nGOALS & TARGETS — reference these when writing analysis:\n`
+    if (goals.monthlyGmvTarget) {
+      goalsSection += `- Monthly GMV goal: $${Math.round(goals.monthlyGmvTarget).toLocaleString('en-US')}${goals.monthlyPeriod ? ` (${goals.monthlyPeriod})` : ''}\n`
+    }
+    if (goals.quarterlyGmvTarget) {
+      goalsSection += `- Quarterly GMV goal: $${Math.round(goals.quarterlyGmvTarget).toLocaleString('en-US')}${goals.quarterlyPeriod ? ` (${goals.quarterlyPeriod})` : ''}\n`
+    }
+    if (goals.weeklyVideosTarget) {
+      goalsSection += `- Weekly videos target: ${goals.weeklyVideosTarget}/week\n`
+    }
+    if (goals.activeG3Target) {
+      goalsSection += `- Active G3 creators target: ${goals.activeG3Target}\n`
+    }
+    goalsSection += '\n'
+  }
 
   return `Run the Ruff Liners TikTok Shop weekly report for today ${format(today, 'MMMM d, yyyy')}.
 
@@ -63,11 +81,12 @@ QUERIES TO RUN (read every CSV file Euka returns):
 16. 6 months by tier: creators, new creators, videos, GMV (18 rows)
 17. 6 months: retention rate per month (6 rows)
 18. 6 months: messages + samples by tier per month (18 rows)
-
-ANALYSIS — after pulling all data, write for 3 sections:
-- "d30": 4–5 paragraphs — headline, GMV drivers by tier, creator health + retention, GMV Max ROI, recruiting effectiveness, 30d forward projection
-- "weekly": 3 paragraphs — 13-week arc, creator/content patterns, recruiting lag correlations
-- "monthly": 3 paragraphs — 6-month growth rate, tier mix shifts, strategic outlook
+${goalsSection}
+ANALYSIS — write 4 focused sections after pulling all data:
+- "performance": 3–4 paragraphs — This week's headline numbers (last complete Sun–Sat week), MTD progress vs monthly goal (state if on/off track and by how much), QTD progress vs quarterly goal, what's driving results. Be specific: name the creators/products/tiers moving the numbers.
+- "creators": 2–3 paragraphs — New creator breakouts: any creator in their first 1–3 weeks already generating meaningful GMV (name them, their numbers, why they're exciting). Top performing content this week (specific video + creator + GMV). Which tier is most active and most productive per creator. G3 activation pace vs target.
+- "recruiting": 2–3 paragraphs — Top reactivation targets: inactive creators with high global GMV who haven't posted recently (name them, their global GMV, last post timing). Current outreach mix analysis (G2 vs G3 balance, is it aligned with where GMV comes from?). Sample allocation recommendations. Concrete next-week recruiting actions.
+- "growth": 2–3 paragraphs — 13-week GMV trend direction and momentum. Which tier/product/content format is the primary growth engine right now. 2–3 specific opportunities to pursue this week. 1–2 risks to monitor. 4-week forward outlook with upside and downside scenarios.
 
 OUTPUT — respond with ONLY this JSON object, nothing before or after it:
 
@@ -124,9 +143,10 @@ OUTPUT — respond with ONLY this JSON object, nothing before or after it:
     ]
   },
   "analysis": {
-    "d30": "Write 4–5 paragraphs here. Use \\n\\n between paragraphs.",
-    "weekly": "Write 3 paragraphs here. Use \\n\\n between paragraphs.",
-    "monthly": "Write 3 paragraphs here. Use \\n\\n between paragraphs."
+    "performance": "Write 3-4 paragraphs. Use \\n\\n between paragraphs.",
+    "creators": "Write 2-3 paragraphs. Use \\n\\n between paragraphs.",
+    "recruiting": "Write 2-3 paragraphs. Use \\n\\n between paragraphs.",
+    "growth": "Write 2-3 paragraphs. Use \\n\\n between paragraphs."
   }
 }
 
@@ -158,8 +178,22 @@ export default function AdminPage() {
   const [genResult, setGenRes]  = useState<{ label: string; gmv: number; reportDate: string } | null>(null)
   const [genStep, setGenStep]   = useState(0)
 
+  const [goals, setGoals]       = useState<any>(null)
+
+  // Read tab from URL on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const t = params.get('tab')
+    if (t === 'manage' || t === 'auto' || t === 'paste') setTab(t)
+  }, [])
+
+  // Fetch goals on mount
+  useEffect(() => {
+    fetch('/api/admin/goals').then(r => r.json()).then(d => { if (!d.error) setGoals(d) })
+  }, [])
+
   const today = new Date()
-  const prompt = buildClaudePrompt(selectedDate)
+  const prompt = buildClaudePrompt(selectedDate, goals)
   const gmvEnd = subDays(selectedDate, 2)
   const gmvStart = subDays(gmvEnd, 29)
   const dataWindow = `${format(gmvStart, 'MMM d')} – ${format(gmvEnd, 'MMM d, yyyy')}`
@@ -355,7 +389,7 @@ export default function AdminPage() {
                   <span className="w-6 h-6 rounded-full bg-gray-900 text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">3</span>
                   <div>
                     <p className="text-sm font-medium text-gray-800">Wait for Claude to finish (~5–10 min)</p>
-                    <p className="text-xs text-gray-400 mt-0.5">Claude will run ~18 Euka queries then write analysis for all 3 tabs. When done, it outputs a single large JSON block.</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Claude will run ~18 Euka queries then write analysis for 4 focused sections. When done, it outputs a single large JSON block.</p>
                   </div>
                 </div>
 
@@ -506,7 +540,7 @@ export default function AdminPage() {
                   </span>
                 </div>
                 <p className="text-sm text-gray-400 mb-5">
-                  Pulls all TikTok Shop data from Euka automatically and writes analysis for all 3 report tabs. Takes ~5 minutes.
+                  Pulls all TikTok Shop data from Euka automatically and writes analysis for all 4 report sections. Takes ~5 minutes.
                 </p>
                 <button
                   onClick={generate}
