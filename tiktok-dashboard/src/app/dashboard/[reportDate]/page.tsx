@@ -12,6 +12,7 @@ import { WeeklyCharts } from '@/components/charts/WeeklyCharts'
 import { MonthlyCharts } from '@/components/charts/MonthlyCharts'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
+import { AnalysisCard } from '@/components/AnalysisCard'
 
 export const revalidate = 3600
 
@@ -59,6 +60,7 @@ export default async function ReportPage({ params }: Props) {
 
           {/* ── 30 DAY TAB ── */}
           <TabsContent value="30d" className="space-y-6">
+            <AnalysisCard text={report.analysis?.d30 ?? ''} title="30-Day Analysis" />
             <section>
               <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Overview</h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -132,11 +134,13 @@ export default async function ReportPage({ params }: Props) {
 
           {/* ── WEEKLY TAB ── */}
           <TabsContent value="weekly">
+            <AnalysisCard text={report.analysis?.weekly ?? ''} title="Weekly Trend Analysis" />
             <WeeklyCharts data={report.weekly_charts} />
           </TabsContent>
 
           {/* ── MONTHLY TAB ── */}
           <TabsContent value="monthly">
+            <AnalysisCard text={report.analysis?.monthly ?? ''} title="Monthly Analysis" />
             <MonthlyCharts data={report.monthly_charts} />
           </TabsContent>
         </Tabs>

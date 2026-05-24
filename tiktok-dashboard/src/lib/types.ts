@@ -92,6 +92,11 @@ export interface WeeklyReport {
   weekly_charts: WeeklyCharts
   monthly_charts: MonthlyCharts
   tables: ReportTables
+  analysis?: {
+    d30: string
+    weekly: string
+    monthly: string
+  }
 }
 
 export interface ReportMeta {
