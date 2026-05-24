@@ -53,6 +53,15 @@ export default function LoginPage() {
             {loading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
+
+        <div className="mt-4 pt-4 border-t border-gray-100 text-center">
+          <a
+            href="/api/auth/guest"
+            className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            View dashboard without password →
+          </a>
+        </div>
       </div>
     </div>
   )
