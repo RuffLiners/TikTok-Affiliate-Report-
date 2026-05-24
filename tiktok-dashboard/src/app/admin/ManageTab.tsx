@@ -47,7 +47,6 @@ export function ManageTab() {
   const [replaceError, setReplaceError]     = useState('')
 
   // Delete
-  const [deletePassword, setDeletePw]       = useState('')
   const [deleteStatus, setDeleteStatus]     = useState<'idle'|'deleting'|'error'>('idle')
   const [deleteError, setDeleteError]       = useState('')
 
@@ -88,7 +87,6 @@ export function ManageTab() {
 
   function closeModal() {
     setModal(null)
-    setDeletePw('')
     setDeleteStatus('idle')
     setDeleteError('')
   }
@@ -225,7 +223,7 @@ export function ManageTab() {
     const res = await fetch('/api/admin/delete-report', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reportDate: date, password: deletePassword }),
+      body: JSON.stringify({ reportDate: date }),
     })
     const data = await res.json().catch(() => ({}))
 
@@ -317,31 +315,19 @@ export function ManageTab() {
             {modal.type === 'delete' && (
               <>
                 <h3 className="font-semibold text-gray-900 mb-1">Delete this report?</h3>
-                <p className="text-sm text-gray-500 mb-4">
+                <p className="text-sm text-gray-500 mb-6">
                   <strong>{modal.label}</strong> will be permanently deleted. This cannot be undone.
                 </p>
-                <div className="mb-5">
-                  <label className="text-xs font-medium text-gray-600 block mb-1">Super admin password</label>
-                  <input
-                    type="password"
-                    autoFocus
-                    value={deletePassword}
-                    onChange={e => { setDeletePw(e.target.value); setDeleteStatus('idle'); setDeleteError('') }}
-                    onKeyDown={e => e.key === 'Enter' && deletePassword && doDelete(modal.date)}
-                    placeholder="Enter password to confirm"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
-                  />
-                  {deleteStatus === 'error' && (
-                    <p className="text-xs text-red-600 mt-1">{deleteError}</p>
-                  )}
-                </div>
+                {deleteStatus === 'error' && (
+                  <p className="text-xs text-red-600 mb-3">{deleteError}</p>
+                )}
                 <div className="flex gap-2 justify-end">
                   <button onClick={closeModal} className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
                     Cancel
                   </button>
                   <button
                     onClick={() => doDelete(modal.date)}
-                    disabled={!deletePassword || deleteStatus === 'deleting'}
+                    disabled={deleteStatus === 'deleting'}
                     className="text-sm px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
                   >
                     {deleteStatus === 'deleting' ? 'Deleting…' : 'Delete Forever'}
