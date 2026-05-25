@@ -105,55 +105,63 @@ export default async function DashboardPage() {
                       </p>
                     </div>
                     <div className="flex items-center gap-6">
-                      {/* Last-week stats */}
+                      {/* Weekly group */}
                       {(wGmv != null || wVid != null) && (
-                        <div className="hidden sm:flex items-center gap-5 text-right">
-                          {wGmv != null && (
-                            <div>
-                              <p className="text-sm font-semibold text-gray-900">{fmt$(wGmv)}</p>
-                              {wGmvPct != null && (
-                                <p className={`text-xs font-medium ${wGmvPct >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                                  {wGmvPct >= 0 ? '↑' : '↓'} {Math.abs(wGmvPct).toFixed(1)}%
-                                </p>
-                              )}
-                              {wGmvPct == null && <p className="text-xs text-gray-400">last wk GMV</p>}
-                            </div>
-                          )}
-                          {wVid != null && (
-                            <div>
-                              <p className="text-sm font-semibold text-gray-900">{fmtN(wVid)}</p>
-                              {wVidPct != null && (
-                                <p className={`text-xs font-medium ${wVidPct >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                                  {wVidPct >= 0 ? '↑' : '↓'} {Math.abs(wVidPct).toFixed(1)}%
-                                </p>
-                              )}
-                              {wVidPct == null && <p className="text-xs text-gray-400">videos</p>}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      {/* 30-day totals */}
-                      <div className="flex items-center gap-5 text-right">
-                        <div className="text-right">
-                          <p className="text-xl font-semibold text-gray-900">{fmt$(gmv)}</p>
-                          <p className={`text-xs font-medium ${pct >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                            {pct >= 0 ? '↑' : '↓'} {Math.abs(pct).toFixed(1)}% vs prior 30d
-                          </p>
-                        </div>
-                        {d30Videos != null && (
-                          <div className="hidden sm:block text-right">
-                            <p className="text-sm font-semibold text-gray-900">{fmtN(d30Videos)}</p>
-                            {d30VideosPct != null ? (
-                              <p className={`text-xs font-medium ${d30VideosPct >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                                {d30VideosPct >= 0 ? '↑' : '↓'} {Math.abs(d30VideosPct).toFixed(1)}% vs prior 30d
-                              </p>
-                            ) : (
-                              <p className="text-xs text-gray-400">30d videos</p>
+                        <div className="hidden sm:block text-right">
+                          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Weekly</p>
+                          <div className="flex items-start gap-5">
+                            {wGmv != null && (
+                              <div>
+                                <p className="text-sm font-semibold text-gray-900">{fmt$(wGmv)}</p>
+                                {wGmvPct != null ? (
+                                  <p className={`text-xs font-medium ${wGmvPct >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                    {wGmvPct >= 0 ? '↑' : '↓'} {Math.abs(wGmvPct).toFixed(1)}%
+                                  </p>
+                                ) : (
+                                  <p className="text-xs text-gray-400">GMV</p>
+                                )}
+                              </div>
+                            )}
+                            {wVid != null && (
+                              <div>
+                                <p className="text-sm font-semibold text-gray-900">{fmtN(wVid)}</p>
+                                {wVidPct != null ? (
+                                  <p className={`text-xs font-medium ${wVidPct >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                    {wVidPct >= 0 ? '↑' : '↓'} {Math.abs(wVidPct).toFixed(1)}%
+                                  </p>
+                                ) : (
+                                  <p className="text-xs text-gray-400">videos</p>
+                                )}
+                              </div>
                             )}
                           </div>
-                        )}
+                        </div>
+                      )}
+                      {/* Last 30D group */}
+                      <div className="text-right">
+                        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Last 30D</p>
+                        <div className="flex items-start gap-5">
+                          <div>
+                            <p className="text-xl font-semibold text-gray-900">{fmt$(gmv)}</p>
+                            <p className={`text-xs font-medium ${pct >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                              {pct >= 0 ? '↑' : '↓'} {Math.abs(pct).toFixed(1)}% vs prior
+                            </p>
+                          </div>
+                          {d30Videos != null && (
+                            <div className="hidden sm:block">
+                              <p className="text-sm font-semibold text-gray-900">{fmtN(d30Videos)}</p>
+                              {d30VideosPct != null ? (
+                                <p className={`text-xs font-medium ${d30VideosPct >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                  {d30VideosPct >= 0 ? '↑' : '↓'} {Math.abs(d30VideosPct).toFixed(1)}% vs prior
+                                </p>
+                              ) : (
+                                <p className="text-xs text-gray-400">videos</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <span className="text-gray-300 group-hover:text-gray-500 transition-colors">→</span>
+                      <span className="text-gray-300 group-hover:text-gray-500 transition-colors self-center">→</span>
                     </div>
                   </div>
                 </Link>
