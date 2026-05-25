@@ -39,6 +39,9 @@ export default async function DashboardPage() {
                 </Link>
               </>
             )}
+            <a href="/api/auth/logout" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+              Sign out
+            </a>
           </div>
         </div>
       </header>
