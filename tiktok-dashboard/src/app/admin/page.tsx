@@ -3,17 +3,31 @@ import { useState, useEffect } from 'react'
 import { format, subDays } from 'date-fns'
 import { ManageTab } from './ManageTab'
 
-function getLastMonday(from: Date = new Date()): Date {
+function getReportMonday(from: Date = new Date()): Date {
   const day = from.getDay() // 0=Sun,1=Mon,...,6=Sat
-  const daysBack = day === 0 ? 6 : day - 1
   const d = new Date(from)
-  d.setDate(d.getDate() - daysBack)
   d.setHours(0, 0, 0, 0)
+  if (day === 0) {
+    // Sunday: last complete Sun-Sat week ended yesterday; report Monday = tomorrow
+    d.setDate(d.getDate() + 1)
+  } else {
+    // Mon: today; Tue-Sat: back to last Monday
+    d.setDate(d.getDate() - (day - 1))
+  }
   return d
 }
 
+function weekLabel(monday: Date): string {
+  const sat = subDays(monday, 2)   // Saturday of the reported week
+  const sun = subDays(monday, 8)   // Sunday of the reported week
+  const sameMo = sun.getMonth() === sat.getMonth()
+  return sameMo
+    ? `${format(sun, 'MMM d')}–${format(sat, 'd')}`
+    : `${format(sun, 'MMM d')}–${format(sat, 'MMM d')}`
+}
+
 function getRecentMondays(n: number): Date[] {
-  const last = getLastMonday()
+  const last = getReportMonday()
   return Array.from({ length: n }, (_, i) => {
     const d = new Date(last)
     d.setDate(d.getDate() - i * 7)
@@ -165,7 +179,7 @@ const GENERATE_STEPS = [
 
 export default function AdminPage() {
   const [tab, setTab]           = useState<'paste' | 'auto' | 'manage'>('paste')
-  const [selectedDate, setSelectedDate] = useState<Date>(() => getLastMonday())
+  const [selectedDate, setSelectedDate] = useState<Date>(() => getReportMonday())
   const mondays = getRecentMondays(5)
   const [json, setJson]         = useState('')
   const [saveStatus, setSave]   = useState<SaveStatus>('idle')
@@ -321,8 +335,8 @@ export default function AdminPage() {
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
             <div className="flex items-start justify-between mb-3">
               <div>
-                <p className="text-sm font-semibold text-gray-900">Report date</p>
-                <p className="text-xs text-gray-400 mt-0.5">Select the Monday this report covers. Defaults to the most recent Monday.</p>
+                <p className="text-sm font-semibold text-gray-900">Week covered</p>
+                <p className="text-xs text-gray-400 mt-0.5">Select the Sun–Sat week. Defaults to the most recently completed week.</p>
               </div>
               <span className="text-xs text-gray-400 bg-gray-50 border border-gray-100 px-2.5 py-1 rounded-full">
                 Data: {dataWindow}
@@ -341,7 +355,7 @@ export default function AdminPage() {
                         : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
                     }`}
                   >
-                    {i === 0 ? `${format(m, 'MMM d')} ← last Mon` : format(m, 'MMM d')}
+                    {weekLabel(m)}{i === 0 ? ' ←' : ''}
                   </button>
                 )
               })}
