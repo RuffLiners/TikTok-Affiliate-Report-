@@ -77,10 +77,11 @@ export default async function DashboardPage() {
         ) : (
           <div className="space-y-3">
             {reports.map(r => {
-              const d30 = r.d30 as { gmv?: number; gmvPct?: number; videos?: number }
+              const d30 = r.d30 as { gmv?: number; gmvPct?: number; videos?: number; videosPct?: number }
               const gmv = d30?.gmv ?? 0
               const pct = d30?.gmvPct ?? 0
               const d30Videos = d30?.videos ?? null
+              const d30VideosPct = d30?.videosPct ?? null
               const wc = r.weekly_charts as { gmv?: number[]; vid?: number[]; labels?: string[] } | null
               const wGmv = wc?.gmv?.at(-1) ?? null
               const wGmvPrev = wc?.gmv?.at(-2) ?? null
@@ -142,7 +143,13 @@ export default async function DashboardPage() {
                         {d30Videos != null && (
                           <div className="hidden sm:block text-right">
                             <p className="text-sm font-semibold text-gray-900">{fmtN(d30Videos)}</p>
-                            <p className="text-xs text-gray-400">30d videos</p>
+                            {d30VideosPct != null ? (
+                              <p className={`text-xs font-medium ${d30VideosPct >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                {d30VideosPct >= 0 ? '↑' : '↓'} {Math.abs(d30VideosPct).toFixed(1)}% vs prior 30d
+                              </p>
+                            ) : (
+                              <p className="text-xs text-gray-400">30d videos</p>
+                            )}
                           </div>
                         )}
                       </div>

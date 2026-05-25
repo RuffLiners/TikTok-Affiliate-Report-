@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git push*)",
+            "command": "cmd=$(jq -r '.tool_input.command // empty'); if echo \"$cmd\" | grep -qE 'git push' && ! echo \"$cmd\" | grep -q 'claude/friendly-gauss-AGnJ3'; then echo '{\"decision\": \"block\", \"reason\": \"Only push to the production branch: claude/friendly-gauss-AGnJ3. Use: git push origin claude/friendly-gauss-AGnJ3\"}'; fi"
+          }
+        ]
+      }
+    ]
+  }
+}
