@@ -41,10 +41,13 @@ type GenStatus  = 'idle' | 'running' | 'success' | 'error'
 const STORE_ID = '455ea4f9-a404-411b-b748-9ba1929efb93'
 
 function buildClaudePrompt(today: Date, goals?: any): string {
-  const gmvEnd   = subDays(today, 2)
+  const gmvEnd   = subDays(today, 2)   // always a Saturday (today is Monday)
   const gmvStart = subDays(gmvEnd, 29)
   const priorEnd  = subDays(gmvStart, 1)
   const priorStart = subDays(priorEnd, 29)
+  // last complete Sun–Sat week (gmvEnd is always the Saturday)
+  const weekSat   = gmvEnd
+  const weekSun   = subDays(weekSat, 6)
   const f = (d: Date) => format(d, 'yyyy-MM-dd')
   const fLabel = (d: Date) => format(d, 'MMM d')
 
@@ -73,7 +76,8 @@ Store ID: ${STORE_ID}
 DATE WINDOWS — use these exactly:
 - Current 30d: ${f(gmvStart)} to ${f(gmvEnd)}
 - Prior 30d: ${f(priorStart)} to ${f(priorEnd)}
-- 13 complete Sun–Sat weeks ending on the most recent Saturday before ${f(gmvEnd)}
+- Last complete week (most recent Sun–Sat): ${f(weekSun)} to ${f(weekSat)} — use this as "this week" in analysis
+- 13 complete Sun–Sat weeks ending on ${f(weekSat)} (inclusive — the most recent complete week IS ${f(weekSun)}–${f(weekSat)})
 - 6 months: the 5 complete calendar months before this one + current partial month through ${f(gmvEnd)}
 
 QUERIES TO RUN (read every CSV file Euka returns):
