@@ -83,19 +83,25 @@ export interface ReportTables {
 }
 
 export interface Goals {
-  monthlyGmvTarget?: number
-  monthlyPeriod?: string
-  quarterlyGmvTarget?: number
-  quarterlyPeriod?: string
-  // Videos per week — total and per tier
-  weeklyVideosTarget?: number
-  weeklyVideosG1Target?: number
-  weeklyVideosG2Target?: number
-  weeklyVideosG3Target?: number
+  // Revenue
+  monthlyGmvTarget?: number;    monthlyPeriod?: string
+  quarterlyGmvTarget?: number;  quarterlyPeriod?: string
+  // Videos per month
+  monthlyVideosTarget?: number;   monthlyVideosPeriod?: string
+  monthlyVideosG1Target?: number; monthlyVideosG2Target?: number; monthlyVideosG3Target?: number
+  // Samples per month
+  monthlySamplesTarget?: number;  monthlySamplesPeriod?: string
+  // GMV Max Spend
+  monthlyGmvMaxSpendTarget?: number;    monthlyGmvMaxSpendPeriod?: string
+  quarterlyGmvMaxSpendTarget?: number;  quarterlyGmvMaxSpendPeriod?: string
+  // GMV Max ROI
+  monthlyGmvMaxRoiTarget?: number;    monthlyGmvMaxRoiPeriod?: string
+  quarterlyGmvMaxRoiTarget?: number;  quarterlyGmvMaxRoiPeriod?: string
   // Active creators (30-day) per tier
-  activeG1Target?: number
-  activeG2Target?: number
-  activeG3Target?: number
+  activeG1Target?: number; activeG2Target?: number; activeG3Target?: number
+  // Legacy fields (kept for backward compat)
+  weeklyVideosTarget?: number
+  weeklyVideosG1Target?: number; weeklyVideosG2Target?: number; weeklyVideosG3Target?: number
 }
 
 export interface WeeklyReport {

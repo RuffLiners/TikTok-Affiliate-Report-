@@ -16,17 +16,42 @@ type ModalState =
 
 const fmt$ = (n: number) => '$' + Math.round(n).toLocaleString('en-US')
 
-function getCurrentMonthPeriod(): string {
+function getMonthOptions(): string[] {
+  const opts: string[] = []
   const now = new Date()
-  return now.toLocaleString('en-US', { month: 'long', year: 'numeric' })
+  for (let i = -2; i <= 3; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
+    opts.push(d.toLocaleString('en-US', { month: 'long', year: 'numeric' }))
+  }
+  return opts
 }
 
-function getCurrentQuarterPeriod(): string {
+function getQuarterOptions(): string[] {
   const now = new Date()
-  const month = now.getMonth() // 0-indexed
-  const quarter = Math.floor(month / 3) + 1
-  const year = now.getFullYear()
-  return `Q${quarter} ${year}`
+  let q = Math.floor(now.getMonth() / 3) + 1
+  let y = now.getFullYear()
+  const opts: string[] = []
+  for (let i = -1; i <= 2; i++) {
+    let qo = q + i, yo = y
+    while (qo < 1) { qo += 4; yo-- }
+    while (qo > 4) { qo -= 4; yo++ }
+    opts.push(`Q${qo} ${yo}`)
+  }
+  return opts
+}
+
+function PeriodSelect({ value, onChange, type }: { value?: string; onChange: (v: string) => void; type: 'month' | 'quarter' }) {
+  const options = type === 'month' ? getMonthOptions() : getQuarterOptions()
+  return (
+    <select
+      value={value ?? ''}
+      onChange={e => onChange(e.target.value)}
+      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white"
+    >
+      <option value="">Period…</option>
+      {options.map(o => <option key={o} value={o}>{o}</option>)}
+    </select>
+  )
 }
 
 export function ManageTab() {
@@ -60,10 +85,15 @@ export function ManageTab() {
 
   // Goals
   const [goals, setGoals] = useState<{
-    monthlyGmvTarget?: number; monthlyPeriod?: string
-    quarterlyGmvTarget?: number; quarterlyPeriod?: string
-    weeklyVideosTarget?: number
-    weeklyVideosG1Target?: number; weeklyVideosG2Target?: number; weeklyVideosG3Target?: number
+    monthlyGmvTarget?: number;    monthlyPeriod?: string
+    quarterlyGmvTarget?: number;  quarterlyPeriod?: string
+    monthlyVideosTarget?: number; monthlyVideosPeriod?: string
+    monthlyVideosG1Target?: number; monthlyVideosG2Target?: number; monthlyVideosG3Target?: number
+    monthlySamplesTarget?: number;  monthlySamplesPeriod?: string
+    monthlyGmvMaxSpendTarget?: number;   monthlyGmvMaxSpendPeriod?: string
+    quarterlyGmvMaxSpendTarget?: number; quarterlyGmvMaxSpendPeriod?: string
+    monthlyGmvMaxRoiTarget?: number;     monthlyGmvMaxRoiPeriod?: string
+    quarterlyGmvMaxRoiTarget?: number;   quarterlyGmvMaxRoiPeriod?: string
     activeG1Target?: number; activeG2Target?: number; activeG3Target?: number
   }>({})
   const [goalsStatus, setGoalsStatus] = useState<'idle'|'saving'|'success'|'error'>('idle')
@@ -491,71 +521,163 @@ export function ManageTab() {
           Set performance targets. These appear in the Insights tab and are referenced in AI-generated analysis prompts.
         </p>
 
-        <div className="space-y-5 max-w-lg">
+        <div className="space-y-6 max-w-lg">
 
-          {/* Revenue Goals */}
+          {/* Revenue — GMV */}
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Revenue</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-gray-600 block mb-1">Monthly GMV Target ($)</label>
-                <input type="number" min="0" step="1000"
-                  value={goals.monthlyGmvTarget ?? ''}
-                  onChange={e => setGoals(prev => ({ ...prev, monthlyGmvTarget: e.target.value ? Number(e.target.value) : undefined }))}
-                  placeholder="e.g. 200000"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-                />
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Revenue — GMV</p>
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-600 block mb-1">Monthly Target ($)</label>
+                  <input type="number" min="0" step="1000"
+                    value={goals.monthlyGmvTarget ?? ''}
+                    onChange={e => setGoals(p => ({ ...p, monthlyGmvTarget: e.target.value ? Number(e.target.value) : undefined }))}
+                    placeholder="e.g. 200000"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600 block mb-1">Month</label>
+                  <PeriodSelect type="month" value={goals.monthlyPeriod} onChange={v => setGoals(p => ({ ...p, monthlyPeriod: v || undefined }))} />
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-medium text-gray-600 block mb-1">Monthly Period</label>
-                <input type="text"
-                  value={goals.monthlyPeriod ?? ''}
-                  onChange={e => setGoals(prev => ({ ...prev, monthlyPeriod: e.target.value || undefined }))}
-                  placeholder={getCurrentMonthPeriod()}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-600 block mb-1">Quarterly GMV Target ($)</label>
-                <input type="number" min="0" step="1000"
-                  value={goals.quarterlyGmvTarget ?? ''}
-                  onChange={e => setGoals(prev => ({ ...prev, quarterlyGmvTarget: e.target.value ? Number(e.target.value) : undefined }))}
-                  placeholder="e.g. 550000"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-600 block mb-1">Quarterly Period</label>
-                <input type="text"
-                  value={goals.quarterlyPeriod ?? ''}
-                  onChange={e => setGoals(prev => ({ ...prev, quarterlyPeriod: e.target.value || undefined }))}
-                  placeholder={getCurrentQuarterPeriod()}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-600 block mb-1">Quarterly Target ($)</label>
+                  <input type="number" min="0" step="1000"
+                    value={goals.quarterlyGmvTarget ?? ''}
+                    onChange={e => setGoals(p => ({ ...p, quarterlyGmvTarget: e.target.value ? Number(e.target.value) : undefined }))}
+                    placeholder="e.g. 550000"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600 block mb-1">Quarter</label>
+                  <PeriodSelect type="quarter" value={goals.quarterlyPeriod} onChange={v => setGoals(p => ({ ...p, quarterlyPeriod: v || undefined }))} />
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Videos Per Week */}
+          {/* Videos Per Month */}
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Videos Per Week</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Videos Per Month</p>
+            <div className="mb-2">
+              <label className="text-xs font-medium text-gray-600 block mb-1">Month</label>
+              <PeriodSelect type="month" value={goals.monthlyVideosPeriod} onChange={v => setGoals(p => ({ ...p, monthlyVideosPeriod: v || undefined }))} />
+            </div>
             <div className="grid grid-cols-4 gap-3">
               {([
-                { key: 'weeklyVideosTarget',    label: 'Total' },
-                { key: 'weeklyVideosG1Target',  label: 'G1' },
-                { key: 'weeklyVideosG2Target',  label: 'G2' },
-                { key: 'weeklyVideosG3Target',  label: 'G3' },
+                { key: 'monthlyVideosTarget',    label: 'Total' },
+                { key: 'monthlyVideosG1Target',  label: 'G1' },
+                { key: 'monthlyVideosG2Target',  label: 'G2' },
+                { key: 'monthlyVideosG3Target',  label: 'G3' },
               ] as const).map(({ key, label }) => (
                 <div key={key}>
                   <label className="text-xs font-medium text-gray-600 block mb-1">{label}</label>
                   <input type="number" min="0" step="1"
                     value={goals[key] ?? ''}
-                    onChange={e => setGoals(prev => ({ ...prev, [key]: e.target.value ? Number(e.target.value) : undefined }))}
+                    onChange={e => setGoals(p => ({ ...p, [key]: e.target.value ? Number(e.target.value) : undefined }))}
                     placeholder="—"
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
                   />
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Samples Per Month */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Samples Per Month</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-gray-600 block mb-1">Monthly Target</label>
+                <input type="number" min="0" step="1"
+                  value={goals.monthlySamplesTarget ?? ''}
+                  onChange={e => setGoals(p => ({ ...p, monthlySamplesTarget: e.target.value ? Number(e.target.value) : undefined }))}
+                  placeholder="—"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600 block mb-1">Month</label>
+                <PeriodSelect type="month" value={goals.monthlySamplesPeriod} onChange={v => setGoals(p => ({ ...p, monthlySamplesPeriod: v || undefined }))} />
+              </div>
+            </div>
+          </div>
+
+          {/* GMV Max Spend */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">GMV Max — Spend ($)</p>
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-600 block mb-1">Monthly Target ($)</label>
+                  <input type="number" min="0" step="100"
+                    value={goals.monthlyGmvMaxSpendTarget ?? ''}
+                    onChange={e => setGoals(p => ({ ...p, monthlyGmvMaxSpendTarget: e.target.value ? Number(e.target.value) : undefined }))}
+                    placeholder="—"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600 block mb-1">Month</label>
+                  <PeriodSelect type="month" value={goals.monthlyGmvMaxSpendPeriod} onChange={v => setGoals(p => ({ ...p, monthlyGmvMaxSpendPeriod: v || undefined }))} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-600 block mb-1">Quarterly Target ($)</label>
+                  <input type="number" min="0" step="500"
+                    value={goals.quarterlyGmvMaxSpendTarget ?? ''}
+                    onChange={e => setGoals(p => ({ ...p, quarterlyGmvMaxSpendTarget: e.target.value ? Number(e.target.value) : undefined }))}
+                    placeholder="—"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600 block mb-1">Quarter</label>
+                  <PeriodSelect type="quarter" value={goals.quarterlyGmvMaxSpendPeriod} onChange={v => setGoals(p => ({ ...p, quarterlyGmvMaxSpendPeriod: v || undefined }))} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* GMV Max ROI */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">GMV Max — ROI (×)</p>
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-600 block mb-1">Monthly Target (×)</label>
+                  <input type="number" min="0" step="0.1"
+                    value={goals.monthlyGmvMaxRoiTarget ?? ''}
+                    onChange={e => setGoals(p => ({ ...p, monthlyGmvMaxRoiTarget: e.target.value ? Number(e.target.value) : undefined }))}
+                    placeholder="e.g. 3.5"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600 block mb-1">Month</label>
+                  <PeriodSelect type="month" value={goals.monthlyGmvMaxRoiPeriod} onChange={v => setGoals(p => ({ ...p, monthlyGmvMaxRoiPeriod: v || undefined }))} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-600 block mb-1">Quarterly Target (×)</label>
+                  <input type="number" min="0" step="0.1"
+                    value={goals.quarterlyGmvMaxRoiTarget ?? ''}
+                    onChange={e => setGoals(p => ({ ...p, quarterlyGmvMaxRoiTarget: e.target.value ? Number(e.target.value) : undefined }))}
+                    placeholder="e.g. 4.0"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600 block mb-1">Quarter</label>
+                  <PeriodSelect type="quarter" value={goals.quarterlyGmvMaxRoiPeriod} onChange={v => setGoals(p => ({ ...p, quarterlyGmvMaxRoiPeriod: v || undefined }))} />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -572,7 +694,7 @@ export function ManageTab() {
                   <label className="text-xs font-medium text-gray-600 block mb-1">{label}</label>
                   <input type="number" min="0" step="1"
                     value={goals[key] ?? ''}
-                    onChange={e => setGoals(prev => ({ ...prev, [key]: e.target.value ? Number(e.target.value) : undefined }))}
+                    onChange={e => setGoals(p => ({ ...p, [key]: e.target.value ? Number(e.target.value) : undefined }))}
                     placeholder="—"
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
                   />
