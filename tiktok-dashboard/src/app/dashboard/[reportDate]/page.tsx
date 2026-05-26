@@ -27,6 +27,13 @@ function calcTrend(arr: number[]): 'up' | 'down' | 'flat' {
   return b > a * 1.05 ? 'up' : b < a * 0.95 ? 'down' : 'flat'
 }
 
+function getMonthProgress(reportDate: string) {
+  const d = new Date(reportDate + 'T00:00:00')
+  const dayOfMonth = d.getDate()
+  const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
+  return { dayOfMonth, daysInMonth, pct: dayOfMonth / daysInMonth }
+}
+
 type TrendDir = 'up' | 'down' | 'flat' | null
 type FmtType = 'currency' | 'number' | 'x'
 
@@ -68,6 +75,45 @@ function TargetRow({ label, actual, target, fmt = 'number', trend = null, note =
   )
 }
 
+function MonthlyTargetRow({ label, mtd, target, projected, fmt = 'number', trend = null, monthPct }: {
+  label: string; mtd: number; target: number; projected: number
+  fmt?: FmtType; trend?: TrendDir; monthPct: number
+}) {
+  const mtdRatio  = target > 0 ? mtd       / target : 0
+  const projRatio = target > 0 ? projected / target : 0
+  const status = projRatio >= 0.9 ? 'on' : projRatio >= 0.7 ? 'risk' : 'off'
+  const fv = (n: number) => fmt === 'currency' ? '$' + Math.round(n).toLocaleString('en-US')
+    : fmt === 'x' ? n.toFixed(1) + '×'
+    : Math.round(n).toLocaleString('en-US')
+  const badge    = status === 'on' ? 'text-green-700 bg-green-50' : status === 'risk' ? 'text-amber-700 bg-amber-50' : 'text-red-700 bg-red-50'
+  const barSolid = status === 'on' ? 'bg-green-500'  : status === 'risk' ? 'bg-amber-400' : 'bg-red-400'
+  const barLight = status === 'on' ? 'bg-green-200'  : status === 'risk' ? 'bg-amber-200' : 'bg-red-200'
+  const statusText = status === 'on' ? 'On Track' : status === 'risk' ? 'At Risk' : 'Off Track'
+  return (
+    <div className="py-3 border-b border-gray-50 last:border-0 last:pb-0 first:pt-0">
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-sm text-gray-700 truncate">{label}</span>
+          {trend === 'up'   && <span className="text-xs text-green-500 font-bold flex-shrink-0">↑</span>}
+          {trend === 'down' && <span className="text-xs text-red-400  font-bold flex-shrink-0">↓</span>}
+          {trend === 'flat' && <span className="text-xs text-gray-400 flex-shrink-0">→</span>}
+        </div>
+        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${badge}`}>{statusText}</span>
+      </div>
+      <div className="flex items-baseline justify-between mb-1.5 text-xs">
+        <span className="text-gray-500">MTD: <span className="font-semibold text-gray-800">{fv(mtd)}</span></span>
+        <span className="text-gray-500">Proj: <span className="font-semibold text-gray-800">{fv(projected)}</span></span>
+        <span className="text-gray-400">Target: {fv(target)}</span>
+      </div>
+      <div className="h-2 bg-gray-100 rounded-full overflow-hidden relative">
+        <div className={`absolute inset-y-0 left-0 rounded-full ${barLight}`} style={{ width: `${Math.min(projRatio * 100, 100)}%` }} />
+        <div className={`absolute inset-y-0 left-0 rounded-full ${barSolid}`} style={{ width: `${Math.min(mtdRatio  * 100, 100)}%` }} />
+      </div>
+      <p className="mt-1 text-xs text-gray-400">{Math.round(monthPct * 100)}% through month</p>
+    </div>
+  )
+}
+
 export default async function ReportPage({ params }: Props) {
   const { reportDate } = await params
 
@@ -99,6 +145,22 @@ export default async function ReportPage({ params }: Props) {
   const currentMonthGmv   = mc.gmv.at(-1) ?? 0
   const currentMonthLabel = (mc.labels.at(-1) ?? '').replace('*', '').trim()
   const qtdGmv = mc.gmv.slice(-3).reduce((a: number, b: number) => a + b, 0)
+
+  // Month-to-date + projected values from monthly_charts last entry
+  const { pct: monthPct } = getMonthProgress(reportDate)
+  const mtdGmv    = mc.gmv.at(-1) ?? 0
+  const mtdVidG1  = mc.vg1.at(-1) ?? 0
+  const mtdVidG2  = mc.vg2.at(-1) ?? 0
+  const mtdVidG3  = mc.vg3.at(-1) ?? 0
+  const mtdVideos = mtdVidG1 + mtdVidG2 + mtdVidG3
+  const mtdSamples = (mc.sg1.at(-1) ?? 0) + (mc.sg2.at(-1) ?? 0) + (mc.sg3.at(-1) ?? 0)
+  const safe = (v: number) => monthPct > 0 ? v / monthPct : v
+  const projGmv     = safe(mtdGmv)
+  const projVideos  = safe(mtdVideos)
+  const projVidG1   = safe(mtdVidG1)
+  const projVidG2   = safe(mtdVidG2)
+  const projVidG3   = safe(mtdVidG3)
+  const projSamples = safe(mtdSamples)
 
   // Trends from last 4 weeks
   const gmvTrend = calcTrend(wc.gmv)
@@ -247,10 +309,10 @@ export default async function ReportPage({ params }: Props) {
                     <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Revenue — GMV</p>
                       {goals.monthlyGmvTarget && (
-                        <TargetRow
+                        <MonthlyTargetRow
                           label={`Monthly · ${goals.monthlyPeriod ?? currentMonthLabel}`}
-                          actual={d.gmv} target={goals.monthlyGmvTarget}
-                          fmt="currency" trend={gmvTrend} note="30d rolling"
+                          mtd={mtdGmv} projected={projGmv} target={goals.monthlyGmvTarget}
+                          fmt="currency" trend={gmvTrend} monthPct={monthPct}
                         />
                       )}
                       {goals.quarterlyGmvTarget && (
@@ -270,16 +332,16 @@ export default async function ReportPage({ params }: Props) {
                         Videos · {goals.monthlyVideosPeriod ?? currentMonthLabel}
                       </p>
                       {goals.monthlyVideosTarget && (
-                        <TargetRow label="Total" actual={d.videos} target={goals.monthlyVideosTarget} trend={vidTrend} note="30d" />
+                        <MonthlyTargetRow label="Total" mtd={mtdVideos} projected={projVideos} target={goals.monthlyVideosTarget} trend={vidTrend} monthPct={monthPct} />
                       )}
                       {goals.monthlyVideosG1Target && (
-                        <TargetRow label="G1" actual={d.tiers.g1.videos} target={goals.monthlyVideosG1Target} note="30d" />
+                        <MonthlyTargetRow label="G1" mtd={mtdVidG1} projected={projVidG1} target={goals.monthlyVideosG1Target} monthPct={monthPct} />
                       )}
                       {goals.monthlyVideosG2Target && (
-                        <TargetRow label="G2" actual={d.tiers.g2.videos} target={goals.monthlyVideosG2Target} note="30d" />
+                        <MonthlyTargetRow label="G2" mtd={mtdVidG2} projected={projVidG2} target={goals.monthlyVideosG2Target} monthPct={monthPct} />
                       )}
                       {goals.monthlyVideosG3Target && (
-                        <TargetRow label="G3" actual={d.tiers.g3.videos} target={goals.monthlyVideosG3Target} note="30d" />
+                        <MonthlyTargetRow label="G3" mtd={mtdVidG3} projected={projVidG3} target={goals.monthlyVideosG3Target} monthPct={monthPct} />
                       )}
                     </div>
                   )}
@@ -290,7 +352,7 @@ export default async function ReportPage({ params }: Props) {
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
                         Samples · {goals.monthlySamplesPeriod ?? currentMonthLabel}
                       </p>
-                      <TargetRow label="Samples Shipped" actual={d30TotalSamples} target={goals.monthlySamplesTarget} trend={sampTrend} note="30d" />
+                      <MonthlyTargetRow label="Samples Shipped" mtd={mtdSamples} projected={projSamples} target={goals.monthlySamplesTarget} trend={sampTrend} monthPct={monthPct} />
                     </div>
                   )}
 

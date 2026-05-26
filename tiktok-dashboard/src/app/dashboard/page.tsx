@@ -1,11 +1,19 @@
 import Link from 'next/link'
 import { cookies } from 'next/headers'
 import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase'
 import { format } from 'date-fns'
 
 export const revalidate = 60
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
+function getMonthProgress(reportDate: string) {
+  const d = new Date(reportDate + 'T00:00:00')
+  const dayOfMonth = d.getDate()
+  const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
+  return { dayOfMonth, daysInMonth, pct: dayOfMonth / daysInMonth }
+}
 
 function weekRange(label: string | undefined, reportDate: string): string {
   if (!label) return ''
@@ -34,10 +42,15 @@ export default async function DashboardPage() {
   const cookieStore = await cookies()
   const isViewOnly = !!cookieStore.get('rl-view') && !cookieStore.get('rl-auth')
 
-  const { data: reports } = await supabase
-    .from('weekly_reports')
-    .select('report_date, label, data_window, created_at, d30, weekly_charts')
-    .order('report_date', { ascending: false })
+  const [{ data: reports }, { data: goalsConfig }] = await Promise.all([
+    supabase
+      .from('weekly_reports')
+      .select('report_date, label, data_window, created_at, d30, weekly_charts, monthly_charts')
+      .order('report_date', { ascending: false }),
+    supabaseAdmin()
+      .from('app_config').select('value').eq('key', 'goals').single()
+  ])
+  const goals = goalsConfig ? (() => { try { return JSON.parse(goalsConfig.value) } catch { return null } })() : null
 
   const fmt$ = (n: number) => '$' + Math.round(n).toLocaleString('en-US')
   const fmtN = (n: number) => Math.round(n).toLocaleString('en-US')
@@ -91,6 +104,15 @@ export default async function DashboardPage() {
               const wVidPct = wVid != null && wVidPrev != null ? pctChange(wVid, wVidPrev) : null
               const weekLabel = wc?.labels?.at(-1)
               const weekStr = weekRange(weekLabel, r.report_date)
+              // Monthly GMV target strip
+              const mc = r.monthly_charts as { gmv?: number[] } | null
+              const mtdGmv = mc?.gmv?.at(-1) ?? 0
+              const { pct: monthPct } = getMonthProgress(r.report_date)
+              const projGmv = monthPct > 0 ? mtdGmv / monthPct : mtdGmv
+              const gmvTarget: number | null = goals?.monthlyGmvTarget ?? null
+              const gmvTargetStatus = gmvTarget && gmvTarget > 0
+                ? (projGmv / gmvTarget >= 0.9 ? 'on' : projGmv / gmvTarget >= 0.7 ? 'risk' : 'off')
+                : null
               return (
                 <Link key={r.report_date} href={`/dashboard/${r.report_date}`}
                   className="block bg-white rounded-xl border border-gray-100 px-6 py-4 hover:border-gray-300 hover:shadow-sm transition-all group">
@@ -164,6 +186,31 @@ export default async function DashboardPage() {
                       <span className="text-gray-300 group-hover:text-gray-500 transition-colors self-center">→</span>
                     </div>
                   </div>
+                  {gmvTarget && gmvTargetStatus && (() => {
+                    const mtdR  = Math.min((mtdGmv  / gmvTarget) * 100, 100)
+                    const projR = Math.min((projGmv / gmvTarget) * 100, 100)
+                    const solid  = gmvTargetStatus === 'on' ? 'bg-green-500'  : gmvTargetStatus === 'risk' ? 'bg-amber-400' : 'bg-red-400'
+                    const light  = gmvTargetStatus === 'on' ? 'bg-green-200'  : gmvTargetStatus === 'risk' ? 'bg-amber-200' : 'bg-red-200'
+                    const color  = gmvTargetStatus === 'on' ? 'text-green-700': gmvTargetStatus === 'risk' ? 'text-amber-700': 'text-red-700'
+                    const badge  = gmvTargetStatus === 'on' ? 'On Track'      : gmvTargetStatus === 'risk' ? 'At Risk'      : 'Off Track'
+                    return (
+                      <div className="mt-3 pt-3 border-t border-gray-50">
+                        <div className="flex items-center justify-between mb-1.5 text-xs text-gray-500">
+                          <span>
+                            Monthly GMV — MTD <span className="font-semibold text-gray-800">{fmt$(mtdGmv)}</span>
+                            {' → '}Proj <span className="font-semibold text-gray-800">{fmt$(projGmv)}</span>
+                            <span className="text-gray-400"> / {fmt$(gmvTarget)}</span>
+                            <span className="text-gray-400 ml-1">({Math.round(monthPct * 100)}% thru month)</span>
+                          </span>
+                          <span className={`font-semibold ${color}`}>{badge}</span>
+                        </div>
+                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden relative">
+                          <div className={`absolute inset-y-0 left-0 rounded-full ${light}`} style={{ width: `${projR}%` }} />
+                          <div className={`absolute inset-y-0 left-0 rounded-full ${solid}`} style={{ width: `${mtdR}%` }} />
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </Link>
               )
             })}
