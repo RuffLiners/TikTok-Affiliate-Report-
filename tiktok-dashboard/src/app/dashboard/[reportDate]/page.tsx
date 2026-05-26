@@ -19,6 +19,55 @@ export const revalidate = 3600
 
 interface Props { params: Promise<{ reportDate: string }> }
 
+function calcTrend(arr: number[]): 'up' | 'down' | 'flat' {
+  if (arr.length < 4) return 'flat'
+  const s = arr.slice(-4)
+  const a = (s[0] + s[1]) / 2
+  const b = (s[2] + s[3]) / 2
+  return b > a * 1.05 ? 'up' : b < a * 0.95 ? 'down' : 'flat'
+}
+
+type TrendDir = 'up' | 'down' | 'flat' | null
+type FmtType = 'currency' | 'number' | 'x'
+
+function TargetRow({ label, actual, target, fmt = 'number', trend = null, note = '', higherIsBetter = true }: {
+  label: string; actual: number; target: number
+  fmt?: FmtType; trend?: TrendDir; note?: string; higherIsBetter?: boolean
+}) {
+  const ratio = target > 0 ? actual / target : 0
+  const pctBar = Math.min(ratio * 100, 100)
+  const status = higherIsBetter
+    ? (ratio >= 0.9 ? 'on' : ratio >= 0.7 ? 'risk' : 'off')
+    : (ratio <= 1.1 ? 'on' : ratio <= 1.3 ? 'risk' : 'off')
+  const fv = (n: number) => fmt === 'currency' ? '$' + Math.round(n).toLocaleString('en-US')
+    : fmt === 'x' ? n.toFixed(1) + '×'
+    : Math.round(n).toLocaleString('en-US')
+  const badge = status === 'on' ? 'text-green-700 bg-green-50' : status === 'risk' ? 'text-amber-700 bg-amber-50' : 'text-red-700 bg-red-50'
+  const bar   = status === 'on' ? 'bg-green-500' : status === 'risk' ? 'bg-amber-400' : 'bg-red-400'
+  const statusText = status === 'on' ? 'On Track' : status === 'risk' ? 'At Risk' : 'Off Track'
+  return (
+    <div className="py-3 border-b border-gray-50 last:border-0 last:pb-0 first:pt-0">
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-sm text-gray-700 truncate">{label}</span>
+          {trend === 'up'   && <span className="text-xs text-green-500 font-bold flex-shrink-0">↑</span>}
+          {trend === 'down' && <span className="text-xs text-red-400  font-bold flex-shrink-0">↓</span>}
+          {trend === 'flat' && <span className="text-xs text-gray-400 flex-shrink-0">→</span>}
+          {note && <span className="text-xs text-gray-400 flex-shrink-0 hidden sm:inline">· {note}</span>}
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+          <span className="text-sm font-semibold text-gray-900">{fv(actual)}</span>
+          <span className="text-xs text-gray-400">/ {fv(target)}</span>
+          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${badge}`}>{statusText}</span>
+        </div>
+      </div>
+      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${bar}`} style={{ width: `${pctBar}%` }} />
+      </div>
+    </div>
+  )
+}
+
 export default async function ReportPage({ params }: Props) {
   const { reportDate } = await params
 
@@ -50,6 +99,15 @@ export default async function ReportPage({ params }: Props) {
   const currentMonthGmv   = mc.gmv.at(-1) ?? 0
   const currentMonthLabel = (mc.labels.at(-1) ?? '').replace('*', '').trim()
   const qtdGmv = mc.gmv.slice(-3).reduce((a: number, b: number) => a + b, 0)
+
+  // Trends from last 4 weeks
+  const gmvTrend = calcTrend(wc.gmv)
+  const vidTrend = calcTrend(wc.vid)
+  const weeklyTotalSamples = wc.sg1.map((v: number, i: number) => v + (wc.sg2[i] ?? 0) + (wc.sg3[i] ?? 0))
+  const sampTrend = calcTrend(weeklyTotalSamples)
+
+  // 30d totals used as monthly proxies
+  const d30TotalSamples = d.samples
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -178,92 +236,122 @@ export default async function ReportPage({ params }: Props) {
               </div>
             </section>
 
-            {/* Goals progress — only if goals are set */}
-            {goals && (goals.monthlyGmvTarget || goals.quarterlyGmvTarget) && (
+            {/* Target Tracker */}
+            {goals && (
               <section>
-                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-                  Goals &amp; Targets
-                </h2>
-                <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
-                  {goals.monthlyGmvTarget && (() => {
-                    const pct = Math.min((currentMonthGmv / goals.monthlyGmvTarget) * 100, 100)
-                    const onTrack = currentMonthGmv >= goals.monthlyGmvTarget * 0.7
-                    return (
-                      <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-xs font-medium text-gray-600">Monthly GMV · {goals.monthlyPeriod ?? currentMonthLabel}</span>
-                          <span className="text-xs font-semibold text-gray-900">
-                            ${Math.round(currentMonthGmv).toLocaleString('en-US')} / ${Math.round(goals.monthlyGmvTarget).toLocaleString('en-US')}
-                          </span>
-                        </div>
-                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <div className={`h-full rounded-full transition-all ${onTrack ? 'bg-green-500' : 'bg-amber-400'}`} style={{ width: `${pct}%` }} />
-                        </div>
-                        <p className={`text-xs mt-1 ${onTrack ? 'text-green-600' : 'text-amber-600'}`}>
-                          {pct.toFixed(0)}% of goal · {onTrack ? 'On track' : 'Behind pace'}
-                        </p>
-                      </div>
-                    )
-                  })()}
-                  {goals.quarterlyGmvTarget && (() => {
-                    const pct = Math.min((qtdGmv / goals.quarterlyGmvTarget) * 100, 100)
-                    const onTrack = qtdGmv >= goals.quarterlyGmvTarget * 0.6
-                    return (
-                      <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-xs font-medium text-gray-600">Quarterly GMV · {goals.quarterlyPeriod ?? 'Current Quarter'}</span>
-                          <span className="text-xs font-semibold text-gray-900">
-                            ${Math.round(qtdGmv).toLocaleString('en-US')} / ${Math.round(goals.quarterlyGmvTarget).toLocaleString('en-US')}
-                          </span>
-                        </div>
-                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <div className={`h-full rounded-full transition-all ${onTrack ? 'bg-green-500' : 'bg-amber-400'}`} style={{ width: `${pct}%` }} />
-                        </div>
-                        <p className={`text-xs mt-1 ${onTrack ? 'text-green-600' : 'text-amber-600'}`}>
-                          {pct.toFixed(0)}% of goal · {onTrack ? 'On track' : 'Behind pace'}
-                        </p>
-                      </div>
-                    )
-                  })()}
-                  {/* Videos per week by tier */}
-                  {(goals.weeklyVideosTarget || goals.weeklyVideosG1Target || goals.weeklyVideosG2Target || goals.weeklyVideosG3Target) && (
-                    <div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Videos Posted · Last Week</p>
-                      <div className="grid grid-cols-4 gap-2 text-xs">
-                        {([
-                          { label: 'Total', actual: lastWeekVid,   target: goals.weeklyVideosTarget },
-                          { label: 'G1',    actual: lastWeekVidG1, target: goals.weeklyVideosG1Target },
-                          { label: 'G2',    actual: lastWeekVidG2, target: goals.weeklyVideosG2Target },
-                          { label: 'G3',    actual: lastWeekVidG3, target: goals.weeklyVideosG3Target },
-                        ]).map(({ label, actual, target }) => target != null ? (
-                          <div key={label} className="bg-gray-50 rounded-lg p-2.5 text-center">
-                            <p className="text-gray-400 mb-1">{label}</p>
-                            <p className={`font-semibold text-sm ${actual >= target ? 'text-green-600' : 'text-amber-600'}`}>{actual}</p>
-                            <p className="text-gray-400">/ {target}</p>
-                          </div>
-                        ) : null)}
-                      </div>
+                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Target Tracker</h2>
+                <div className="space-y-4">
+
+                  {/* Revenue — GMV */}
+                  {(goals.monthlyGmvTarget || goals.quarterlyGmvTarget) && (
+                    <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Revenue — GMV</p>
+                      {goals.monthlyGmvTarget && (
+                        <TargetRow
+                          label={`Monthly · ${goals.monthlyPeriod ?? currentMonthLabel}`}
+                          actual={d.gmv} target={goals.monthlyGmvTarget}
+                          fmt="currency" trend={gmvTrend} note="30d rolling"
+                        />
+                      )}
+                      {goals.quarterlyGmvTarget && (
+                        <TargetRow
+                          label={`Quarterly · ${goals.quarterlyPeriod ?? 'Current Quarter'}`}
+                          actual={qtdGmv} target={goals.quarterlyGmvTarget}
+                          fmt="currency" note="last 3 months"
+                        />
+                      )}
                     </div>
                   )}
-                  {/* Active creators by tier */}
+
+                  {/* Videos per month */}
+                  {(goals.monthlyVideosTarget || goals.monthlyVideosG1Target || goals.monthlyVideosG2Target || goals.monthlyVideosG3Target) && (
+                    <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                        Videos · {goals.monthlyVideosPeriod ?? currentMonthLabel}
+                      </p>
+                      {goals.monthlyVideosTarget && (
+                        <TargetRow label="Total" actual={d.videos} target={goals.monthlyVideosTarget} trend={vidTrend} note="30d" />
+                      )}
+                      {goals.monthlyVideosG1Target && (
+                        <TargetRow label="G1" actual={d.tiers.g1.videos} target={goals.monthlyVideosG1Target} note="30d" />
+                      )}
+                      {goals.monthlyVideosG2Target && (
+                        <TargetRow label="G2" actual={d.tiers.g2.videos} target={goals.monthlyVideosG2Target} note="30d" />
+                      )}
+                      {goals.monthlyVideosG3Target && (
+                        <TargetRow label="G3" actual={d.tiers.g3.videos} target={goals.monthlyVideosG3Target} note="30d" />
+                      )}
+                    </div>
+                  )}
+
+                  {/* Samples per month */}
+                  {goals.monthlySamplesTarget && (
+                    <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                        Samples · {goals.monthlySamplesPeriod ?? currentMonthLabel}
+                      </p>
+                      <TargetRow label="Samples Shipped" actual={d30TotalSamples} target={goals.monthlySamplesTarget} trend={sampTrend} note="30d" />
+                    </div>
+                  )}
+
+                  {/* GMV Max Spend */}
+                  {(goals.monthlyGmvMaxSpendTarget || goals.quarterlyGmvMaxSpendTarget) && (
+                    <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">GMV Max — Spend</p>
+                      {goals.monthlyGmvMaxSpendTarget && (
+                        <TargetRow
+                          label={`Monthly · ${goals.monthlyGmvMaxSpendPeriod ?? currentMonthLabel}`}
+                          actual={d.gmvMax.spend} target={goals.monthlyGmvMaxSpendTarget}
+                          fmt="currency" note="30d"
+                        />
+                      )}
+                      {goals.quarterlyGmvMaxSpendTarget && (
+                        <TargetRow
+                          label={`Quarterly · ${goals.quarterlyGmvMaxSpendPeriod ?? 'Current Quarter'}`}
+                          actual={d.gmvMax.spend * 3} target={goals.quarterlyGmvMaxSpendTarget}
+                          fmt="currency" note="30d × 3 est."
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  {/* GMV Max ROI */}
+                  {(goals.monthlyGmvMaxRoiTarget || goals.quarterlyGmvMaxRoiTarget) && (
+                    <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">GMV Max — ROI</p>
+                      {goals.monthlyGmvMaxRoiTarget && (
+                        <TargetRow
+                          label={`Monthly · ${goals.monthlyGmvMaxRoiPeriod ?? currentMonthLabel}`}
+                          actual={d.gmvMax.roi} target={goals.monthlyGmvMaxRoiTarget}
+                          fmt="x"
+                        />
+                      )}
+                      {goals.quarterlyGmvMaxRoiTarget && (
+                        <TargetRow
+                          label={`Quarterly · ${goals.quarterlyGmvMaxRoiPeriod ?? 'Current Quarter'}`}
+                          actual={d.gmvMax.roi} target={goals.quarterlyGmvMaxRoiTarget}
+                          fmt="x"
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  {/* Active Creators */}
                   {(goals.activeG1Target || goals.activeG2Target || goals.activeG3Target) && (
-                    <div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Active Creators · 30-Day</p>
-                      <div className="grid grid-cols-3 gap-2 text-xs">
-                        {([
-                          { label: 'G1', actual: d.tiers.g1.creators, target: goals.activeG1Target },
-                          { label: 'G2', actual: d.tiers.g2.creators, target: goals.activeG2Target },
-                          { label: 'G3', actual: d.tiers.g3.creators, target: goals.activeG3Target },
-                        ]).map(({ label, actual, target }) => target != null ? (
-                          <div key={label} className="bg-gray-50 rounded-lg p-2.5 text-center">
-                            <p className="text-gray-400 mb-1">{label}</p>
-                            <p className={`font-semibold text-sm ${actual >= target ? 'text-green-600' : 'text-amber-600'}`}>{actual}</p>
-                            <p className="text-gray-400">/ {target}</p>
-                          </div>
-                        ) : null)}
-                      </div>
+                    <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Active Creators · 30-Day</p>
+                      {goals.activeG1Target && (
+                        <TargetRow label="G1" actual={d.tiers.g1.creators} target={goals.activeG1Target} />
+                      )}
+                      {goals.activeG2Target && (
+                        <TargetRow label="G2" actual={d.tiers.g2.creators} target={goals.activeG2Target} />
+                      )}
+                      {goals.activeG3Target && (
+                        <TargetRow label="G3" actual={d.tiers.g3.creators} target={goals.activeG3Target} />
+                      )}
                     </div>
                   )}
+
                 </div>
               </section>
             )}
