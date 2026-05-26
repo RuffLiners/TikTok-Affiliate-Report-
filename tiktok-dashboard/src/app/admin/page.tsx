@@ -99,6 +99,9 @@ QUERIES TO RUN (read every CSV file Euka returns):
 16. 6 months by tier: creators, new creators, videos, GMV (18 rows)
 17. 6 months: retention rate per month (6 rows)
 18. 6 months: messages + samples by tier per month (18 rows)
+19. This week's top 10 creators by store GMV (${f(weekSun)}–${f(weekSat)}): handle, global gmv_30d, store GMV this week, views this week, videos posted this week, orders, AOV
+20. Top 10 videos by GMV posted this week (${f(weekSun)}–${f(weekSat)}): creator handle, global gmv_30d, product name, GMV, views, orders, AOV, likes, comments, product clicks, publish date
+21. This week's top 10 most active creators by videos posted (${f(weekSun)}–${f(weekSat)}): handle, global gmv_30d, store GMV this week, views this week, videos posted, orders, AOV
 ${goalsSection}
 ANALYSIS — write 4 focused sections after pulling all data:
 - "performance": 3–4 paragraphs — This week's headline numbers (last complete Sun–Sat week), MTD progress vs monthly goal (state if on/off track and by how much), QTD progress vs quarterly goal, what's driving results. Be specific: name the creators/products/tiers moving the numbers.
@@ -158,6 +161,15 @@ OUTPUT — respond with ONLY this JSON object, nothing before or after it:
     ],
     "activeCreators": [
       { "h":"handle","ggmv":0,"flw":0,"v30":0,"gmvN":0,"gmvT":0,"views":0,"avgv":0,"ord":0 }
+    ],
+    "weeklyTopCreators": [
+      { "h":"handle","ggmv":0,"gmv":0,"views":0,"vid":0,"ord":0,"aov":0 }
+    ],
+    "weeklyTopVideos": [
+      { "h":"handle","ggmv":0,"prod":"product name","gmv":0,"views":0,"ord":0,"aov":0,"likes":0,"cmt":0,"clicks":null,"date":"${fLabel(weekSun)}" }
+    ],
+    "weeklyActiveCreators": [
+      { "h":"handle","ggmv":0,"gmv":0,"views":0,"vid":0,"ord":0,"aov":0 }
     ]
   },
   "analysis": {

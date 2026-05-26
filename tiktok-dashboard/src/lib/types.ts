@@ -76,10 +76,18 @@ export interface ActiveCreator {
   gmvN: number; gmvT: number; views: number; avgv: number; ord: number
 }
 
+export interface WeeklyCreatorRow {
+  h: string; ggmv: number; gmv: number; views: number
+  vid: number; ord: number; aov: number
+}
+
 export interface ReportTables {
   topCreators: Creator[]
   topVideos: Video[]
   activeCreators: ActiveCreator[]
+  weeklyTopCreators?: WeeklyCreatorRow[]
+  weeklyTopVideos?: Video[]
+  weeklyActiveCreators?: WeeklyCreatorRow[]
 }
 
 export interface Goals {

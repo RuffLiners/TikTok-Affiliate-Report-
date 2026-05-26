@@ -11,6 +11,7 @@ import { VideoTable } from '@/components/tables/VideoTable'
 import { ActiveCreatorTable } from '@/components/tables/ActiveCreatorTable'
 import { WeeklyCharts } from '@/components/charts/WeeklyCharts'
 import { MonthlyCharts } from '@/components/charts/MonthlyCharts'
+import { WeeklyCreatorTable } from '@/components/tables/WeeklyCreatorTable'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { AnalysisCard } from '@/components/AnalysisCard'
@@ -264,7 +265,7 @@ export default async function ReportPage({ params }: Props) {
 
             <section>
               <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Top 15 Videos · by GMV</h2>
-              <VideoTable videos={report.tables.topVideos} />
+              <VideoTable videos={report.tables.topVideos} reportDate={reportDate} />
             </section>
 
             <section>
@@ -274,9 +275,36 @@ export default async function ReportPage({ params }: Props) {
           </TabsContent>
 
           {/* ── WEEKLY TAB ── */}
-          <TabsContent value="weekly">
+          <TabsContent value="weekly" className="space-y-6">
             <AnalysisCard text={report.analysis?.weekly ?? ''} title="Weekly Trend Analysis" />
             <WeeklyCharts data={report.weekly_charts} />
+
+            {report.tables.weeklyTopCreators && report.tables.weeklyTopCreators.length > 0 && (
+              <section>
+                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+                  Top Creators · This Week · by GMV
+                </h2>
+                <WeeklyCreatorTable creators={report.tables.weeklyTopCreators} highlight="gmv" />
+              </section>
+            )}
+
+            {report.tables.weeklyTopVideos && report.tables.weeklyTopVideos.length > 0 && (
+              <section>
+                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+                  Top Videos · Posted This Week
+                </h2>
+                <VideoTable videos={report.tables.weeklyTopVideos} reportDate={reportDate} />
+              </section>
+            )}
+
+            {report.tables.weeklyActiveCreators && report.tables.weeklyActiveCreators.length > 0 && (
+              <section>
+                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+                  Most Active Creators · This Week · by Videos Posted
+                </h2>
+                <WeeklyCreatorTable creators={report.tables.weeklyActiveCreators} highlight="vid" />
+              </section>
+            )}
           </TabsContent>
 
           {/* ── MONTHLY TAB ── */}
