@@ -35,8 +35,16 @@ function getRecentMondays(n: number): Date[] {
   })
 }
 
-type SaveStatus = 'idle' | 'saving' | 'success' | 'error'
-type GenStatus  = 'idle' | 'running' | 'success' | 'error'
+type SaveStatus   = 'idle' | 'saving' | 'success' | 'error'
+type GenStatus    = 'idle' | 'running' | 'success' | 'error'
+type KeySaveState = 'idle' | 'saving' | 'saved' | 'error'
+
+interface ConfigStatus {
+  ready: boolean
+  anthropicKey: { set: boolean; source: string; masked: string | null }
+  eukaMcpUrl: { set: boolean }
+  eukaStoreId: { set: boolean }
+}
 
 const STORE_ID = '455ea4f9-a404-411b-b748-9ba1929efb93'
 
@@ -209,6 +217,11 @@ export default function AdminPage() {
   const [genStep, setGenStep]   = useState(0)
 
   const [goals, setGoals]       = useState<any>(null)
+  const [config, setConfig]     = useState<ConfigStatus | null>(null)
+  const [apiKeyInput, setApiKeyInput] = useState('')
+  const [showApiKey, setShowApiKey]   = useState(false)
+  const [keySaveState, setKeySave]    = useState<KeySaveState>('idle')
+  const [keySaveErr, setKeySaveErr]   = useState('')
 
   // Read tab from URL on mount
   useEffect(() => {
@@ -220,6 +233,11 @@ export default function AdminPage() {
   // Fetch goals on mount
   useEffect(() => {
     fetch('/api/admin/goals').then(r => r.json()).then(d => { if (!d.error) setGoals(d) })
+  }, [])
+
+  // Fetch config status on mount
+  useEffect(() => {
+    fetch('/api/admin/check-config').then(r => r.json()).then(d => { if (!d.error) setConfig(d) })
   }, [])
 
   const today = new Date()
@@ -264,6 +282,32 @@ export default function AdminPage() {
       setSave('success')
       setSaveRes({ label: data.label, gmv: data.gmv, reportDate: data.reportDate })
     }
+  }
+
+  async function saveApiKey() {
+    setKeySave('saving')
+    setKeySaveErr('')
+    const res = await fetch('/api/admin/claude-key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey: apiKeyInput.trim() })
+    })
+    const data = await res.json().catch(() => ({ error: 'Unknown error' }))
+    if (!res.ok) {
+      setKeySave('error')
+      setKeySaveErr(data.error || 'Failed to save key')
+    } else {
+      setKeySave('saved')
+      setApiKeyInput('')
+      // Re-fetch config
+      fetch('/api/admin/check-config').then(r => r.json()).then(d => { if (!d.error) setConfig(d) })
+      setTimeout(() => setKeySave('idle'), 3000)
+    }
+  }
+
+  async function removeApiKey() {
+    await fetch('/api/admin/claude-key', { method: 'DELETE' })
+    fetch('/api/admin/check-config').then(r => r.json()).then(d => { if (!d.error) setConfig(d) })
   }
 
   async function generate() {
@@ -484,21 +528,124 @@ export default function AdminPage() {
         {tab === 'auto' && (
           <div className="space-y-4">
 
-            {/* Setup status */}
-            <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5">
-              <p className="text-sm font-semibold text-amber-800 mb-1">API key required</p>
-              <p className="text-sm text-amber-700">
-                Add <code className="bg-amber-100 px-1.5 py-0.5 rounded text-xs font-mono">ANTHROPIC_API_KEY</code>,{' '}
-                <code className="bg-amber-100 px-1.5 py-0.5 rounded text-xs font-mono">EUKA_MCP_URL</code>, and{' '}
-                <code className="bg-amber-100 px-1.5 py-0.5 rounded text-xs font-mono">EUKA_STORE_ID</code> to your Vercel environment variables, then redeploy.
-                Once configured, this button pulls all data and writes the full report automatically.
-              </p>
-              <div className="mt-3 space-y-1 text-xs text-amber-700 font-mono bg-amber-100 rounded-lg p-3">
-                <div>ANTHROPIC_API_KEY=sk-ant-...</div>
-                <div>EUKA_MCP_URL=https://app.euka.ai/api/mcp</div>
-                <div>EUKA_STORE_ID=455ea4f9-a404-411b-b748-9ba1929efb93</div>
+            {/* Config status card */}
+            <div className={`rounded-2xl border p-5 ${config?.ready ? 'bg-green-50 border-green-100' : 'bg-white border-gray-100 shadow-sm'}`}>
+              <div className="flex items-center justify-between mb-3">
+                <p className={`text-sm font-semibold ${config?.ready ? 'text-green-800' : 'text-gray-900'}`}>
+                  {config === null ? 'Checking configuration…' : config.ready ? '✓ Ready to auto-generate' : 'Setup required'}
+                </p>
+                {config?.ready && <span className="text-xs text-green-600 bg-green-100 px-2.5 py-1 rounded-full font-medium">All systems go</span>}
               </div>
+
+              {config && (
+                <div className="space-y-2">
+                  {/* Anthropic API Key row */}
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className={config.anthropicKey.set ? 'text-green-500' : 'text-red-400'}>
+                        {config.anthropicKey.set ? '✓' : '✗'}
+                      </span>
+                      <span className="text-gray-700 font-medium">Anthropic API Key</span>
+                      {config.anthropicKey.masked && (
+                        <span className="text-gray-400 font-mono">{config.anthropicKey.masked}</span>
+                      )}
+                      {config.anthropicKey.source === 'db' && (
+                        <button onClick={removeApiKey} className="text-gray-300 hover:text-red-400 transition-colors text-xs">remove</button>
+                      )}
+                    </div>
+                    {!config.anthropicKey.set && <span className="text-red-500 font-medium">Required</span>}
+                  </div>
+
+                  {/* Euka MCP URL row */}
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className={config.eukaMcpUrl.set ? 'text-green-500' : 'text-amber-500'}>
+                      {config.eukaMcpUrl.set ? '✓' : '✗'}
+                    </span>
+                    <span className="text-gray-700 font-medium">Euka MCP URL</span>
+                    {!config.eukaMcpUrl.set && <span className="text-amber-600">Set EUKA_MCP_URL in Vercel environment variables</span>}
+                  </div>
+
+                  {/* Store ID row */}
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className={config.eukaStoreId.set ? 'text-green-500' : 'text-amber-500'}>
+                      {config.eukaStoreId.set ? '✓' : '✗'}
+                    </span>
+                    <span className="text-gray-700 font-medium">Euka Store ID</span>
+                    {!config.eukaStoreId.set && <span className="text-amber-600">Set EUKA_STORE_ID in Vercel environment variables</span>}
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* API Key input — shown when key is not set or user wants to update */}
+            {config && !config.anthropicKey.set && (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Add Anthropic API Key</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Stored securely in your database. Starts with <code className="bg-gray-100 px-1 rounded">sk-ant-</code></p>
+                </div>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type={showApiKey ? 'text' : 'password'}
+                      value={apiKeyInput}
+                      onChange={e => { setApiKeyInput(e.target.value); setKeySave('idle'); setKeySaveErr('') }}
+                      placeholder="sk-ant-api03-..."
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-gray-900 pr-16"
+                    />
+                    <button
+                      onClick={() => setShowApiKey(s => !s)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600"
+                    >
+                      {showApiKey ? 'hide' : 'show'}
+                    </button>
+                  </div>
+                  <button
+                    onClick={saveApiKey}
+                    disabled={!apiKeyInput.trim() || keySaveState === 'saving'}
+                    className="bg-gray-900 text-white rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-gray-800 disabled:opacity-40 transition-colors whitespace-nowrap"
+                  >
+                    {keySaveState === 'saving' ? 'Saving…' : keySaveState === 'saved' ? '✓ Saved' : 'Save Key'}
+                  </button>
+                </div>
+                {keySaveState === 'error' && <p className="text-sm text-red-600">{keySaveErr}</p>}
+                {keySaveState === 'saved' && <p className="text-sm text-green-600">Key saved — ready to generate!</p>}
+              </div>
+            )}
+
+            {/* Update key button when already set */}
+            {config?.anthropicKey.set && config.anthropicKey.source === 'db' && (
+              <details className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+                <summary className="px-5 py-3 text-sm text-gray-500 cursor-pointer hover:text-gray-700 list-none flex items-center gap-2">
+                  <span>↺</span> Update API key
+                </summary>
+                <div className="px-5 pb-4 space-y-3">
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type={showApiKey ? 'text' : 'password'}
+                        value={apiKeyInput}
+                        onChange={e => { setApiKeyInput(e.target.value); setKeySave('idle'); setKeySaveErr('') }}
+                        placeholder="sk-ant-api03-..."
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-gray-900 pr-16"
+                      />
+                      <button onClick={() => setShowApiKey(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600">
+                        {showApiKey ? 'hide' : 'show'}
+                      </button>
+                    </div>
+                    <button
+                      onClick={saveApiKey}
+                      disabled={!apiKeyInput.trim() || keySaveState === 'saving'}
+                      className="bg-gray-900 text-white rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-gray-800 disabled:opacity-40 transition-colors whitespace-nowrap"
+                    >
+                      {keySaveState === 'saving' ? 'Saving…' : 'Update Key'}
+                    </button>
+                  </div>
+                  {keySaveState === 'error' && <p className="text-sm text-red-600">{keySaveErr}</p>}
+                  {keySaveState === 'saved' && <p className="text-sm text-green-600">Key updated.</p>}
+                </div>
+              </details>
+            )}
 
             {/* Generate UI */}
             {genStatus === 'success' && genResult && (

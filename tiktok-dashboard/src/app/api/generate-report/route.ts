@@ -4,6 +4,15 @@ import {
   format, subDays, startOfMonth, endOfMonth, subMonths
 } from 'date-fns'
 
+async function getAnthropicKey(): Promise<string | null> {
+  if (process.env.ANTHROPIC_API_KEY) return process.env.ANTHROPIC_API_KEY
+  try {
+    const sb = supabaseAdmin()
+    const { data } = await sb.from('app_config').select('value').eq('key', 'anthropic_api_key').single()
+    return (data?.value as string) ?? null
+  } catch { return null }
+}
+
 export const maxDuration = 300
 export const dynamic = 'force-dynamic'
 
@@ -178,8 +187,9 @@ export async function POST(req: NextRequest) {
   const token = req.cookies.get('rl-auth')?.value
   if (!token) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json({ error: 'ANTHROPIC_API_KEY is not configured. Add it to your Vercel environment variables.' }, { status: 503 })
+  const anthropicKey = await getAnthropicKey()
+  if (!anthropicKey) {
+    return NextResponse.json({ error: 'Anthropic API key is not configured. Add it in Admin → Auto-Generate, or set ANTHROPIC_API_KEY in your environment variables.' }, { status: 503 })
   }
 
   const body = await req.json().catch(() => ({}))
@@ -193,7 +203,7 @@ export async function POST(req: NextRequest) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY!,
+        'x-api-key': anthropicKey,
         'anthropic-version': '2023-06-01',
         'anthropic-beta': 'mcp-client-2025-04-04'
       },

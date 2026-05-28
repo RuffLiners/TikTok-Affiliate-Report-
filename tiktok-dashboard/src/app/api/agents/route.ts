@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { format, subDays } from 'date-fns'
 import { OutreachAgentRow } from '@/lib/types'
+import { supabaseAdmin } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
 const STORE_ID = process.env.EUKA_STORE_ID!
+
+async function getAnthropicKey(): Promise<string | null> {
+  if (process.env.ANTHROPIC_API_KEY) return process.env.ANTHROPIC_API_KEY
+  try {
+    const sb = supabaseAdmin()
+    const { data } = await sb.from('app_config').select('value').eq('key', 'anthropic_api_key').single()
+    return (data?.value as string) ?? null
+  } catch { return null }
+}
 
 function buildAgentsPrompt(startDate: string, endDate: string): string {
   return `You are a data extraction agent for Ruff Liners TikTok Shop.
@@ -62,8 +72,9 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const reportDate = searchParams.get('reportDate')
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 503 })
+  const anthropicKey = await getAnthropicKey()
+  if (!anthropicKey) {
+    return NextResponse.json({ error: 'Anthropic API key not configured' }, { status: 503 })
   }
   if (!process.env.EUKA_MCP_URL) {
     return NextResponse.json({ error: 'EUKA_MCP_URL not configured' }, { status: 503 })
@@ -80,7 +91,7 @@ export async function GET(req: NextRequest) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY!,
+        'x-api-key': anthropicKey,
         'anthropic-version': '2023-06-01',
         'anthropic-beta': 'mcp-client-2025-04-04'
       },
