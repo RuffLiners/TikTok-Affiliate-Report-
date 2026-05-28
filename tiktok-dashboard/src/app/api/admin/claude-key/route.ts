@@ -16,7 +16,6 @@ export async function GET(req: NextRequest) {
     .single()
 
   if (!data?.value) {
-    // Fall back to env var check
     const hasEnv = !!process.env.ANTHROPIC_API_KEY
     return NextResponse.json({ set: hasEnv, source: hasEnv ? 'env' : 'none', masked: hasEnv ? 'sk-ant-···' : null })
   }
