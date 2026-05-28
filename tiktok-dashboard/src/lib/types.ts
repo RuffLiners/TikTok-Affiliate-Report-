@@ -133,6 +133,40 @@ export interface WeeklyReport {
   }
 }
 
+export interface OutreachAgentRow {
+  id: number
+  name: string
+  agent_type: 'outreach' | 'crm'
+  campaign_type: string
+  status: 'running' | 'stopped' | 'error'
+  date_posted: string
+  creators_reached: number
+  remaining: number
+  samples_requested: number
+  samples_shipped: number
+  total_replies: number
+  total_videos: number
+  total_revenue: number
+  post_rate: number
+  accepted_invites: number
+  total_invites: number
+  has_followups: boolean
+  use_ai_personalization: boolean
+  daily_limit: number | null
+  targeting_method: string
+  target_categories: string[]
+  target_gmvs: string[]
+  target_avg_views: string[]
+  target_followers: string[]
+  target_gender: string | null
+  target_engagement: number | null
+  free_samples: boolean
+  commission: { productId: string; rate: number }[]
+  products: { id: string; title: string }[]
+  message: string
+  collab_message: string
+}
+
 export interface ReportMeta {
   report_date: string
   label: string

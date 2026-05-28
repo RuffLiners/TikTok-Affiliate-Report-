@@ -15,6 +15,7 @@ import { WeeklyCreatorTable } from '@/components/tables/WeeklyCreatorTable'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { AnalysisCard } from '@/components/AnalysisCard'
+import { AgentsSection } from '@/components/AgentsSection'
 
 export const revalidate = 3600
 
@@ -271,6 +272,11 @@ export default async function ReportPage({ params }: Props) {
             <section>
               <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Most Active Creators · by Videos Posted</h2>
               <ActiveCreatorTable creators={report.tables.activeCreators} />
+            </section>
+
+            <section>
+              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Outreach &amp; CRM Agents · Last 30 Days</h2>
+              <AgentsSection reportDate={reportDate} />
             </section>
           </TabsContent>
 
