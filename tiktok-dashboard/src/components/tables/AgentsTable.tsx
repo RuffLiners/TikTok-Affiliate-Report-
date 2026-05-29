@@ -32,8 +32,13 @@ const TH = 'px-3 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase 
 const TD = 'px-3 py-2.5 text-xs text-gray-700 whitespace-nowrap'
 const TDR = 'px-3 py-2.5 text-xs text-gray-700 text-right whitespace-nowrap'
 
-export function AgentsTable({ agents }: { agents: OutreachAgentRow[] }) {
-  const sorted = [...agents].sort((a, b) =>
+export function AgentsTable({ agents, reportDate }: { agents: OutreachAgentRow[]; reportDate?: string }) {
+  // Filter to last 30 days relative to reportDate (or today)
+  const cutoff = new Date(reportDate ? reportDate + 'T23:59:59' : Date.now())
+  cutoff.setDate(cutoff.getDate() - 30)
+  const filtered = agents.filter(a => new Date(a.date_posted) >= cutoff)
+
+  const sorted = [...filtered].sort((a, b) =>
     new Date(b.date_posted).getTime() - new Date(a.date_posted).getTime()
   )
 

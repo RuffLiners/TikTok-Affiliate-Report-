@@ -103,7 +103,7 @@ export function AgentsSection({ reportDate, initialAgents }: Props) {
               <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
                 Outreach Agents · {outreachAgents.length}
               </h4>
-              <AgentsTable agents={outreachAgents} />
+              <AgentsTable agents={outreachAgents} reportDate={reportDate} />
             </div>
           )}
           {crmAgents.length > 0 && (
@@ -111,7 +111,7 @@ export function AgentsSection({ reportDate, initialAgents }: Props) {
               <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
                 CRM Agents · {crmAgents.length}
               </h4>
-              <AgentsTable agents={crmAgents} />
+              <AgentsTable agents={crmAgents} reportDate={reportDate} />
             </div>
           )}
           {outreachAgents.length === 0 && crmAgents.length === 0 && (
