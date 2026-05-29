@@ -18,45 +18,50 @@ async function getAnthropicKey(): Promise<string | null> {
   } catch { return null }
 }
 
-function buildAgentsPrompt(startDate: string, endDate: string): string {
+function buildAgentsPrompt(_startDate: string, _endDate: string): string {
   return `You are a data extraction agent for Ruff Liners TikTok Shop.
 
 STORE ID: ${STORE_ID}
-DATE WINDOW: ${startDate} to ${endDate}
 
-TASK: Fetch all outreach AND CRM agents for store ${STORE_ID}.
+TASK: Fetch ALL outreach AND CRM agents for store ${STORE_ID} and return them as a JSON array.
 
 STEPS:
 1. Call list_outreach_agents with agentType="outreach", limit=50 for store ${STORE_ID}
 2. Call list_outreach_agents with agentType="crm", limit=50 for store ${STORE_ID}
-3. Include ALL agents from both lists (do NOT filter by date — return everything).
-4. For each agent, use only the data returned by list_outreach_agents — do NOT call get_outreach_agent.
-5. Output ONLY the JSON array — no prose, no markdown.
+3. Return ALL agents from both lists — no date filtering.
+4. Do NOT call get_outreach_agent — use only what list_outreach_agents returns.
+5. Output ONLY the JSON array. No prose, no markdown.
 
-CRITICAL OUTPUT RULE: Your entire response must be a single JSON array starting with [ and ending with ]. No text before or after.
+CRITICAL OUTPUT RULE: Your ENTIRE response must be a single JSON array starting with [ and ending with ]. Nothing before or after.
 
-JSON SCHEMA (one object per agent, use null/0/[] for any missing fields):
+FIELD MAPPING — map list_outreach_agents fields to this exact JSON schema:
 {
-  "id": <number>,
+  "id": <campaign_id number>,
   "name": "<campaign_name>",
   "agent_type": "outreach" or "crm",
-  "campaign_type": "<campaign_type>",
-  "status": "<bot_status>",
-  "date_posted": "<created_time ISO string>",
-  "creators_reached": <total_conversations or 0>,
-  "remaining": <remaining_creators or 0>,
-  "samples_requested": <total_sample_request or 0>,
-  "samples_shipped": <total_samples_shipped or 0>,
-  "total_replies": <total_replies or 0>,
-  "total_videos": <total_videos or 0>,
-  "total_revenue": <total_revenue or 0>,
-  "post_rate": <post_rate or 0>,
-  "accepted_invites": <total_target_accepted_invites or 0>,
-  "total_invites": <total_target_invites or 0>,
-  "has_followups": <has_followups boolean or false>,
-  "use_ai_personalization": false,
-  "daily_limit": null,
-  "targeting_method": "",
+  "campaign_type": "<campaign_type string>",
+  "status": "<bot_status: running|stopped|error>",
+  "date_posted": "<created_time as ISO date string YYYY-MM-DD>",
+  "gmv_filter": "<target_gmvs formatted as range string e.g. '$25K–$2M', or 'none'>",
+  "kw_filter": "<keyword/search filter string, or '—' if none>",
+  "other_filters": "<other attribute filters description, or 'none'>",
+  "list_segment": "<list or segment name and size, or '— (filter-based)'>",
+  "commission_display": "<organic_commission% / ads_commission% e.g. '20% / 10%', or '—'>",
+  "creators_reached": <total_conversations number>,
+  "remaining": <remaining_creators number>,
+  "total_invites": <total_target_invites number>,
+  "accepted_invites": <total_target_accepted_invites number>,
+  "total_replies": <total_replies number>,
+  "samples_requested": <total_sample_request number>,
+  "samples_shipped": <total_samples_shipped number>,
+  "total_videos": <total_videos number>,
+  "total_revenue": <total_revenue number>,
+  "product_count": <number of products in this campaign>,
+  "has_followups": <has_followups boolean>,
+  "post_rate": <post_rate number or 0>,
+  "use_ai_personalization": <boolean or false>,
+  "daily_limit": <daily_limit or null>,
+  "targeting_method": "<targeting_method string>",
   "target_categories": [],
   "target_gmvs": [],
   "target_avg_views": [],

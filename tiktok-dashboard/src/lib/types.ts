@@ -141,17 +141,25 @@ export interface OutreachAgentRow {
   campaign_type: string
   status: 'running' | 'stopped' | 'error'
   date_posted: string
-  creators_reached: number
-  remaining: number
-  samples_requested: number
-  samples_shipped: number
-  total_replies: number
-  total_videos: number
-  total_revenue: number
+  // exact spreadsheet columns
+  gmv_filter: string           // "GMV Filter" e.g. "$2.5K–$2M" or "none"
+  kw_filter: string            // "KW / Search Filter" e.g. '"vehicle"' or "—"
+  other_filters: string        // "Other Attribute Filters"
+  list_segment: string         // "List / Segment"
+  commission_display: string   // "Organic & Ads Comm." e.g. "20% / 10%"
+  creators_reached: number     // Conversations
+  remaining: number            // Remaining Creators
+  total_invites: number        // Target Invites
+  accepted_invites: number     // Accepted Invites
+  total_replies: number        // Replies
+  samples_requested: number    // Sample Requests
+  samples_shipped: number      // Samples Shipped
+  total_videos: number         // Videos
+  total_revenue: number        // Revenue ($)
+  product_count: number        // Products (count)
+  has_followups: boolean       // Has Followups
+  // legacy / detail fields (may be empty when using list-only fetch)
   post_rate: number
-  accepted_invites: number
-  total_invites: number
-  has_followups: boolean
   use_ai_personalization: boolean
   daily_limit: number | null
   targeting_method: string
