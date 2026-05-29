@@ -81,35 +81,20 @@ export async function POST(req: NextRequest) {
     agents = Array.isArray(phaseData.agents) ? phaseData.agents : []
   }
 
-  const hasTables = tables.topCreators.length > 0 || tables.topVideos.length > 0 || tables.activeCreators.length > 0
-  const hasAgents = agents.length > 0
-
-  const { data: existing } = await supabase
-    .from('weekly_reports')
-    .select('report_date')
-    .eq('report_date', w.reportDate)
-    .maybeSingle()
-
-  if (existing) {
-    const updatePayload: any = { d30, label: w.label, data_window: w.dataWindow }
-    if (hasTables) updatePayload.tables = tables
-    if (hasAgents) updatePayload.agents = agents
-    const { error } = await supabase.from('weekly_reports').update(updatePayload).eq('report_date', w.reportDate)
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  } else {
-    const { error } = await supabase.from('weekly_reports').insert({
-      report_date: w.reportDate,
-      label: w.label,
-      data_window: w.dataWindow,
-      d30,
-      tables,
-      agents: hasAgents ? agents : [],
-      weekly_charts: { labels:[], gmv:[], views:[], crg1:[], crg2:[], crg3:[], ncg1:[], ncg2:[], ncg3:[], vg1:[], vg2:[], vg3:[], gg1:[], gg2:[], gg3:[], ret:[], vid:[], mg1:[], mg2:[], mg3:[], sg1:[], sg2:[], sg3:[] },
-      monthly_charts: { labels:[], gmv:[], views:[], crg1:[], crg2:[], crg3:[], ncg1:[], ncg2:[], ncg3:[], vg1:[], vg2:[], vg3:[], gg1:[], gg2:[], gg3:[], ret:[], mg1:[], mg2:[], mg3:[], sg1:[], sg2:[], sg3:[] },
-      analysis: { d30:'', weekly:'', monthly:'' }
-    })
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  // Save to app_config key 'live_report' — never touches weekly_reports
+  const liveData = {
+    report_date: w.reportDate,
+    label: w.label,
+    data_window: w.dataWindow,
+    d30,
+    tables,
+    agents,
+    analysis: { d30: '' },
   }
+  const { error } = await supabase
+    .from('app_config')
+    .upsert({ key: 'live_report', value: JSON.stringify(liveData) }, { onConflict: 'key' })
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   revalidatePath('/dashboard')
   return NextResponse.json({ ok: true, reportDate: w.reportDate, gmv: d30.gmv })

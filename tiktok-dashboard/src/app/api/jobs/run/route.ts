@@ -379,21 +379,19 @@ export async function POST(req: NextRequest) {
     await upd(nextPhase, `Phase ${nextPhase} done`)
 
     // live_refresh: save after collecting A1-A6 (phases 1-6)
-    // Only update d30 + metadata — never overwrite charts/tables/analysis on an existing report
+    // Writes to app_config key 'live_report' — never touches weekly_reports
     if (isLive && nextPhase === LIVE_SAVE_AFTER) {
       const fullReport = assemble(w, pd, { d30:'', weekly:'', monthly:'' })
-      const { data: existing } = await supabase.from('weekly_reports').select('report_date').eq('report_date', w.reportDate).maybeSingle()
-      if (existing) {
-        // Merge: update only d30 fields, leave everything else intact
-        await supabase.from('weekly_reports').update({
-          d30: fullReport.d30,
-          label: fullReport.label,
-          data_window: fullReport.data_window,
-        }).eq('report_date', w.reportDate)
-      } else {
-        // No report yet for this date — insert the full (mostly empty) record
-        await supabase.from('weekly_reports').insert(fullReport)
+      const liveData = {
+        report_date: fullReport.report_date,
+        label: fullReport.label,
+        data_window: fullReport.data_window,
+        d30: fullReport.d30,
+        tables: { topCreators:[], topVideos:[], activeCreators:[] },
+        agents: [],
+        analysis: { d30:'' },
       }
+      await supabase.from('app_config').upsert({ key:'live_report', value: JSON.stringify(liveData) }, { onConflict:'key' })
       await supabase.from('report_jobs').update({ status:'done', phase:nextPhase, phase_label:'Done ✓', updated_at:new Date().toISOString() }).eq('id',jobId)
       return NextResponse.json({ ok:true, nextPhase:null })
     }

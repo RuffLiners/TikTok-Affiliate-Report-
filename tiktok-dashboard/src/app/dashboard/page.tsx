@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import { cookies } from 'next/headers'
-import { supabase } from '@/lib/supabase'
 import { supabaseAdmin } from '@/lib/supabase'
 import { LiveDashboard } from '@/components/LiveDashboard'
 import { WeeklyReport } from '@/lib/types'
@@ -11,17 +10,12 @@ export default async function DashboardPage() {
   const cookieStore = await cookies()
   const isViewOnly = !!cookieStore.get('rl-view') && !cookieStore.get('rl-auth')
 
-  const [{ data: reports }, { data: goalsConfig }] = await Promise.all([
-    supabase
-      .from('weekly_reports')
-      .select('*')
-      .order('report_date', { ascending: false })
-      .limit(1),
-    supabaseAdmin()
-      .from('app_config').select('value').eq('key', 'goals').single()
+  const [{ data: liveConfig }, { data: goalsConfig }] = await Promise.all([
+    supabaseAdmin().from('app_config').select('value').eq('key', 'live_report').maybeSingle(),
+    supabaseAdmin().from('app_config').select('value').eq('key', 'goals').single()
   ])
   const goals = goalsConfig ? (() => { try { return JSON.parse(goalsConfig.value) } catch { return null } })() : null
-  const latestReport = reports?.[0] as WeeklyReport | undefined
+  const latestReport = liveConfig ? (() => { try { return JSON.parse(liveConfig.value) as WeeklyReport } catch { return undefined } })() : undefined
 
   return (
     <div className="min-h-screen bg-gray-50">
