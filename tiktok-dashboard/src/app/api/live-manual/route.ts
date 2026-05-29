@@ -85,6 +85,7 @@ export async function POST(req: NextRequest) {
   const today = reportDate ? new Date(reportDate + 'T12:00:00') : new Date()
   const w = buildWindows(today)
   const assembled = assembled30(phaseData, w)
+  const hasAgents = Array.isArray(phaseData.agents) && phaseData.agents.length > 0
 
   const hasTables = assembled.tables.topCreators.length > 0 ||
     assembled.tables.topVideos.length > 0 ||
@@ -103,6 +104,7 @@ export async function POST(req: NextRequest) {
       data_window: assembled.data_window,
     }
     if (hasTables) updatePayload.tables = assembled.tables
+    if (hasAgents) updatePayload.agents = phaseData.agents
     const { error } = await supabase.from('weekly_reports').update(updatePayload).eq('report_date', w.reportDate)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   } else {
@@ -112,6 +114,7 @@ export async function POST(req: NextRequest) {
       data_window: assembled.data_window,
       d30: assembled.d30,
       tables: assembled.tables,
+      agents: hasAgents ? phaseData.agents : [],
       weekly_charts: { labels:[], gmv:[], views:[], crg1:[], crg2:[], crg3:[], ncg1:[], ncg2:[], ncg3:[], vg1:[], vg2:[], vg3:[], gg1:[], gg2:[], gg3:[], ret:[], vid:[], mg1:[], mg2:[], mg3:[], sg1:[], sg2:[], sg3:[] },
       monthly_charts: { labels:[], gmv:[], views:[], crg1:[], crg2:[], crg3:[], ncg1:[], ncg2:[], ncg3:[], vg1:[], vg2:[], vg3:[], gg1:[], gg2:[], gg3:[], ret:[], mg1:[], mg2:[], mg3:[], sg1:[], sg2:[], sg3:[] },
       analysis: { d30:'', weekly:'', monthly:'' }
@@ -164,7 +167,9 @@ Run ALL of the following queries and return ONE combined JSON object with all ke
 
 9. Top 15 creators by videos posted (${w.d30.start}–${w.d30.end}): handle, global GMV, followers, videos posted, GMV from those videos, total store GMV, total views, avg views per video, orders. → key "activeCreators"
 
-Output ONLY this single JSON object with all 9 keys filled in with real data:
+10. All outreach AND CRM agents for this store: call list_outreach_agents with agentType="outreach" limit=50, then agentType="crm" limit=50. Return ALL agents from both lists. For each agent map: id, name, agent_type ("outreach"/"crm"), campaign_type, status (bot_status), date_posted (created_time as YYYY-MM-DD), gmv_filter (target_gmvs as range string or "none"), kw_filter (keyword filter or "—"), other_filters (other attribute filters or "none"), list_segment (list/segment name + size or "— (filter-based)"), commission_display (organic%/ads% e.g. "20% / 10%" or "—"), creators_reached (total_conversations), remaining (remaining_creators), total_invites (total_target_invites), accepted_invites (total_target_accepted_invites), total_replies, samples_requested (total_sample_request), samples_shipped (total_samples_shipped), total_videos, total_revenue, product_count (number of products), has_followups (boolean). → key "agents" (array)
+
+Output ONLY this single JSON object with all 10 keys filled in with real data:
 {
   "A1":{"gmv":0,"orders":0,"videos":0,"views":0,"creators":0,"newCreators":0,"retention":0},
   "A2":{"gmv":0,"orders":0,"videos":0,"views":0,"creators":0,"newCreators":0,"retention":0},
@@ -174,7 +179,8 @@ Output ONLY this single JSON object with all 9 keys filled in with real data:
   "A6":{"spend":0,"revenue":0,"roi":0},
   "topCreators":[{"h":"","flw":0,"sgmv":0,"ggmv":0,"views":0,"v30":0,"vmgmv":0,"vlife":0,"v7":0,"ord":0,"aov":0,"eng":null}],
   "topVideos":[{"h":"","ggmv":0,"prod":"","gmv":0,"views":0,"ord":0,"aov":0,"likes":0,"cmt":0,"clicks":null,"date":""}],
-  "activeCreators":[{"h":"","ggmv":0,"flw":0,"v30":0,"gmvN":0,"gmvT":0,"views":0,"avgv":0,"ord":0}]
+  "activeCreators":[{"h":"","ggmv":0,"flw":0,"v30":0,"gmvN":0,"gmvT":0,"views":0,"avgv":0,"ord":0}],
+  "agents":[{"id":0,"name":"","agent_type":"outreach","campaign_type":"","status":"running","date_posted":"","gmv_filter":"","kw_filter":"","other_filters":"","list_segment":"","commission_display":"","creators_reached":0,"remaining":0,"total_invites":0,"accepted_invites":0,"total_replies":0,"samples_requested":0,"samples_shipped":0,"total_videos":0,"total_revenue":0,"product_count":0,"has_followups":false}]
 }`
 
   return NextResponse.json({ prompt, reportDate: w.reportDate, dataWindow: w.dataWindow })

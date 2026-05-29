@@ -276,7 +276,7 @@ export default async function ReportPage({ params }: Props) {
 
             <section>
               <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Outreach &amp; CRM Agents · Last 30 Days</h2>
-              <AgentsSection reportDate={reportDate} />
+              <AgentsSection reportDate={reportDate} initialAgents={report.agents} />
             </section>
           </TabsContent>
 
