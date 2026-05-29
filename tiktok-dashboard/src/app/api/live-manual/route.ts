@@ -153,7 +153,7 @@ Run ALL of the following queries and return ONE combined JSON object with all ke
 
 2. Prior 30d (${w.prior.start}–${w.prior.end}) same totals. → key "A2"
 
-3. Current 30d (${w.d30.start}–${w.d30.end}) by creator tier (G1 global gmv_30d <$25K, G2 $25K–$100K, G3 >$100K): creators who posted, new creators, videos posted, store GMV. → key "A3"
+3. Current 30d (${w.d30.start}–${w.d30.end}) by creator tier — pull every creator from creator_store_performance who posted in this window, classify each by their global gmv_30d (G1 <$25K, G2 $25K–$100K, G3 >$100K), then sum: creators who posted, new creators, videos posted, and STORE GMV (the same gmv field used in A1, not global GMV). G1+G2+G3 store GMV must sum to the A1 total. → key "A3"
 
 4. Current 30d (${w.d30.start}–${w.d30.end}) outreach totals + by tier: messages sent, samples shipped. → key "A4"
 

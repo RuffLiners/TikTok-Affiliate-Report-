@@ -86,7 +86,7 @@ const PHASES: Record<number, { label: string; prompt: (w: ReturnType<typeof buil
   3: {
     label: 'Pulling creator tier breakdown…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Current 30d (${w.d30.start}–${w.d30.end}) by creator tier (tier based on global gmv_30d: G1 <$25K, G2 $25K–$100K, G3 >$100K): creators who posted, new creators, videos posted, store GMV. Once you have the data, output ONLY the JSON — no analysis, no explanation.\nReturn ONLY: {"A3":{"g1":{"creators":0,"newCreators":0,"videos":0,"gmv":0},"g2":{"creators":0,"newCreators":0,"videos":0,"gmv":0},"g3":{"creators":0,"newCreators":0,"videos":0,"gmv":0}}}`
+    prompt: w => BASE(w) + `\n\nQuery: Current 30d (${w.d30.start}–${w.d30.end}) by creator tier — pull every creator from creator_store_performance who posted in this window, classify each by their global gmv_30d (G1 <$25K, G2 $25K–$100K, G3 >$100K), then sum: creators who posted, new creators, videos posted, and STORE GMV (the same gmv field from creator_store_performance, NOT global GMV). G1+G2+G3 store GMV must sum to the overall 30d total. Once you have the data, output ONLY the JSON — no analysis, no explanation.\nReturn ONLY: {"A3":{"g1":{"creators":0,"newCreators":0,"videos":0,"gmv":0},"g2":{"creators":0,"newCreators":0,"videos":0,"gmv":0},"g3":{"creators":0,"newCreators":0,"videos":0,"gmv":0}}}`
   },
   4: {
     label: 'Pulling current outreach data…',
