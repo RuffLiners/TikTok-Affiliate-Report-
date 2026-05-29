@@ -12,6 +12,7 @@ export function ManualEntryPanel({ reportDate, onClose }: Props) {
   const router = useRouter()
   const [prompt, setPrompt] = useState('')
   const [dataWindow, setDataWindow] = useState('')
+  const [liveReportDate, setLiveReportDate] = useState(reportDate)
   const [copied, setCopied] = useState(false)
   const [json, setJson] = useState('')
   const [saving, setSaving] = useState(false)
@@ -19,11 +20,17 @@ export function ManualEntryPanel({ reportDate, onClose }: Props) {
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
-    fetch(`/api/live-manual?reportDate=${reportDate}`)
+    // Fetch without a date so the server computes today's window,
+    // preventing live data from overwriting an older weekly report row.
+    fetch(`/api/live-manual`)
       .then(r => r.json())
-      .then(d => { setPrompt(d.prompt || ''); setDataWindow(d.dataWindow || '') })
+      .then(d => {
+        setPrompt(d.prompt || '')
+        setDataWindow(d.dataWindow || '')
+        if (d.reportDate) setLiveReportDate(d.reportDate)
+      })
       .catch(() => {})
-  }, [reportDate])
+  }, [])
 
   async function copy() {
     await navigator.clipboard.writeText(prompt)
@@ -56,7 +63,7 @@ export function ManualEntryPanel({ reportDate, onClose }: Props) {
     const res = await fetch('/api/live-manual', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phaseData, reportDate })
+      body: JSON.stringify({ phaseData, reportDate: liveReportDate })
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) { setError(data.error || 'Save failed.'); setSaving(false); return }
