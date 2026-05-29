@@ -235,6 +235,27 @@ async function getAnthropicKey(): Promise<string|null> {
   try { const {data}=await supabaseAdmin().from('app_config').select('value').eq('key','anthropic_api_key').single(); return (data?.value as string)??null } catch { return null }
 }
 
+function extractTextBlocks(data: any): string {
+  return (data.content||[]).filter((b:any)=>b.type==='text').map((b:any)=>b.text).join('\n')
+}
+
+async function callClaudeRaw(body: any, apiKey: string): Promise<any> {
+  const bodyStr = JSON.stringify(body)
+  async function attempt() {
+    try { return await anthropicPost(apiKey, bodyStr, 740_000) }
+    catch (e: any) { throw new Error(`Anthropic API unreachable: ${e?.message}`) }
+  }
+  let res: Awaited<ReturnType<typeof anthropicPost>>
+  try { res = await attempt() }
+  catch (firstErr: any) {
+    console.warn('Anthropic call failed, retrying in 5s…', (firstErr as any).message)
+    await new Promise(r => setTimeout(r, 5000))
+    res = await attempt()
+  }
+  if (!res.ok) { const t = await res.text(); throw new Error(`Claude API ${res.status}: ${t.slice(0,300)}`) }
+  return JSON.parse(await res.text())
+}
+
 async function callClaude(prompt: string, apiKey: string, withMcp: boolean): Promise<string> {
   const body: any = { model: 'claude-sonnet-4-6', max_tokens: 4000, messages: [{ role: 'user', content: prompt }] }
   if (withMcp) {
@@ -245,29 +266,29 @@ async function callClaude(prompt: string, apiKey: string, withMcp: boolean): Pro
     body.mcp_servers = [srv]
   }
 
-  const bodyStr = JSON.stringify(body)
+  const data = await callClaudeRaw(body, apiKey)
+  const text = extractTextBlocks(data)
 
-  async function attempt() {
-    try {
-      return await anthropicPost(apiKey, bodyStr, 740_000)
-    } catch (e: any) {
-      throw new Error(`Anthropic API unreachable: ${e?.message}`)
+  // If no JSON in the response, send a follow-up turn to coerce output to JSON
+  if (text.indexOf('{') === -1) {
+    console.warn('No JSON in first response, sending JSON-coerce follow-up turn')
+    // Build a multi-turn conversation: original user message + assistant response + follow-up
+    const assistantContent = data.content || []
+    const followUpBody: any = {
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2000,
+      messages: [
+        { role: 'user', content: prompt },
+        { role: 'assistant', content: assistantContent },
+        { role: 'user', content: 'Now output ONLY the JSON object with the exact structure I specified. Start your response with { and end with }. Nothing else.' }
+      ]
     }
+    // MCP not needed for follow-up (data already fetched)
+    const followUpData = await callClaudeRaw(followUpBody, apiKey)
+    return extractTextBlocks(followUpData)
   }
 
-  // retry once on transient network errors
-  let res: Awaited<ReturnType<typeof anthropicPost>>
-  try {
-    res = await attempt()
-  } catch (firstErr: any) {
-    console.warn('Anthropic call failed, retrying in 5s…', firstErr.message)
-    await new Promise(r => setTimeout(r, 5000))
-    res = await attempt()
-  }
-
-  if (!res.ok) { const t = await res.text(); throw new Error(`Claude API ${res.status}: ${t.slice(0,300)}`) }
-  const data = JSON.parse(await res.text())
-  return (data.content||[]).filter((b:any)=>b.type==='text').map((b:any)=>b.text).join('\n')
+  return text
 }
 
 function extractJson(text: string): any {
