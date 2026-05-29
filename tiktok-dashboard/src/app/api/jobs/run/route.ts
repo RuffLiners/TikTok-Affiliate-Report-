@@ -65,11 +65,11 @@ function buildWindows(today: Date) {
 }
 
 const BASE = (w: ReturnType<typeof buildWindows>) =>
-  `Data extraction agent for Ruff Liners TikTok Shop. STORE ID: ${process.env.EUKA_STORE_ID}
+  `You are a data extraction agent for Ruff Liners TikTok Shop. STORE ID: ${process.env.EUKA_STORE_ID}
 Current 30d: ${w.d30.start} to ${w.d30.end} | Prior 30d: ${w.prior.start} to ${w.prior.end}
 13 weeks: ${w.weeksRange} | 6 months: ${w.monthKeys}
-RULES: Specify 2026 in all queries. Read every CSV with read_sandbox_file. Use creator_store_performance for GMV. New creators = first-ever video for this store. GMV Max only from May 14 2026 (use 0 if earlier).
-Output ONLY the JSON object requested — no explanation, no markdown.`
+RULES: Always specify year 2026 in queries. Read every CSV with read_sandbox_file. Use creator_store_performance for GMV. New creators = first-ever video for this store. GMV Max only from May 14 2026 (use 0 if earlier).
+CRITICAL OUTPUT RULE: You MUST respond with ONLY a single JSON object. No explanations, no analysis, no markdown, no prose before or after. Your entire response must start with { and end with }. Fill in real numbers from the data.`
 
 // ONE query per phase — each phase is one Vercel function call (maxDuration=800)
 const PHASES: Record<number, { label: string; prompt: (w: ReturnType<typeof buildWindows>, pd: any) => string; mcp: boolean }> = {
@@ -86,7 +86,7 @@ const PHASES: Record<number, { label: string; prompt: (w: ReturnType<typeof buil
   3: {
     label: 'Pulling creator tier breakdown…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Current 30d (${w.d30.start}–${w.d30.end}) by creator tier (tier based on global gmv_30d: G1 <$25K, G2 $25K–$100K, G3 >$100K): creators who posted, new creators, videos posted, store GMV.\nOutput: {"A3":{"g1":{"creators":0,"newCreators":0,"videos":0,"gmv":0},"g2":{"creators":0,"newCreators":0,"videos":0,"gmv":0},"g3":{"creators":0,"newCreators":0,"videos":0,"gmv":0}}}`
+    prompt: w => BASE(w) + `\n\nQuery: Current 30d (${w.d30.start}–${w.d30.end}) by creator tier (tier based on global gmv_30d: G1 <$25K, G2 $25K–$100K, G3 >$100K): creators who posted, new creators, videos posted, store GMV. Once you have the data, output ONLY the JSON — no analysis, no explanation.\nReturn ONLY: {"A3":{"g1":{"creators":0,"newCreators":0,"videos":0,"gmv":0},"g2":{"creators":0,"newCreators":0,"videos":0,"gmv":0},"g3":{"creators":0,"newCreators":0,"videos":0,"gmv":0}}}`
   },
   4: {
     label: 'Pulling current outreach data…',
@@ -273,7 +273,19 @@ async function callClaude(prompt: string, apiKey: string, withMcp: boolean): Pro
 function extractJson(text: string): any {
   const s=text.indexOf('{'), e=text.lastIndexOf('}')
   if (s===-1||e===-1) throw new Error('No JSON in Claude response')
-  return JSON.parse(text.slice(s,e+1))
+  const slice = text.slice(s,e+1)
+  try {
+    return JSON.parse(slice)
+  } catch {
+    // try to find the outermost valid JSON object by scanning for balanced braces
+    let depth=0, start=-1, end=-1
+    for (let i=0;i<text.length;i++) {
+      if (text[i]==='{') { if (depth===0) start=i; depth++ }
+      else if (text[i]==='}') { depth--; if (depth===0 && start!==-1) { end=i; break } }
+    }
+    if (start===-1||end===-1) throw new Error('No JSON in Claude response')
+    return JSON.parse(text.slice(start,end+1))
+  }
 }
 
 export async function POST(req: NextRequest) {
