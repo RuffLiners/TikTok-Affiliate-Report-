@@ -318,14 +318,17 @@ export default function AdminPage() {
 
   const TOTAL_PHASES = 6
 
-  async function runPhase(jobId: string, phase: number): Promise<number | null> {
+  async function runPhase(jobId: string): Promise<number | null> {
     const res = await fetch('/api/jobs/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jobId })
     })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || 'Phase failed')
+    if (!res.ok) {
+      const jobRes = await fetch(`/api/jobs/${jobId}`).then(r => r.json()).catch(() => ({}))
+      throw new Error(jobRes.error || data.error || `Phase failed (HTTP ${res.status})`)
+    }
     return data.nextPhase ?? null
   }
 
@@ -359,7 +362,7 @@ export default function AdminPage() {
       // run phases sequentially, each is one Vercel function call
       let nextPhase: number | null = 1
       while (nextPhase !== null) {
-        nextPhase = await runPhase(jobId, nextPhase)
+        nextPhase = await runPhase(jobId)
       }
 
       stopPoll()

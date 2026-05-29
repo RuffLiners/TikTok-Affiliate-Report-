@@ -29,15 +29,18 @@ export function LiveDashboard({ report, goals: _goals }: Props) {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
   }
 
-  async function runNextPhase(jobId: string, nextPhase: number) {
-    if (nextPhase === null || nextPhase === undefined) return
+  async function runNextPhase(jobId: string) {
     const res = await fetch('/api/jobs/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jobId })
     })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || 'Phase failed')
+    if (!res.ok) {
+      // also fetch job row to get the stored error message
+      const jobRes = await fetch(`/api/jobs/${jobId}`).then(r => r.json()).catch(() => ({}))
+      throw new Error(jobRes.error || data.error || `Phase failed (HTTP ${res.status})`)
+    }
     return data.nextPhase
   }
 
@@ -74,7 +77,7 @@ export function LiveDashboard({ report, goals: _goals }: Props) {
 
       // run phase 1 (live_refresh only needs 1 phase)
       setPhaseLabel('Pulling 30-day KPIs…')
-      await runNextPhase(jobId, 1)
+      await runNextPhase(jobId)
 
     } catch (e: any) {
       stopPoll()
