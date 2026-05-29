@@ -132,7 +132,7 @@ QUERIES TO RUN:
 7. Top 15 creators by store GMV — handle, followers, store GMV, global gmv_30d, views, videos L30d, videos w/GMV L30d, lifetime videos, videos L7d, orders, AOV, engagement rate
 8. Top 15 videos by store GMV — creator handle, product name, GMV, views, orders, AOV, publish date, likes, comments, product clicks
 9. Top 15 creators by videos posted — handle, followers, GMV from new-period videos only, total store GMV, views, avg views/video, orders
-10. Outreach AND CRM agents created on or after ${w.d30.start}: call list_outreach_agents with agentType="outreach" limit=25, then agentType="crm" limit=25. Filter to agents where created_time >= "${w.d30.start}". Call get_outreach_agent for every agent in the filtered set to get full detail fields.
+10. Outreach AND CRM agents created on or after ${w.d30.start}: call list_outreach_agents with agentType="outreach" limit=25, then agentType="crm" limit=25. Filter to agents where created_time >= "${w.d30.start}". Call get_outreach_agent for every agent in the filtered set to get full detail fields. For gmv_filter use the ACTUAL target_gmvs value from get_outreach_agent (format as range e.g. "$2.5K–$2M", "$25K–$55K", "$70K–$100K") — NEVER derive from campaign name or tier label. Use "none" only if target_gmvs is truly empty.
 
 Product name shortening: "Hard Bottom Backseat Extenders for Dogs with Door Protection" → "Back Seat Ext." · "XL Floor Cover for Full-Size Crew Cab Trucks with Fold Up Seats" → "XL Floor Cover" · "Travel Dog Bed for Car" → "Travel Dog Bed"
 

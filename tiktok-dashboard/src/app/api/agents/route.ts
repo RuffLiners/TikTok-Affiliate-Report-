@@ -44,7 +44,7 @@ FIELD MAPPING — map list_outreach_agents fields to this exact JSON schema:
   "campaign_type": "<campaign_type string>",
   "status": "<bot_status: running|stopped|error>",
   "date_posted": "<created_time as ISO date string YYYY-MM-DD>",
-  "gmv_filter": "<target_gmvs formatted as range string e.g. '$25K–$2M', or 'none'>",
+  "gmv_filter": "<the ACTUAL target_gmvs value from get_outreach_agent — format as min–max range e.g. '$2.5K–$2M', '$25K–$55K', '$70K–$100K'. NEVER derive from campaign name or tier. Use 'none' only if target_gmvs is truly empty>",
   "kw_filter": "<keyword/search filter string, or '—' if none>",
   "other_filters": "<other attribute filters description, or 'none'>",
   "list_segment": "<list or segment name and size, or '— (filter-based)'>",
