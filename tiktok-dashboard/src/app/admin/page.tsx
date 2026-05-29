@@ -192,13 +192,17 @@ Product name shortening: "Hard Bottom Backseat Extenders for Dogs with Door Prot
 }
 
 const GENERATE_STEPS = [
-  { id: 'kpis',     label: 'Pulling 30-day KPIs' },
-  { id: 'tiers',    label: 'Breaking down creator tiers' },
-  { id: 'tables',   label: 'Fetching top creators & videos' },
-  { id: 'weekly',   label: 'Pulling 13 weeks of data' },
-  { id: 'monthly',  label: 'Pulling 6 months of data' },
-  { id: 'analysis', label: 'Writing report analysis' },
-  { id: 'saving',   label: 'Saving to dashboard' },
+  { id: 'kpis',      label: 'Pulling current & prior KPIs' },
+  { id: 'tiers',     label: 'Pulling creator tiers & GMV Max' },
+  { id: 'outreach',  label: 'Pulling outreach data' },
+  { id: 'creators',  label: 'Pulling top creators' },
+  { id: 'videos',    label: 'Pulling top videos' },
+  { id: 'weekly1',   label: 'Pulling 13-week trends' },
+  { id: 'weekly2',   label: 'Pulling 13-week retention & outreach' },
+  { id: 'monthly1',  label: 'Pulling 6-month data' },
+  { id: 'monthly2',  label: 'Pulling 6-month trends' },
+  { id: 'analysis',  label: 'Writing analysis' },
+  { id: 'saving',    label: 'Saving to dashboard' },
 ]
 
 export default function AdminPage() {
@@ -316,7 +320,7 @@ export default function AdminPage() {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
   }
 
-  const TOTAL_PHASES = 6
+  const TOTAL_PHASES = 11
 
   async function runPhase(jobId: string): Promise<number | null> {
     const res = await fetch('/api/jobs/run', {
