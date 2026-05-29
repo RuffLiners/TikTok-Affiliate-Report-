@@ -24,8 +24,8 @@ function buildWindows(today: Date) {
     dataWindow: `${format(gmvStart, 'MMM d')} – ${format(gmvEnd, 'MMM d, yyyy')}`,
     d30: { start: f(gmvStart), end: f(gmvEnd) },
     prior: { start: f(priorStart), end: f(priorEnd) },
-    weekLabels: weeks.map(w => `${w.start.getMonth()+1}/${w.start.getDate()}`),
-    monthLabels: months.map(m => m.label),
+    weeksRange: `${f(weeks[0].start)} to ${f(lastSat)}`,
+    monthKeys: months.map(m => m.key).join(', '),
   }
 }
 
@@ -57,11 +57,16 @@ function assembled30(pd: any, w: ReturnType<typeof buildWindows>) {
         g2: { creators: a3.g2?.creators||0, newCreators: a3.g2?.newCreators||0, videos: a3.g2?.videos||0, gmv: a3.g2?.gmv||0, msgs: a4.g2?.msgs||0, msgsPct: pct(a4.g2?.msgs||0,a5.g2?.msgs||0), samples: a4.g2?.samples||0, samplesPct: pct(a4.g2?.samples||0,a5.g2?.samples||0) },
         g3: { creators: a3.g3?.creators||0, newCreators: a3.g3?.newCreators||0, videos: a3.g3?.videos||0, gmv: a3.g3?.gmv||0, msgs: a4.g3?.msgs||0, msgsPct: pct(a4.g3?.msgs||0,a5.g3?.msgs||0), samples: a4.g3?.samples||0, samplesPct: pct(a4.g3?.samples||0,a5.g3?.samples||0) },
       }
+    },
+    tables: {
+      topCreators: pd.topCreators || [],
+      topVideos: pd.topVideos || [],
+      activeCreators: pd.activeCreators || [],
     }
   }
 }
 
-// POST — accept A1-A6 phase data, assemble d30, merge into report for report_date
+// POST — accept phase data, assemble, merge into report
 export async function POST(req: NextRequest) {
   const token = req.cookies.get('rl-auth')?.value
   if (!token) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
@@ -81,30 +86,34 @@ export async function POST(req: NextRequest) {
   const w = buildWindows(today)
   const assembled = assembled30(phaseData, w)
 
-  // Check if a report exists for this date
+  const hasTables = assembled.tables.topCreators.length > 0 ||
+    assembled.tables.topVideos.length > 0 ||
+    assembled.tables.activeCreators.length > 0
+
   const { data: existing } = await supabase
     .from('weekly_reports')
-    .select('report_date, weekly_charts, monthly_charts, tables, analysis, agents')
+    .select('report_date')
     .eq('report_date', w.reportDate)
     .maybeSingle()
 
   if (existing) {
-    // Merge: update only d30 + label + data_window, preserve everything else
-    const { error } = await supabase
-      .from('weekly_reports')
-      .update({ d30: assembled.d30, label: assembled.label, data_window: assembled.data_window })
-      .eq('report_date', w.reportDate)
+    const updatePayload: any = {
+      d30: assembled.d30,
+      label: assembled.label,
+      data_window: assembled.data_window,
+    }
+    if (hasTables) updatePayload.tables = assembled.tables
+    const { error } = await supabase.from('weekly_reports').update(updatePayload).eq('report_date', w.reportDate)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   } else {
-    // Insert a new report (charts/tables will be empty — can run full auto-generate later)
     const { error } = await supabase.from('weekly_reports').insert({
       report_date: w.reportDate,
       label: assembled.label,
       data_window: assembled.data_window,
       d30: assembled.d30,
+      tables: assembled.tables,
       weekly_charts: { labels:[], gmv:[], views:[], crg1:[], crg2:[], crg3:[], ncg1:[], ncg2:[], ncg3:[], vg1:[], vg2:[], vg3:[], gg1:[], gg2:[], gg3:[], ret:[], vid:[], mg1:[], mg2:[], mg3:[], sg1:[], sg2:[], sg3:[] },
       monthly_charts: { labels:[], gmv:[], views:[], crg1:[], crg2:[], crg3:[], ncg1:[], ncg2:[], ncg3:[], vg1:[], vg2:[], vg3:[], gg1:[], gg2:[], gg3:[], ret:[], mg1:[], mg2:[], mg3:[], sg1:[], sg2:[], sg3:[] },
-      tables: { topCreators:[], topVideos:[], activeCreators:[] },
       analysis: { d30:'', weekly:'', monthly:'' }
     })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -114,7 +123,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true, reportDate: w.reportDate, gmv: assembled.d30.gmv })
 }
 
-// GET — return the Claude prompts with live date windows filled in
+// GET — return all Claude prompts with live date windows and real store ID
 export async function GET(req: NextRequest) {
   const token = req.cookies.get('rl-auth')?.value
   if (!token) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
@@ -123,69 +132,64 @@ export async function GET(req: NextRequest) {
   const reportDate = searchParams.get('reportDate')
   const today = reportDate ? new Date(reportDate + 'T12:00:00') : new Date()
   const w = buildWindows(today)
-  const storeId = process.env.EUKA_STORE_ID || 'YOUR_STORE_ID'
+
+  // Read store ID server-side so it's never exposed as a literal string in prompts
+  const storeId = process.env.EUKA_STORE_ID ?? ''
 
   const base = `You are a data extraction agent for Ruff Liners TikTok Shop. STORE ID: ${storeId}
 Current 30d: ${w.d30.start} to ${w.d30.end} | Prior 30d: ${w.prior.start} to ${w.prior.end}
+13 weeks: ${w.weeksRange} | 6 months: ${w.monthKeys}
 RULES: Always specify year 2026 in queries. Read every CSV with read_sandbox_file. Use creator_store_performance for GMV. New creators = first-ever video for this store. GMV Max only from May 14 2026 (use 0 if earlier).
 CRITICAL OUTPUT RULE: You MUST respond with ONLY a single JSON object. Start with { and end with }. No prose, no markdown.`
 
-  const prompts = [
-    {
-      phase: 1,
-      label: 'Current 30-day KPIs',
-      key: 'A1',
-      prompt: `${base}
+  // Two combined prompts — run both in Claude+Euka, paste both responses merged
+  const promptKpi = `${base}
 
-Query: Current 30d (${w.d30.start}–${w.d30.end}) totals from creator_store_performance: total GMV, orders, videos posted, views, total creators who posted, new creators (first-ever post for this store), retention rate.
-Output: {"A1":{"gmv":0,"orders":0,"videos":0,"views":0,"creators":0,"newCreators":0,"retention":0}}`
-    },
-    {
-      phase: 2,
-      label: 'Prior 30-day KPIs (for % change)',
-      key: 'A2',
-      prompt: `${base}
+Run ALL of the following queries and return ONE combined JSON object with all keys.
 
-Query: Prior 30d (${w.prior.start}–${w.prior.end}) totals from creator_store_performance: total GMV, orders, videos posted, views, total creators who posted, new creators (first-ever post for this store), retention rate.
-Output: {"A2":{"gmv":0,"orders":0,"videos":0,"views":0,"creators":0,"newCreators":0,"retention":0}}`
-    },
-    {
-      phase: 3,
-      label: 'Creator tier breakdown',
-      key: 'A3',
-      prompt: `${base}
+1. Current 30d (${w.d30.start}–${w.d30.end}) totals from creator_store_performance: total GMV, orders, videos posted, views, total creators who posted, new creators (first-ever post for this store), retention rate. → key "A1"
 
-Query: Current 30d (${w.d30.start}–${w.d30.end}) by creator tier (tier based on global gmv_30d: G1 <$25K, G2 $25K–$100K, G3 >$100K): creators who posted, new creators, videos posted, store GMV. Output ONLY the JSON — no analysis.
-Output: {"A3":{"g1":{"creators":0,"newCreators":0,"videos":0,"gmv":0},"g2":{"creators":0,"newCreators":0,"videos":0,"gmv":0},"g3":{"creators":0,"newCreators":0,"videos":0,"gmv":0}}}`
-    },
-    {
-      phase: 4,
-      label: 'Current outreach (messages + samples)',
-      key: 'A4',
-      prompt: `${base}
+2. Prior 30d (${w.prior.start}–${w.prior.end}) same totals. → key "A2"
 
-Query: Current 30d (${w.d30.start}–${w.d30.end}) outreach totals + by tier (G1 <$25K, G2 $25K–$100K, G3 >$100K): messages sent, samples shipped.
-Output: {"A4":{"total":{"msgs":0,"samples":0},"g1":{"msgs":0,"samples":0},"g2":{"msgs":0,"samples":0},"g3":{"msgs":0,"samples":0}}}`
-    },
-    {
-      phase: 5,
-      label: 'Prior outreach (for % change)',
-      key: 'A5',
-      prompt: `${base}
+3. Current 30d (${w.d30.start}–${w.d30.end}) by creator tier (G1 global gmv_30d <$25K, G2 $25K–$100K, G3 >$100K): creators who posted, new creators, videos posted, store GMV. → key "A3"
 
-Query: Prior 30d (${w.prior.start}–${w.prior.end}) outreach totals + by tier (G1 <$25K, G2 $25K–$100K, G3 >$100K): messages sent, samples shipped.
-Output: {"A5":{"total":{"msgs":0,"samples":0},"g1":{"msgs":0,"samples":0},"g2":{"msgs":0,"samples":0},"g3":{"msgs":0,"samples":0}}}`
-    },
-    {
-      phase: 6,
-      label: 'GMV Max (ad spend + revenue)',
-      key: 'A6',
-      prompt: `${base}
+4. Current 30d (${w.d30.start}–${w.d30.end}) outreach totals + by tier: messages sent, samples shipped. → key "A4"
 
-Query: GMV Max current 30d (${w.d30.start}–${w.d30.end}): total ad spend, attributed revenue, blended ROI. Use 0 if data unavailable before May 14 2026.
-Output: {"A6":{"spend":0,"revenue":0,"roi":0}}`
-    },
-  ]
+5. Prior 30d (${w.prior.start}–${w.prior.end}) outreach totals + by tier: messages sent, samples shipped. → key "A5"
 
-  return NextResponse.json({ prompts, reportDate: w.reportDate, dataWindow: w.dataWindow })
+6. GMV Max current 30d (${w.d30.start}–${w.d30.end}): total ad spend, attributed revenue, blended ROI. Use 0 if before May 14 2026. → key "A6"
+
+Output ONLY this JSON (fill in real numbers):
+{
+  "A1":{"gmv":0,"orders":0,"videos":0,"views":0,"creators":0,"newCreators":0,"retention":0},
+  "A2":{"gmv":0,"orders":0,"videos":0,"views":0,"creators":0,"newCreators":0,"retention":0},
+  "A3":{"g1":{"creators":0,"newCreators":0,"videos":0,"gmv":0},"g2":{"creators":0,"newCreators":0,"videos":0,"gmv":0},"g3":{"creators":0,"newCreators":0,"videos":0,"gmv":0}},
+  "A4":{"total":{"msgs":0,"samples":0},"g1":{"msgs":0,"samples":0},"g2":{"msgs":0,"samples":0},"g3":{"msgs":0,"samples":0}},
+  "A5":{"total":{"msgs":0,"samples":0},"g1":{"msgs":0,"samples":0},"g2":{"msgs":0,"samples":0},"g3":{"msgs":0,"samples":0}},
+  "A6":{"spend":0,"revenue":0,"roi":0}
+}`
+
+  const promptTables = `${base}
+
+Run ALL of the following queries and return ONE combined JSON object with all keys.
+
+1. Top 15 creators by store GMV (${w.d30.start}–${w.d30.end}): handle, followers, store GMV, global gmv_30d, views, videos L30d, videos with any GMV L30d, lifetime videos for this store, videos L7d, orders, AOV, engagement rate. → key "topCreators"
+
+2. Top 15 videos by store GMV (${w.d30.start}–${w.d30.end}): creator handle, product name (shorten: "Hard Bottom Backseat Extenders for Dogs with Door Protection"→"Back Seat Ext.", "XL Floor Cover for Full-Size Crew Cab Trucks with Fold Up Seats"→"XL Floor Cover", "Travel Dog Bed for Car"→"Travel Dog Bed"), GMV, views, orders, AOV, publish date, likes, comments, product clicks. → key "topVideos"
+
+3. Top 15 creators by videos posted (${w.d30.start}–${w.d30.end}): handle, global GMV, followers, videos posted, GMV from those videos, total store GMV, total views, avg views per video, orders. → key "activeCreators"
+
+Output ONLY this JSON (fill in real data, one object per row):
+{
+  "topCreators":[{"h":"","flw":0,"sgmv":0,"ggmv":0,"views":0,"v30":0,"vmgmv":0,"vlife":0,"v7":0,"ord":0,"aov":0,"eng":null}],
+  "topVideos":[{"h":"","ggmv":0,"prod":"","gmv":0,"views":0,"ord":0,"aov":0,"likes":0,"cmt":0,"clicks":null,"date":""}],
+  "activeCreators":[{"h":"","ggmv":0,"flw":0,"v30":0,"gmvN":0,"gmvT":0,"views":0,"avgv":0,"ord":0}]
+}`
+
+  return NextResponse.json({
+    promptKpi,
+    promptTables,
+    reportDate: w.reportDate,
+    dataWindow: w.dataWindow
+  })
 }
