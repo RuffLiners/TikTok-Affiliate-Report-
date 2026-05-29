@@ -75,9 +75,11 @@ export function LiveDashboard({ report, goals: _goals }: Props) {
         }
       }, 3000)
 
-      // run phase 1 (live_refresh only needs 1 phase)
-      setPhaseLabel('Pulling 30-day KPIs…')
-      await runNextPhase(jobId)
+      // run phases sequentially until done (live_refresh stops after phase 6)
+      let nextPhase: number | null = 1
+      while (nextPhase !== null) {
+        nextPhase = await runNextPhase(jobId)
+      }
 
     } catch (e: any) {
       stopPoll()

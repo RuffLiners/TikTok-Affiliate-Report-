@@ -277,7 +277,15 @@ export async function POST(req: NextRequest) {
     }
 
     const text = await callClaude(phaseConfig.prompt(w, pd), apiKey, phaseConfig.mcp)
-    Object.assign(pd, extractJson(text))
+    let parsed: any
+    try {
+      parsed = extractJson(text)
+    } catch {
+      const preview = text.slice(0, 600)
+      console.error(`Phase ${nextPhase} non-JSON response:`, preview)
+      throw new Error(`No JSON in Claude response (phase ${nextPhase}). Claude said: ${preview}`)
+    }
+    Object.assign(pd, parsed)
     await upd(nextPhase, `Phase ${nextPhase} done`)
 
     // live_refresh: save after collecting A1-A6 (phases 1-6)
