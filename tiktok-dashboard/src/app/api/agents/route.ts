@@ -29,10 +29,10 @@ STEPS:
 1. Call list_outreach_agents with agentType="outreach", limit=25 for store ${STORE_ID}
 2. Call list_outreach_agents with agentType="crm", limit=25 for store ${STORE_ID}
 3. From both lists combined, keep ONLY agents where created_time >= "${startDate}" (the 30-day window).
-4. Do NOT call get_outreach_agent — use only what list_outreach_agents returns.
+4. For EVERY agent in that filtered set, call get_outreach_agent to retrieve full detail fields: kw_filter, commission_display, exact list/segment name and size, gmv_filter range, other_filters.
 5. Output ONLY the JSON array. No prose, no markdown.
 
-NOTE: The tool returns the 25 most-recent agents per call. Filter them to the 30-day window before returning.
+NOTE: The tool returns the 25 most-recent agents per call. Filter them to the 30-day window, then enrich each with get_outreach_agent before returning.
 
 CRITICAL OUTPUT RULE: Your ENTIRE response must be a single JSON array starting with [ and ending with ]. Nothing before or after.
 
