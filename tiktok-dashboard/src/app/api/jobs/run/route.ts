@@ -239,18 +239,25 @@ function extractTextBlocks(data: any): string {
   return (data.content||[]).filter((b:any)=>b.type==='text').map((b:any)=>b.text).join('\n')
 }
 
-async function callClaudeRaw(body: any, apiKey: string): Promise<any> {
+// MCP phases: single attempt, 680s — leaves ~120s for follow-up + Vercel overhead within 800s limit
+// Non-MCP phases (analysis, follow-up): 120s is plenty
+async function callClaudeRaw(body: any, apiKey: string, timeoutMs = 680_000): Promise<any> {
   const bodyStr = JSON.stringify(body)
-  async function attempt() {
-    try { return await anthropicPost(apiKey, bodyStr, 740_000) }
-    catch (e: any) { throw new Error(`Anthropic API unreachable: ${e?.message}`) }
-  }
   let res: Awaited<ReturnType<typeof anthropicPost>>
-  try { res = await attempt() }
-  catch (firstErr: any) {
-    console.warn('Anthropic call failed, retrying in 5s…', (firstErr as any).message)
-    await new Promise(r => setTimeout(r, 5000))
-    res = await attempt()
+  try {
+    res = await anthropicPost(apiKey, bodyStr, timeoutMs)
+  } catch (e: any) {
+    // Only retry on connection-level errors (ECONNRESET, ETIMEDOUT from OS), not our own timeout
+    const isConnectionErr = e?.message && !e.message.includes('timeout after')
+    if (isConnectionErr) {
+      console.warn('Connection error, retrying in 3s…', e.message)
+      await new Promise(r => setTimeout(r, 3000))
+      res = await anthropicPost(apiKey, bodyStr, timeoutMs).catch((e2: any) => {
+        throw new Error(`Anthropic API unreachable: ${e2?.message}`)
+      })
+    } else {
+      throw new Error(`Anthropic API unreachable: ${e?.message}`)
+    }
   }
   if (!res.ok) { const t = await res.text(); throw new Error(`Claude API ${res.status}: ${t.slice(0,300)}`) }
   return JSON.parse(await res.text())
@@ -266,25 +273,23 @@ async function callClaude(prompt: string, apiKey: string, withMcp: boolean): Pro
     body.mcp_servers = [srv]
   }
 
-  const data = await callClaudeRaw(body, apiKey)
+  // MCP call: 680s. Non-MCP: 120s.
+  const data = await callClaudeRaw(body, apiKey, withMcp ? 680_000 : 120_000)
   const text = extractTextBlocks(data)
 
-  // If no JSON in the response, send a follow-up turn to coerce output to JSON
+  // If no JSON in the response, send a follow-up turn (no MCP needed, 90s is plenty)
   if (text.indexOf('{') === -1) {
     console.warn('No JSON in first response, sending JSON-coerce follow-up turn')
-    // Build a multi-turn conversation: original user message + assistant response + follow-up
-    const assistantContent = data.content || []
     const followUpBody: any = {
       model: 'claude-sonnet-4-6',
       max_tokens: 2000,
       messages: [
         { role: 'user', content: prompt },
-        { role: 'assistant', content: assistantContent },
+        { role: 'assistant', content: data.content || [] },
         { role: 'user', content: 'Now output ONLY the JSON object with the exact structure I specified. Start your response with { and end with }. Nothing else.' }
       ]
     }
-    // MCP not needed for follow-up (data already fetched)
-    const followUpData = await callClaudeRaw(followUpBody, apiKey)
+    const followUpData = await callClaudeRaw(followUpBody, apiKey, 90_000)
     return extractTextBlocks(followUpData)
   }
 
