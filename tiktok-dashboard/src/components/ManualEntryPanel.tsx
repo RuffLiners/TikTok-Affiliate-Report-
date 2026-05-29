@@ -38,13 +38,19 @@ export function ManualEntryPanel({ reportDate, onClose }: Props) {
     try { parsed = JSON.parse(json.trim()) }
     catch { setError('Invalid JSON — check for syntax errors.'); setSaving(false); return }
 
-    const phaseData: any = {}
-    for (const k of ['A1','A2','A3','A4','A5','A6','topCreators','topVideos','activeCreators','agents']) {
-      if (parsed[k] !== undefined) phaseData[k] = parsed[k]
-    }
-    if (!phaseData.A1) {
-      setError('Missing A1. Make sure you pasted the full JSON response.')
+    // Accept new format (d30/tables/agents) or legacy A1-A6 format
+    const isNewFormat = parsed.d30 !== undefined
+    const isLegacyFormat = parsed.A1 !== undefined
+    if (!isNewFormat && !isLegacyFormat) {
+      setError('Missing d30 data. Make sure you pasted the full JSON response.')
       setSaving(false); return
+    }
+    const phaseData: any = {}
+    const keys = isNewFormat
+      ? ['d30', 'tables', 'agents']
+      : ['A1','A2','A3','A4','A5','A6','topCreators','topVideos','activeCreators','agents']
+    for (const k of keys) {
+      if (parsed[k] !== undefined) phaseData[k] = parsed[k]
     }
 
     const res = await fetch('/api/live-manual', {
@@ -109,7 +115,7 @@ export function ManualEntryPanel({ reportDate, onClose }: Props) {
             <textarea
               value={json}
               onChange={e => setJson(e.target.value)}
-              placeholder={'{\n  "A1": {"gmv": 173311, "orders": 1086, ...},\n  "A2": {...},\n  "A3": {...},\n  "A4": {...},\n  "A5": {...},\n  "A6": {"spend": 19863, "revenue": 63553, "roi": 3.20},\n  "topCreators": [...],\n  "topVideos": [...],\n  "activeCreators": [...]\n}'}
+              placeholder={'{\n  "d30": {"gmv": 175917, "gmvPct": 840, "orders": 1088, ..., "tiers": {"g1": {...}, "g2": {...}, "g3": {...}}},\n  "tables": {"topCreators": [...], "topVideos": [...], "activeCreators": [...]},\n  "agents": [...]\n}'}
               className="w-full h-52 text-xs font-mono bg-gray-50 border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-none"
             />
           </div>
