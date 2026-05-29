@@ -211,19 +211,37 @@ async function callClaude(prompt: string, apiKey: string, withMcp: boolean): Pro
     if (tok) srv.authorization_token = tok
     body.mcp_servers = [srv]
   }
-  // 740s timeout — leaves 60s buffer before Vercel Pro 800s limit
+
+  async function attempt(): Promise<Response> {
+    let res: Response
+    try {
+      res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-beta': 'mcp-client-2025-04-04' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(740000)
+      })
+    } catch (e: any) {
+      const isTimeout = e?.name === 'TimeoutError' || e?.name === 'AbortError'
+      throw new Error(isTimeout ? 'Anthropic API timed out after 740s' : `Anthropic API unreachable: ${e?.message} (${e?.cause?.message||e?.cause||'no cause'})`)
+    }
+    return res
+  }
+
+  // retry once on network errors (transient connection failures between phases)
   let res: Response
   try {
-    res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-beta': 'mcp-client-2025-04-04' },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(740000)
-    })
-  } catch (e: any) {
-    const isTimeout = e?.name === 'TimeoutError' || e?.name === 'AbortError'
-    throw new Error(isTimeout ? 'Anthropic API timed out after 740s' : `Anthropic API unreachable: ${e?.message}`)
+    res = await attempt()
+  } catch (firstErr: any) {
+    if (firstErr.message.includes('unreachable')) {
+      console.warn('Anthropic fetch failed, retrying in 5s…', firstErr.message)
+      await new Promise(r => setTimeout(r, 5000))
+      res = await attempt()
+    } else {
+      throw firstErr
+    }
   }
+
   if (!res.ok) { const t=await res.text(); throw new Error(`Claude API ${res.status}: ${t.slice(0,300)}`) }
   const data = await res.json()
   return (data.content||[]).filter((b:any)=>b.type==='text').map((b:any)=>b.text).join('\n')
