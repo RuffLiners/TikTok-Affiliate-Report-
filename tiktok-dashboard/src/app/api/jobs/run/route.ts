@@ -1,10 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { format, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns'
-import { Agent } from 'undici'
+import { request as httpsRequest } from 'https'
 
-// undici agent with 750s timeouts — overrides Node.js default 300s headersTimeout
-const anthropicAgent = new Agent({ headersTimeout: 750_000, bodyTimeout: 750_000 })
+// Use Node.js https directly to avoid undici's 300s headersTimeout limit
+function anthropicPost(apiKey: string, bodyStr: string, timeoutMs: number): Promise<{ ok: boolean; status: number; text(): Promise<string> }> {
+  return new Promise((resolve, reject) => {
+    const req = httpsRequest({
+      hostname: 'api.anthropic.com',
+      port: 443,
+      path: '/v1/messages',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'mcp-client-2025-04-04',
+        'Content-Length': Buffer.byteLength(bodyStr)
+      }
+    }, (res) => {
+      const chunks: Buffer[] = []
+      res.on('data', c => chunks.push(c))
+      res.on('end', () => {
+        const text = Buffer.concat(chunks).toString('utf-8')
+        const status = res.statusCode || 0
+        resolve({ ok: status >= 200 && status < 300, status, text: async () => text })
+      })
+      res.on('error', reject)
+    })
+    req.on('error', reject)
+    req.setTimeout(timeoutMs, () => req.destroy(new Error('Anthropic request timeout after ' + Math.round(timeoutMs/1000) + 's')))
+    req.write(bodyStr)
+    req.end()
+  })
+}
 
 export const maxDuration = 800
 export const dynamic = 'force-dynamic'
@@ -216,40 +245,28 @@ async function callClaude(prompt: string, apiKey: string, withMcp: boolean): Pro
     body.mcp_servers = [srv]
   }
 
-  async function attempt(): Promise<Response> {
-    let res: Response
+  const bodyStr = JSON.stringify(body)
+
+  async function attempt() {
     try {
-      res = await (fetch as any)('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-beta': 'mcp-client-2025-04-04' },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(740000),
-        dispatcher: anthropicAgent
-      })
+      return await anthropicPost(apiKey, bodyStr, 740_000)
     } catch (e: any) {
-      const isTimeout = e?.name === 'TimeoutError' || e?.name === 'AbortError'
-      const causeMsg = e?.cause?.message || (e?.cause != null ? String(e.cause) : 'no cause')
-      throw new Error(isTimeout ? 'Anthropic API timed out after 740s' : `Anthropic API unreachable: ${e?.message} (${causeMsg})`)
+      throw new Error(`Anthropic API unreachable: ${e?.message}`)
     }
-    return res
   }
 
-  // retry once on network errors (transient connection failures between phases)
-  let res: Response
+  // retry once on transient network errors
+  let res: Awaited<ReturnType<typeof anthropicPost>>
   try {
     res = await attempt()
   } catch (firstErr: any) {
-    if (firstErr.message.includes('unreachable')) {
-      console.warn('Anthropic fetch failed, retrying in 5s…', firstErr.message)
-      await new Promise(r => setTimeout(r, 5000))
-      res = await attempt()
-    } else {
-      throw firstErr
-    }
+    console.warn('Anthropic call failed, retrying in 5s…', firstErr.message)
+    await new Promise(r => setTimeout(r, 5000))
+    res = await attempt()
   }
 
-  if (!res.ok) { const t=await res.text(); throw new Error(`Claude API ${res.status}: ${t.slice(0,300)}`) }
-  const data = await res.json()
+  if (!res.ok) { const t = await res.text(); throw new Error(`Claude API ${res.status}: ${t.slice(0,300)}`) }
+  const data = JSON.parse(await res.text())
   return (data.content||[]).filter((b:any)=>b.type==='text').map((b:any)=>b.text).join('\n')
 }
 
