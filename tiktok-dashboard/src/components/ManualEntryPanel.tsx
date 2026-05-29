@@ -39,7 +39,7 @@ export function ManualEntryPanel({ reportDate, onClose }: Props) {
     catch { setError('Invalid JSON — check for syntax errors.'); setSaving(false); return }
 
     const phaseData: any = {}
-    for (const k of ['A1','A2','A3','A4','A5','A6','topCreators','topVideos','activeCreators']) {
+    for (const k of ['A1','A2','A3','A4','A5','A6','topCreators','topVideos','activeCreators','agents']) {
       if (parsed[k] !== undefined) phaseData[k] = parsed[k]
     }
     if (!phaseData.A1) {
