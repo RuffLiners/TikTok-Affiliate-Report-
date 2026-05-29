@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { format, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns'
+import { Agent } from 'undici'
+
+// undici agent with 750s timeouts — overrides Node.js default 300s headersTimeout
+const anthropicAgent = new Agent({ headersTimeout: 750_000, bodyTimeout: 750_000 })
 
 export const maxDuration = 800
 export const dynamic = 'force-dynamic'
@@ -215,11 +219,12 @@ async function callClaude(prompt: string, apiKey: string, withMcp: boolean): Pro
   async function attempt(): Promise<Response> {
     let res: Response
     try {
-      res = await fetch('https://api.anthropic.com/v1/messages', {
+      res = await (fetch as any)('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-beta': 'mcp-client-2025-04-04' },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(740000)
+        signal: AbortSignal.timeout(740000),
+        dispatcher: anthropicAgent
       })
     } catch (e: any) {
       const isTimeout = e?.name === 'TimeoutError' || e?.name === 'AbortError'
