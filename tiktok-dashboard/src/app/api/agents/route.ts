@@ -96,11 +96,11 @@ export async function GET(req: NextRequest) {
         'anthropic-beta': 'mcp-client-2025-04-04'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 8000,
         system: prompt,
         messages: [{ role: 'user', content: `Fetch and return all agents created from ${startDate} to ${endDate} as the JSON array.` }],
-        mcp_servers: [{ type: 'url', url: process.env.EUKA_MCP_URL!, name: 'euka' }]
+        mcp_servers: [{ type: 'url', url: process.env.EUKA_MCP_URL!, name: 'euka', ...(process.env.EUKA_BEARER_TOKEN ? { authorization_token: process.env.EUKA_BEARER_TOKEN.replace(/^Bearer\s+/i, '') } : {}) }]
       })
     })
   } catch {

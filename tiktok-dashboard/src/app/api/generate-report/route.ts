@@ -218,7 +218,8 @@ export async function POST(req: NextRequest) {
         mcp_servers: [{
           type: 'url',
           url: process.env.EUKA_MCP_URL!,
-          name: 'euka'
+          name: 'euka',
+          ...(process.env.EUKA_BEARER_TOKEN ? { authorization_token: process.env.EUKA_BEARER_TOKEN.replace(/^Bearer\s+/i, '') } : {})
         }]
       })
     })
