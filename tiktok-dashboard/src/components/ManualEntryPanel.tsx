@@ -8,67 +8,103 @@ interface Props {
   onClose: () => void
 }
 
-export function ManualEntryPanel({ reportDate, onClose }: Props) {
-  const router = useRouter()
-  const [prompt, setPrompt] = useState('')
-  const [dataWindow, setDataWindow] = useState('')
-  const [liveReportDate, setLiveReportDate] = useState(reportDate)
+function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false)
-  const [json, setJson] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [saved, setSaved] = useState(false)
+  async function copy() {
+    await navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+  return (
+    <button
+      onClick={copy}
+      disabled={!text}
+      className="flex items-center gap-1.5 text-xs font-medium bg-gray-900 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700 disabled:opacity-40 transition-colors"
+    >
+      {copied ? (
+        <><svg className="w-3.5 h-3.5 text-green-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>Copied!</>
+      ) : (
+        <><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>Copy prompt</>
+      )}
+    </button>
+  )
+}
+
+export function ManualEntryPanel({ reportDate: _reportDate, onClose }: Props) {
+  const router = useRouter()
+
+  const [prompt, setPrompt] = useState('')
+  const [agentsPrompt, setAgentsPrompt] = useState('')
+  const [dataWindow, setDataWindow] = useState('')
+
+  const [dataJson, setDataJson] = useState('')
+  const [agentsJson, setAgentsJson] = useState('')
+
+  const [savingData, setSavingData] = useState(false)
+  const [savingAgents, setSavingAgents] = useState(false)
+  const [dataError, setDataError] = useState<string | null>(null)
+  const [agentsError, setAgentsError] = useState<string | null>(null)
+  const [dataSaved, setDataSaved] = useState(false)
+  const [agentsSaved, setAgentsSaved] = useState(false)
 
   useEffect(() => {
-    // Fetch without a date so the server computes today's window,
-    // preventing live data from overwriting an older weekly report row.
     fetch(`/api/live-manual`)
       .then(r => r.json())
       .then(d => {
         setPrompt(d.prompt || '')
+        setAgentsPrompt(d.agentsPrompt || '')
         setDataWindow(d.dataWindow || '')
-        if (d.reportDate) setLiveReportDate(d.reportDate)
       })
       .catch(() => {})
   }, [])
 
-  async function copy() {
-    await navigator.clipboard.writeText(prompt)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-
-  async function save() {
-    setSaving(true); setError(null); setSaved(false)
-
+  async function saveData() {
+    setSavingData(true); setDataError(null); setDataSaved(false)
     let parsed: any
-    try { parsed = JSON.parse(json.trim()) }
-    catch { setError('Invalid JSON — check for syntax errors.'); setSaving(false); return }
+    try { parsed = JSON.parse(dataJson.trim()) }
+    catch { setDataError('Invalid JSON — check for syntax errors.'); setSavingData(false); return }
 
-    // Accept new format (d30/tables/agents) or legacy A1-A6 format
     const isNewFormat = parsed.d30 !== undefined
     const isLegacyFormat = parsed.A1 !== undefined
     if (!isNewFormat && !isLegacyFormat) {
-      setError('Missing d30 data. Make sure you pasted the full JSON response.')
-      setSaving(false); return
+      setDataError('Missing d30 data. Make sure you pasted the full JSON response.')
+      setSavingData(false); return
     }
     const phaseData: any = {}
     const keys = isNewFormat
-      ? ['d30', 'tables', 'agents']
-      : ['A1','A2','A3','A4','A5','A6','topCreators','topVideos','activeCreators','agents']
-    for (const k of keys) {
-      if (parsed[k] !== undefined) phaseData[k] = parsed[k]
+      ? ['d30', 'tables']
+      : ['A1','A2','A3','A4','A5','A6','topCreators','topVideos','activeCreators']
+    for (const k of keys) { if (parsed[k] !== undefined) phaseData[k] = parsed[k] }
+
+    const res = await fetch('/api/live-manual', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phaseData })
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setDataError(data.error || 'Save failed.'); setSavingData(false); return }
+    setDataSaved(true); setSavingData(false)
+    router.refresh()
+  }
+
+  async function saveAgents() {
+    setSavingAgents(true); setAgentsError(null); setAgentsSaved(false)
+    let parsed: any
+    try { parsed = JSON.parse(agentsJson.trim()) }
+    catch { setAgentsError('Invalid JSON — check for syntax errors.'); setSavingAgents(false); return }
+    if (!Array.isArray(parsed)) {
+      setAgentsError('Expected a JSON array [ ... ] of agents.')
+      setSavingAgents(false); return
     }
 
     const res = await fetch('/api/live-manual', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phaseData, reportDate: liveReportDate })
+      body: JSON.stringify({ phaseData: parsed, agentsOnly: true })
     })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) { setError(data.error || 'Save failed.'); setSaving(false); return }
-
-    setSaved(true); setSaving(false)
+    if (!res.ok) { setAgentsError(data.error || 'Save failed.'); setSavingAgents(false); return }
+    setAgentsSaved(true); setSavingAgents(false)
     router.refresh()
     setTimeout(onClose, 1500)
   }
@@ -93,56 +129,95 @@ export function ManualEntryPanel({ reportDate, onClose }: Props) {
           </button>
         </div>
 
-        <div className="px-6 py-4 space-y-5 flex-1">
+        <div className="px-6 py-4 space-y-6 flex-1">
 
-          {/* Step 1 */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold text-gray-700">Step 1 · Copy this prompt into Claude + Euka</p>
+          {/* ── PART 1: Main data ── */}
+          <div className="space-y-3">
+            <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Part 1 · KPIs &amp; Tables</p>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-gray-700">Step 1 · Copy prompt into Claude + Euka</p>
+                <CopyButton text={prompt} />
+              </div>
+              <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-600 font-mono whitespace-pre-wrap leading-relaxed border border-gray-100 max-h-40 overflow-y-auto">
+                {prompt || 'Loading…'}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-gray-700">Step 2 · Paste Claude's JSON response</p>
+              <textarea
+                value={dataJson}
+                onChange={e => setDataJson(e.target.value)}
+                placeholder={'{\n  "d30": {"gmv": 94307, "gmvPct": 11.5, ..., "tiers": {...}},\n  "tables": {"topCreators": [...], "topVideos": [...], "activeCreators": [...]}\n}'}
+                className="w-full h-40 text-xs font-mono bg-gray-50 border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-none"
+              />
+            </div>
+
+            {dataError && <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-xs text-red-700">{dataError}</div>}
+            {dataSaved && <div className="bg-green-50 border border-green-100 rounded-xl px-4 py-3 text-xs text-green-700 font-medium">✓ KPI &amp; table data saved</div>}
+
+            <div className="flex justify-end">
               <button
-                onClick={copy}
-                disabled={!prompt}
-                className="flex items-center gap-1.5 text-xs font-medium bg-gray-900 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700 disabled:opacity-40 transition-colors"
+                onClick={saveData}
+                disabled={savingData || !dataJson.trim()}
+                className="flex items-center gap-2 text-sm font-medium bg-gray-900 text-white px-5 py-2 rounded-xl hover:bg-gray-700 disabled:opacity-50 transition-colors"
               >
-                {copied ? (
-                  <><svg className="w-3.5 h-3.5 text-green-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>Copied!</>
-                ) : (
-                  <><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>Copy prompt</>
-                )}
+                {savingData ? (
+                  <><svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Saving…</>
+                ) : 'Save KPIs & Tables'}
               </button>
             </div>
-            <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-600 font-mono whitespace-pre-wrap leading-relaxed border border-gray-100 max-h-52 overflow-y-auto">
-              {prompt || 'Loading…'}
+          </div>
+
+          <div className="border-t border-gray-100" />
+
+          {/* ── PART 2: Agents ── */}
+          <div className="space-y-3">
+            <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Part 2 · Outreach &amp; CRM Agents</p>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-gray-700">Step 3 · Copy agents prompt into Claude + Euka</p>
+                <CopyButton text={agentsPrompt} />
+              </div>
+              <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-600 font-mono whitespace-pre-wrap leading-relaxed border border-gray-100 max-h-40 overflow-y-auto">
+                {agentsPrompt || 'Loading…'}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-gray-700">Step 4 · Paste Claude's agents JSON array</p>
+              <textarea
+                value={agentsJson}
+                onChange={e => setAgentsJson(e.target.value)}
+                placeholder={'[\n  {"id": 235728, "name": "G2 - 5/28/2026", "agent_type": "outreach", ...},\n  ...\n]'}
+                className="w-full h-40 text-xs font-mono bg-gray-50 border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-none"
+              />
+            </div>
+
+            {agentsError && <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-xs text-red-700">{agentsError}</div>}
+            {agentsSaved && <div className="bg-green-50 border border-green-100 rounded-xl px-4 py-3 text-xs text-green-700 font-medium">✓ Agents saved — dashboard is updating…</div>}
+
+            <div className="flex justify-end">
+              <button
+                onClick={saveAgents}
+                disabled={savingAgents || !agentsJson.trim()}
+                className="flex items-center gap-2 text-sm font-medium bg-gray-900 text-white px-5 py-2 rounded-xl hover:bg-gray-700 disabled:opacity-50 transition-colors"
+              >
+                {savingAgents ? (
+                  <><svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Saving…</>
+                ) : 'Save Agents'}
+              </button>
             </div>
           </div>
 
-          {/* Step 2 */}
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-gray-700">Step 2 · Paste Claude's JSON response here</p>
-            <textarea
-              value={json}
-              onChange={e => setJson(e.target.value)}
-              placeholder={'{\n  "d30": {"gmv": 175917, "gmvPct": 840, "orders": 1088, ..., "tiers": {"g1": {...}, "g2": {...}, "g3": {...}}},\n  "tables": {"topCreators": [...], "topVideos": [...], "activeCreators": [...]},\n  "agents": [...]\n}'}
-              className="w-full h-52 text-xs font-mono bg-gray-50 border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-none"
-            />
-          </div>
-
-          {error && <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-xs text-red-700">{error}</div>}
-          {saved && <div className="bg-green-50 border border-green-100 rounded-xl px-4 py-3 text-xs text-green-700 font-medium">✓ Saved — dashboard is updating…</div>}
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between sticky bottom-0 bg-white">
-          <button onClick={onClose} className="text-sm text-gray-500 hover:text-gray-700 transition-colors">Cancel</button>
-          <button
-            onClick={save}
-            disabled={saving || !json.trim()}
-            className="flex items-center gap-2 text-sm font-medium bg-gray-900 text-white px-5 py-2 rounded-xl hover:bg-gray-700 disabled:opacity-50 transition-colors"
-          >
-            {saving ? (
-              <><svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Saving…</>
-            ) : 'Save to Dashboard'}
-          </button>
+        <div className="px-6 py-4 border-t border-gray-100 sticky bottom-0 bg-white flex justify-start">
+          <button onClick={onClose} className="text-sm text-gray-500 hover:text-gray-700 transition-colors">Close</button>
         </div>
       </div>
     </div>

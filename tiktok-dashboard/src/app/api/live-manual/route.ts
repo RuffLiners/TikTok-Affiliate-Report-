@@ -26,7 +26,24 @@ export async function POST(req: NextRequest) {
   let body: any
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
 
-  const { phaseData, reportDate } = body
+  const { phaseData, reportDate, agentsOnly } = body
+
+  let supabase: ReturnType<typeof supabaseAdmin>
+  try { supabase = supabaseAdmin() } catch (e: any) {
+    return NextResponse.json({ error: `DB config error: ${e?.message}` }, { status: 503 })
+  }
+
+  // Agents-only save: merge into existing live_report
+  if (agentsOnly) {
+    if (!Array.isArray(phaseData)) return NextResponse.json({ error: 'Expected JSON array for agents' }, { status: 400 })
+    const { data: existing } = await supabase.from('app_config').select('value').eq('key', 'live_report').maybeSingle()
+    const current = existing ? (() => { try { return JSON.parse(existing.value) } catch { return {} } })() : {}
+    const merged = { ...current, agents: phaseData }
+    const { error } = await supabase.from('app_config').upsert({ key: 'live_report', value: JSON.stringify(merged) }, { onConflict: 'key' })
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    revalidatePath('/dashboard')
+    return NextResponse.json({ ok: true, agentCount: phaseData.length })
+  }
 
   // Support both old A1-based format and new direct d30 format
   const isOldFormat = phaseData?.A1 !== undefined
@@ -34,11 +51,6 @@ export async function POST(req: NextRequest) {
 
   if (!isOldFormat && !isNewFormat) {
     return NextResponse.json({ error: 'Missing d30 data. Make sure you pasted the full JSON response.' }, { status: 400 })
-  }
-
-  let supabase: ReturnType<typeof supabaseAdmin>
-  try { supabase = supabaseAdmin() } catch (e: any) {
-    return NextResponse.json({ error: `DB config error: ${e?.message}` }, { status: 503 })
   }
 
   const today = reportDate ? new Date(reportDate + 'T12:00:00') : new Date()
@@ -132,12 +144,6 @@ QUERIES TO RUN:
 7. Top 15 creators by store GMV — handle, followers, store GMV, global gmv_30d, views, videos L30d, videos w/GMV L30d, lifetime videos, videos L7d, orders, AOV, engagement rate
 8. Top 15 videos by store GMV — creator handle, product name, GMV, views, orders, AOV, publish date, likes, comments, product clicks
 9. Top 15 creators by videos posted — handle, followers, GMV from new-period videos only, total store GMV, views, avg views/video, orders
-10. Outreach AND CRM agents — make the following list calls using searchQuery to cover all segments (tool caps at 25/call; botStatus accepts array ["running","stopped","error"]):
-  OUTREACH (agentType="outreach", botStatus=["running","stopped","error"], limit=25):
-    searchQuery="G1", "G2", "G3", "Video Volume", "GMV Contest", "New Agent", "" (unfiltered)
-  CRM (agentType="crm", botStatus=["running","stopped","error"], limit=25):
-    searchQuery="G1", "G2", "G3", "New Agent", "" (unfiltered)
-  Merge all results, deduplicate by campaign_id. Return ALL — no date filtering. Then call get_outreach_agent for every agent to get full detail fields. For gmv_filter use the ACTUAL target_gmvs from get_outreach_agent (e.g. "$2.5K–$2M", "$25K–$55K") — NEVER derive from campaign name. Use "none" only if truly empty.
 
 Product name shortening: "Hard Bottom Backseat Extenders for Dogs with Door Protection" → "Back Seat Ext." · "XL Floor Cover for Full-Size Crew Cab Trucks with Fold Up Seats" → "XL Floor Cover" · "Travel Dog Bed for Car" → "Travel Dog Bed"
 
@@ -160,9 +166,39 @@ OUTPUT — respond with ONLY this JSON object, nothing before or after it:
     "topCreators": [{ "h":"handle","flw":0,"sgmv":0,"ggmv":0,"views":0,"v30":0,"vmgmv":0,"vlife":0,"v7":0,"ord":0,"aov":0,"eng":null }],
     "topVideos": [{ "h":"handle","ggmv":0,"prod":"product name","gmv":0,"views":0,"ord":0,"aov":0,"likes":0,"cmt":0,"clicks":null,"date":"" }],
     "activeCreators": [{ "h":"handle","ggmv":0,"flw":0,"v30":0,"gmvN":0,"gmvT":0,"views":0,"avgv":0,"ord":0 }]
-  },
-  "agents": [{ "id":0,"name":"","agent_type":"outreach","campaign_type":"","status":"running","date_posted":"","gmv_filter":"","kw_filter":"","other_filters":"","list_segment":"","commission_display":"","creators_reached":0,"remaining":0,"total_invites":0,"accepted_invites":0,"total_replies":0,"samples_requested":0,"samples_shipped":0,"total_videos":0,"total_revenue":0,"product_count":0,"has_followups":false }]
+  }
 }`
 
-  return NextResponse.json({ prompt, reportDate: w.reportDate, dataWindow: w.dataWindow })
+  const agentsPrompt = `You are a data extraction agent for Ruff Liners TikTok Shop. STORE ID: ${storeId}
+
+TASK: Fetch ALL outreach AND CRM agents for this store and return them as a JSON array.
+
+Make the following list calls using searchQuery to cover all segments (tool caps at 25/call; pass botStatus=["running","stopped","error"] and limit=25 on each):
+
+OUTREACH agents (agentType="outreach"):
+1. searchQuery="G1"
+2. searchQuery="G2"
+3. searchQuery="G3"
+4. searchQuery="Video Volume"
+5. searchQuery="GMV Contest"
+6. searchQuery="New Agent"
+7. searchQuery="" (unfiltered)
+
+CRM agents (agentType="crm"):
+8. searchQuery="G1"
+9. searchQuery="G2"
+10. searchQuery="G3"
+11. searchQuery="New Agent"
+12. searchQuery="" (unfiltered)
+
+Merge all results, deduplicate by campaign_id. Return ALL — no date filtering.
+For EVERY agent, call get_outreach_agent to get full detail fields.
+For gmv_filter use the ACTUAL target_gmvs field (e.g. "$2.5K–$2M", "$25K–$55K") — NEVER derive from campaign name. Use "none" if truly empty.
+
+CRITICAL: Respond with ONLY a JSON array [ ... ]. No prose, no markdown.
+
+Schema for each agent:
+{ "id":0,"name":"","agent_type":"outreach","campaign_type":"","status":"running","date_posted":"YYYY-MM-DD","gmv_filter":"","kw_filter":"","other_filters":"","list_segment":"","commission_display":"","creators_reached":0,"remaining":0,"total_invites":0,"accepted_invites":0,"total_replies":0,"samples_requested":0,"samples_shipped":0,"total_videos":0,"total_revenue":0,"product_count":0,"has_followups":false }`
+
+  return NextResponse.json({ prompt, agentsPrompt, reportDate: w.reportDate, dataWindow: w.dataWindow })
 }
