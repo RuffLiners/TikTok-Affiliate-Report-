@@ -210,9 +210,6 @@ Output ONLY this JSON:
 // ── claude caller ────────────────────────────────────────────────────────────
 
 async function callClaude(systemPrompt: string, userMsg: string, apiKey: string, withMcp: boolean): Promise<string> {
-  const rawToken = (process.env.EUKA_AUTH_TOKEN || '').trim()
-  const eukaToken = rawToken.startsWith('Bearer ') ? rawToken.slice(7).trim() : rawToken
-
   const body: any = {
     model: 'claude-sonnet-4-6',
     max_tokens: 8000,
@@ -224,8 +221,7 @@ async function callClaude(systemPrompt: string, userMsg: string, apiKey: string,
     body.mcp_servers = [{
       type: 'url',
       url: process.env.EUKA_MCP_URL!,
-      name: 'euka',
-      authorization_token: eukaToken
+      name: 'euka'
     }]
   }
 
