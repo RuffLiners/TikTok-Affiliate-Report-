@@ -3,8 +3,10 @@ import { cookies } from 'next/headers'
 import { supabase } from '@/lib/supabase'
 import { supabaseAdmin } from '@/lib/supabase'
 import { format } from 'date-fns'
+import { LiveDashboard } from '@/components/LiveDashboard'
+import { WeeklyReport } from '@/lib/types'
 
-export const revalidate = 60
+export const revalidate = 0
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
@@ -45,12 +47,15 @@ export default async function DashboardPage() {
   const [{ data: reports }, { data: goalsConfig }] = await Promise.all([
     supabase
       .from('weekly_reports')
-      .select('report_date, label, data_window, created_at, d30, weekly_charts, monthly_charts')
+      .select('*')
       .order('report_date', { ascending: false }),
     supabaseAdmin()
       .from('app_config').select('value').eq('key', 'goals').single()
   ])
   const goals = goalsConfig ? (() => { try { return JSON.parse(goalsConfig.value) } catch { return null } })() : null
+
+  const latestReport = reports?.[0] as WeeklyReport | undefined
+  const archiveReports = reports?.slice(1) ?? []
 
   const fmt$ = (n: number) => '$' + Math.round(n).toLocaleString('en-US')
   const fmtN = (n: number) => Math.round(n).toLocaleString('en-US')
@@ -61,12 +66,9 @@ export default async function DashboardPage() {
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-lg font-semibold text-gray-900">Ruff Liners · TikTok Shop</h1>
-            <p className="text-sm text-gray-500">Weekly report archive</p>
+            <p className="text-sm text-gray-500">TikTok Affiliate Dashboard</p>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs bg-green-50 text-green-700 px-3 py-1 rounded-full font-medium">
-              {reports?.length ?? 0} reports saved
-            </span>
             {!isViewOnly && (
               <>
                 <Link href="/admin?tab=manage" className="text-xs text-gray-500 px-3 py-1 rounded-full font-medium hover:bg-gray-100 transition-colors border border-gray-200">
@@ -85,11 +87,19 @@ export default async function DashboardPage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-8">
-        {!reports?.length ? (
-          <p className="text-center text-gray-400 py-16">No reports saved yet. Run the weekly script to add the first report.</p>
+        {!latestReport ? (
+          <p className="text-center text-gray-400 py-16">No reports saved yet. Use + New Report to generate the first one.</p>
         ) : (
-          <div className="space-y-3">
-            {reports.map(r => {
+          <>
+            {/* Live 30-day view with refresh */}
+            <LiveDashboard report={latestReport} goals={goals} />
+
+            {/* Past reports archive */}
+            {archiveReports.length > 0 && (
+              <div className="mt-10">
+                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Past Reports</h3>
+                <div className="space-y-3">
+                {archiveReports.map(r => {
               const d30 = r.d30 as { gmv?: number; gmvPct?: number; videos?: number; videosPct?: number }
               const gmv = d30?.gmv ?? 0
               const pct = d30?.gmvPct ?? 0
@@ -214,7 +224,10 @@ export default async function DashboardPage() {
                 </Link>
               )
             })}
-          </div>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </main>
     </div>

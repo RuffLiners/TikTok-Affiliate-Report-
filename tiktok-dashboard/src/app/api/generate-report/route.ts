@@ -208,7 +208,7 @@ export async function POST(req: NextRequest) {
         'anthropic-beta': 'mcp-client-2025-04-04'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 16000,
         system: systemPrompt,
         messages: [{
