@@ -169,35 +169,70 @@ OUTPUT — respond with ONLY this JSON object, nothing before or after it:
   }
 }`
 
-  const agentsPrompt = `You are a data extraction agent for Ruff Liners TikTok Shop. STORE ID: ${storeId}
+  const agentsPrompt = `You are a data extraction agent for Ruff Liners TikTok Shop.
 
-TASK: Fetch ALL outreach AND CRM agents for this store and return them as a JSON array.
+STORE_ID: ${storeId}
+EUKA_MCP: https://app.euka.ai/api/mcp
 
-Make the following list calls using searchQuery to cover all segments (tool caps at 25/call; pass botStatus=["running","stopped","error"] and limit=25 on each):
+GOAL: Return a JSON array of every outreach AND CRM agent created in the last 30 days, each fully enriched.
 
-OUTREACH agents (agentType="outreach"):
-1. searchQuery="G1"
-2. searchQuery="G2"
-3. searchQuery="G3"
-4. searchQuery="Video Volume"
-5. searchQuery="GMV Contest"
-6. searchQuery="New Agent"
-7. searchQuery="" (unfiltered)
+## STEP 0 — Window
 
-CRM agents (agentType="crm"):
-8. searchQuery="G1"
-9. searchQuery="G2"
-10. searchQuery="G3"
-11. searchQuery="New Agent"
-12. searchQuery="" (unfiltered)
+- TODAY = ${w.label}
+- CUTOFF = TODAY − 30 days (inclusive) = ${w.d30.start}
+- The list tool has no date parameter. Filter client-side: keep an agent only if the date portion of its created_time (UTC) is >= ${w.d30.start}. Do not look for a date filter on the tool — there isn't one.
 
-Merge all results, deduplicate by campaign_id. Return ALL — no date filtering.
-For EVERY agent, call get_outreach_agent to get full detail fields.
-For gmv_filter use the ACTUAL target_gmvs field (e.g. "$2.5K–$2M", "$25K–$55K") — NEVER derive from campaign name. Use "none" if truly empty.
+## STEP 1 — Enumerate
 
-CRITICAL: Respond with ONLY a JSON array [ ... ]. No prose, no markdown.
+list_outreach_agents caps at limit=25 per call and has no pagination. On every call pass: botStatus=["running","stopped","error"], limit=25, archived=false, storeId=${storeId}.
 
-Schema for each agent:
+Run these searches:
+
+OUTREACH (agentType="outreach"), searchQuery =
+"", "G1", "G2", "G3", "Video Volume", "GMV Contest", "New Agent"
+
+CRM (agentType="crm"), searchQuery =
+"", "G1", "G2", "G3", "New Agent", "Video Volume", "GMV Contest", "Tiktoktshopbonus"
+
+Merge all results → deduplicate by id → drop any agent with created_time older than ${w.d30.start}.
+
+Completeness guard. Each response includes a total. If, for any single searchQuery, your in-window count for that bucket hits the 25-row cap AND that call's total > 25, the bucket overflowed — add narrower date-string queries for it (e.g. "G2 - 5/2", "G2 - 5/1", "G2 - 4/3") and repeat until no in-window bucket is truncated. If you cannot confirm full in-window coverage, stop and report the gap — never return a partial array.
+
+## STEP 2 — Enrich
+
+For EVERY in-window agent, call get_outreach_agent(campaignId=id, storeId=${storeId}). This is the only source for gmv_filter, kw_filter, other_filters, list_segment, and commission_display.
+
+## STEP 3 — Field map
+
+| Output field        | Source |
+|---------------------|--------|
+| id                  | list.id |
+| name                | list.campaign_name |
+| agent_type          | "outreach" or "crm" — whichever list call produced it |
+| campaign_type       | list.campaign_type |
+| status              | list.bot_status |
+| date_posted         | list.created_time, date only, YYYY-MM-DD |
+| gmv_filter          | detail.target_gmvs joined with ", ", verbatim (e.g. "$100-$25.0K"). "none" if null/empty. NEVER derive from the campaign name. |
+| kw_filter           | detail.target_categories joined with ", "; "none" if empty |
+| other_filters       | Concise key: value summary of any other non-empty detail.target_* fields (target_avg_shoppable_video_views, target_avg_live_views, target_follower_counts, target_engagement_rate, target_creator_gender/target_gender, target_creator_languages, target_ages, target_fulfillment_rate, target_live_gmvs, target_ethnicity). "none" if all empty |
+| list_segment        | If detail.lists non-empty → join their names; else if detail.segments non-empty → join their names; else detail.targeting_method ("filters"/"list"/"segment"); "none" if absent |
+| commission_display  | Build from detail.product_commission_with_percentage (unique value, e.g. "20%") + if detail.include_shop_ads and detail.shop_ads_commission → append " + N% Shop Ads". Example: "20% + 6% Shop Ads". "none" if no commission data |
+| creators_reached    | list.total_conversations |
+| remaining           | list.remaining_creators |
+| total_invites       | list.total_target_invites |
+| accepted_invites    | list.total_target_accepted_invites |
+| total_replies       | list.total_replies |
+| samples_requested   | list.total_sample_request |
+| samples_shipped     | list.total_samples_shipped |
+| total_videos        | list.total_videos |
+| total_revenue       | list.total_revenue |
+| product_count       | length of list.products (0 if null) |
+| has_followups       | list.has_followups |
+
+## STEP 4 — Output
+
+Respond with ONLY the JSON array [ ... ]. No prose, no markdown fences. One object per in-window agent.
+
 { "id":0,"name":"","agent_type":"outreach","campaign_type":"","status":"running","date_posted":"YYYY-MM-DD","gmv_filter":"","kw_filter":"","other_filters":"","list_segment":"","commission_display":"","creators_reached":0,"remaining":0,"total_invites":0,"accepted_invites":0,"total_replies":0,"samples_requested":0,"samples_shipped":0,"total_videos":0,"total_revenue":0,"product_count":0,"has_followups":false }`
 
   return NextResponse.json({ prompt, agentsPrompt, reportDate: w.reportDate, dataWindow: w.dataWindow })
