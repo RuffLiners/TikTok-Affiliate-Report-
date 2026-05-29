@@ -25,16 +25,27 @@ STORE ID: ${STORE_ID}
 
 TASK: Fetch outreach AND CRM agents created on or after ${startDate} for store ${STORE_ID} and return them as a JSON array.
 
-STEPS — make all 6 list calls to maximize coverage (tool caps at 25/call, calling by status returns different subsets):
-1. list_outreach_agents agentType="outreach" status="running" limit=25
-2. list_outreach_agents agentType="outreach" status="stopped" limit=25
-3. list_outreach_agents agentType="outreach" status="error" limit=25
-4. list_outreach_agents agentType="crm" status="running" limit=25
-5. list_outreach_agents agentType="crm" status="stopped" limit=25
-6. list_outreach_agents agentType="crm" status="error" limit=25
-7. Merge all 6 lists and deduplicate by campaign_id. Return ALL of them — no date filtering.
-8. For EVERY agent in that merged set, call get_outreach_agent to retrieve full detail fields: kw_filter, commission_display, exact list/segment name and size, gmv_filter range, other_filters.
-9. Output ONLY the JSON array. No prose, no markdown.
+STEPS — make the following list calls using searchQuery to get each segment (tool caps at 25/call; botStatus accepts array ["running","stopped","error"]):
+
+OUTREACH agents (agentType="outreach", botStatus=["running","stopped","error"], limit=25 each):
+1. searchQuery="G1"
+2. searchQuery="G2"
+3. searchQuery="G3"
+4. searchQuery="Video Volume"
+5. searchQuery="GMV Contest"
+6. searchQuery="New Agent"
+7. searchQuery="" (unfiltered, catches anything else)
+
+CRM agents (agentType="crm", botStatus=["running","stopped","error"], limit=25 each):
+8. searchQuery="G1"
+9. searchQuery="G2"
+10. searchQuery="G3"
+11. searchQuery="New Agent"
+12. searchQuery="" (unfiltered)
+
+Merge all results, deduplicate by campaign_id. Return ALL — no date filtering.
+For EVERY agent in the merged set, call get_outreach_agent to get full detail fields: kw_filter, commission_display, exact list/segment name and size, gmv_filter range, other_filters.
+Output ONLY the JSON array. No prose, no markdown.
 
 CRITICAL OUTPUT RULE: Your ENTIRE response must be a single JSON array starting with [ and ending with ]. Nothing before or after.
 
