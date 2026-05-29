@@ -39,7 +39,7 @@ export function LiveDashboard({ report, goals: _goals }: Props) {
     if (!res.ok) {
       // also fetch job row to get the stored error message
       const jobRes = await fetch(`/api/jobs/${jobId}`).then(r => r.json()).catch(() => ({}))
-      throw new Error(jobRes.error || data.error || `Phase failed (HTTP ${res.status})`)
+      throw new Error(String(jobRes.error || data.error || `Phase failed (HTTP ${res.status})`))
     }
     return data.nextPhase
   }

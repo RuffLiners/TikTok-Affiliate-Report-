@@ -331,7 +331,7 @@ export default function AdminPage() {
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
       const jobRes = await fetch(`/api/jobs/${jobId}`).then(r => r.json()).catch(() => ({}))
-      throw new Error(jobRes.error || data.error || `Phase failed (HTTP ${res.status})`)
+      throw new Error(String(jobRes.error || data.error || `Phase failed (HTTP ${res.status})`))
     }
     return data.nextPhase ?? null
   }

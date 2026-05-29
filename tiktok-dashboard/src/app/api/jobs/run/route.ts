@@ -223,7 +223,8 @@ async function callClaude(prompt: string, apiKey: string, withMcp: boolean): Pro
       })
     } catch (e: any) {
       const isTimeout = e?.name === 'TimeoutError' || e?.name === 'AbortError'
-      throw new Error(isTimeout ? 'Anthropic API timed out after 740s' : `Anthropic API unreachable: ${e?.message} (${e?.cause?.message||e?.cause||'no cause'})`)
+      const causeMsg = e?.cause?.message || (e?.cause != null ? String(e.cause) : 'no cause')
+      throw new Error(isTimeout ? 'Anthropic API timed out after 740s' : `Anthropic API unreachable: ${e?.message} (${causeMsg})`)
     }
     return res
   }
