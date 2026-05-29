@@ -142,10 +142,9 @@ Current 30d: ${w.d30.start} to ${w.d30.end} | Prior 30d: ${w.prior.start} to ${w
 RULES: Always specify year 2026 in queries. Read every CSV with read_sandbox_file. Use creator_store_performance for GMV. New creators = first-ever video for this store. GMV Max only from May 14 2026 (use 0 if earlier).
 CRITICAL OUTPUT RULE: You MUST respond with ONLY a single JSON object. Start with { and end with }. No prose, no markdown.`
 
-  // Two combined prompts — run both in Claude+Euka, paste both responses merged
-  const promptKpi = `${base}
+  const prompt = `${base}
 
-Run ALL of the following queries and return ONE combined JSON object with all keys.
+Run ALL of the following queries and return ONE combined JSON object with all keys. Do not stop early — complete every query before outputting.
 
 1. Current 30d (${w.d30.start}–${w.d30.end}) totals from creator_store_performance: total GMV, orders, videos posted, views, total creators who posted, new creators (first-ever post for this store), retention rate. → key "A1"
 
@@ -159,37 +158,24 @@ Run ALL of the following queries and return ONE combined JSON object with all ke
 
 6. GMV Max current 30d (${w.d30.start}–${w.d30.end}): total ad spend, attributed revenue, blended ROI. Use 0 if before May 14 2026. → key "A6"
 
-Output ONLY this JSON (fill in real numbers):
+7. Top 15 creators by store GMV (${w.d30.start}–${w.d30.end}): handle, followers, store GMV, global gmv_30d, views, videos L30d, videos with any GMV L30d, lifetime videos for this store, videos L7d, orders, AOV, engagement rate. → key "topCreators"
+
+8. Top 15 videos by store GMV (${w.d30.start}–${w.d30.end}): creator handle, product name (shorten: "Hard Bottom Backseat Extenders for Dogs with Door Protection"→"Back Seat Ext.", "XL Floor Cover for Full-Size Crew Cab Trucks with Fold Up Seats"→"XL Floor Cover", "Travel Dog Bed for Car"→"Travel Dog Bed"), GMV, views, orders, AOV, publish date, likes, comments, product clicks. → key "topVideos"
+
+9. Top 15 creators by videos posted (${w.d30.start}–${w.d30.end}): handle, global GMV, followers, videos posted, GMV from those videos, total store GMV, total views, avg views per video, orders. → key "activeCreators"
+
+Output ONLY this single JSON object with all 9 keys filled in with real data:
 {
   "A1":{"gmv":0,"orders":0,"videos":0,"views":0,"creators":0,"newCreators":0,"retention":0},
   "A2":{"gmv":0,"orders":0,"videos":0,"views":0,"creators":0,"newCreators":0,"retention":0},
   "A3":{"g1":{"creators":0,"newCreators":0,"videos":0,"gmv":0},"g2":{"creators":0,"newCreators":0,"videos":0,"gmv":0},"g3":{"creators":0,"newCreators":0,"videos":0,"gmv":0}},
   "A4":{"total":{"msgs":0,"samples":0},"g1":{"msgs":0,"samples":0},"g2":{"msgs":0,"samples":0},"g3":{"msgs":0,"samples":0}},
   "A5":{"total":{"msgs":0,"samples":0},"g1":{"msgs":0,"samples":0},"g2":{"msgs":0,"samples":0},"g3":{"msgs":0,"samples":0}},
-  "A6":{"spend":0,"revenue":0,"roi":0}
-}`
-
-  const promptTables = `${base}
-
-Run ALL of the following queries and return ONE combined JSON object with all keys.
-
-1. Top 15 creators by store GMV (${w.d30.start}–${w.d30.end}): handle, followers, store GMV, global gmv_30d, views, videos L30d, videos with any GMV L30d, lifetime videos for this store, videos L7d, orders, AOV, engagement rate. → key "topCreators"
-
-2. Top 15 videos by store GMV (${w.d30.start}–${w.d30.end}): creator handle, product name (shorten: "Hard Bottom Backseat Extenders for Dogs with Door Protection"→"Back Seat Ext.", "XL Floor Cover for Full-Size Crew Cab Trucks with Fold Up Seats"→"XL Floor Cover", "Travel Dog Bed for Car"→"Travel Dog Bed"), GMV, views, orders, AOV, publish date, likes, comments, product clicks. → key "topVideos"
-
-3. Top 15 creators by videos posted (${w.d30.start}–${w.d30.end}): handle, global GMV, followers, videos posted, GMV from those videos, total store GMV, total views, avg views per video, orders. → key "activeCreators"
-
-Output ONLY this JSON (fill in real data, one object per row):
-{
+  "A6":{"spend":0,"revenue":0,"roi":0},
   "topCreators":[{"h":"","flw":0,"sgmv":0,"ggmv":0,"views":0,"v30":0,"vmgmv":0,"vlife":0,"v7":0,"ord":0,"aov":0,"eng":null}],
   "topVideos":[{"h":"","ggmv":0,"prod":"","gmv":0,"views":0,"ord":0,"aov":0,"likes":0,"cmt":0,"clicks":null,"date":""}],
   "activeCreators":[{"h":"","ggmv":0,"flw":0,"v30":0,"gmvN":0,"gmvT":0,"views":0,"avgv":0,"ord":0}]
 }`
 
-  return NextResponse.json({
-    promptKpi,
-    promptTables,
-    reportDate: w.reportDate,
-    dataWindow: w.dataWindow
-  })
+  return NextResponse.json({ prompt, reportDate: w.reportDate, dataWindow: w.dataWindow })
 }
