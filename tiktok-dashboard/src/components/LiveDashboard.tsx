@@ -11,6 +11,7 @@ import { VideoTable } from './tables/VideoTable'
 import { ActiveCreatorTable } from './tables/ActiveCreatorTable'
 import { AnalysisCard } from './AnalysisCard'
 import { AgentsSection } from './AgentsSection'
+import { ManualEntryPanel } from './ManualEntryPanel'
 
 interface Props {
   report: WeeklyReport
@@ -23,6 +24,7 @@ export function LiveDashboard({ report, goals: _goals }: Props) {
   const [refreshing, setRefreshing] = useState(false)
   const [phaseLabel, setPhaseLabel] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [showManual, setShowManual] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   function stopPoll() {
@@ -91,14 +93,24 @@ export function LiveDashboard({ report, goals: _goals }: Props) {
 
   return (
     <div className="space-y-6">
+      {showManual && (
+        <ManualEntryPanel reportDate={report.report_date} onClose={() => setShowManual(false)} />
+      )}
 
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-base font-semibold text-gray-900">Live · Last 30 Days</h2>
           <p className="text-xs text-gray-400 mt-0.5">{report.data_window} · report from {report.label}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {error && <p className="text-xs text-red-600 max-w-xs text-right">{error}</p>}
+          <button
+            onClick={() => setShowManual(true)}
+            disabled={refreshing}
+            className="flex items-center gap-1.5 text-sm font-medium text-gray-600 border border-gray-200 px-3 py-2 rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-colors"
+          >
+            ✎ Manual Entry
+          </button>
           <button
             onClick={refresh}
             disabled={refreshing}
