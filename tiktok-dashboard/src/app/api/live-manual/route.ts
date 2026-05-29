@@ -132,12 +132,14 @@ QUERIES TO RUN:
 7. Top 15 creators by store GMV — handle, followers, store GMV, global gmv_30d, views, videos L30d, videos w/GMV L30d, lifetime videos, videos L7d, orders, AOV, engagement rate
 8. Top 15 videos by store GMV — creator handle, product name, GMV, views, orders, AOV, publish date, likes, comments, product clicks
 9. Top 15 creators by videos posted — handle, followers, GMV from new-period videos only, total store GMV, views, avg views/video, orders
-10. Outreach AND CRM agents created on or after ${w.d30.start} — make 4 separate list calls to maximize coverage (tool caps at 25/call):
+10. Outreach AND CRM agents — make 6 separate list calls to maximize coverage (tool caps at 25/call, different status values return different subsets):
   a) list_outreach_agents agentType="outreach" status="running" limit=25
   b) list_outreach_agents agentType="outreach" status="stopped" limit=25
-  c) list_outreach_agents agentType="crm" status="running" limit=25
-  d) list_outreach_agents agentType="crm" status="stopped" limit=25
-  Merge all 4 results, deduplicate by campaign_id, keep only agents where created_time >= "${w.d30.start}". Then call get_outreach_agent for every agent in that filtered set to get full detail fields. For gmv_filter use the ACTUAL target_gmvs from get_outreach_agent (e.g. "$2.5K–$2M", "$25K–$55K") — NEVER derive from campaign name. Use "none" only if truly empty.
+  c) list_outreach_agents agentType="outreach" status="error" limit=25
+  d) list_outreach_agents agentType="crm" status="running" limit=25
+  e) list_outreach_agents agentType="crm" status="stopped" limit=25
+  f) list_outreach_agents agentType="crm" status="error" limit=25
+  Merge all 6 results and deduplicate by campaign_id. Return ALL of them — no date filtering. Then call get_outreach_agent for every agent in that merged set to get full detail fields. For gmv_filter use the ACTUAL target_gmvs from get_outreach_agent (e.g. "$2.5K–$2M", "$25K–$55K") — NEVER derive from campaign name. Use "none" only if truly empty.
 
 Product name shortening: "Hard Bottom Backseat Extenders for Dogs with Door Protection" → "Back Seat Ext." · "XL Floor Cover for Full-Size Crew Cab Trucks with Fold Up Seats" → "XL Floor Cover" · "Travel Dog Bed for Car" → "Travel Dog Bed"
 
