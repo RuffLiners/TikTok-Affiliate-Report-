@@ -56,11 +56,7 @@ export default async function DashboardPage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-8">
-        {!latestReport ? (
-          <p className="text-center text-gray-400 py-16">No reports saved yet. Use + New Report to generate the first one.</p>
-        ) : (
-          <LiveDashboard report={latestReport} goals={goals} />
-        )}
+        <LiveDashboard report={latestReport ?? null} goals={goals} />
       </main>
     </div>
   )

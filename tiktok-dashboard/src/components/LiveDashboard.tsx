@@ -14,13 +14,13 @@ import { AgentsSection } from './AgentsSection'
 import { ManualEntryPanel } from './ManualEntryPanel'
 
 interface Props {
-  report: WeeklyReport
+  report: WeeklyReport | null
   goals: Goals | null
 }
 
 export function LiveDashboard({ report, goals: _goals }: Props) {
   const router = useRouter()
-  const d = report.d30
+  const d = report?.d30
   const [refreshing, setRefreshing] = useState(false)
   const [phaseLabel, setPhaseLabel] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -94,13 +94,17 @@ export function LiveDashboard({ report, goals: _goals }: Props) {
   return (
     <div className="space-y-6">
       {showManual && (
-        <ManualEntryPanel reportDate={report.report_date} onClose={() => setShowManual(false)} />
+        <ManualEntryPanel reportDate={report?.report_date ?? ''} onClose={() => setShowManual(false)} />
       )}
 
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-base font-semibold text-gray-900">Live · Last 30 Days</h2>
-          <p className="text-xs text-gray-400 mt-0.5">{report.data_window} · report from {report.label}</p>
+          {report ? (
+            <p className="text-xs text-gray-400 mt-0.5">{report.data_window} · report from {report.label}</p>
+          ) : (
+            <p className="text-xs text-gray-400 mt-0.5">No data yet — refresh or use Manual Entry</p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {error && <p className="text-xs text-red-600 max-w-xs text-right">{error}</p>}
@@ -137,88 +141,92 @@ export function LiveDashboard({ report, goals: _goals }: Props) {
         </div>
       )}
 
-      <AnalysisCard text={report.analysis?.d30 ?? ''} title="30-Day Analysis" />
+      {report && (
+        <>
+          <AnalysisCard text={report.analysis?.d30 ?? ''} title="30-Day Analysis" />
 
-      <section>
-        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Overview</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <KpiCard label="Total GMV"     value={d.gmv}    format="currency" pct={d.gmvPct} />
-          <KpiCard label="Orders"        value={d.orders} format="number"   pct={d.ordersPct} />
-          <KpiCard label="Videos Posted" value={d.videos} format="number"   pct={d.videosPct} />
-          <KpiCard label="Total Views"   value={d.views}  format="compact"  pct={d.viewsPct} />
-        </div>
-      </section>
+          <section>
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Overview</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <KpiCard label="Total GMV"     value={d!.gmv}    format="currency" pct={d!.gmvPct} />
+              <KpiCard label="Orders"        value={d!.orders} format="number"   pct={d!.ordersPct} />
+              <KpiCard label="Videos Posted" value={d!.videos} format="number"   pct={d!.videosPct} />
+              <KpiCard label="Total Views"   value={d!.views}  format="compact"  pct={d!.viewsPct} />
+            </div>
+          </section>
 
-      <section>
-        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Creator KPIs</h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          <KpiCard label="Creators Posted" value={d.creators}    format="number"  pct={d.creatorsPct} />
-          <KpiCard label="New Creators"    value={d.newCreators} format="number"  pct={d.newCreatorsPct} />
-          <KpiCard label="Retention Rate"  value={d.retention}   format="percent" delta={d.retentionDelta} deltaSuffix="pp" />
-        </div>
-      </section>
+          <section>
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Creator KPIs</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <KpiCard label="Creators Posted" value={d!.creators}    format="number"  pct={d!.creatorsPct} />
+              <KpiCard label="New Creators"    value={d!.newCreators} format="number"  pct={d!.newCreatorsPct} />
+              <KpiCard label="Retention Rate"  value={d!.retention}   format="percent" delta={d!.retentionDelta} deltaSuffix="pp" />
+            </div>
+          </section>
 
-      <section>
-        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">By Creator Tier</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <TierCard tier="g1" label="Group 1 · <$25K"      data={d.tiers.g1} color="blue" />
-          <TierCard tier="g2" label="Group 2 · $25K–$100K" data={d.tiers.g2} color="green" />
-          <TierCard tier="g3" label="Group 3 · >$100K"     data={d.tiers.g3} color="amber" />
-        </div>
-      </section>
+          <section>
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">By Creator Tier</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <TierCard tier="g1" label="Group 1 · <$25K"      data={d!.tiers.g1} color="blue" />
+              <TierCard tier="g2" label="Group 2 · $25K–$100K" data={d!.tiers.g2} color="green" />
+              <TierCard tier="g3" label="Group 3 · >$100K"     data={d!.tiers.g3} color="amber" />
+            </div>
+          </section>
 
-      <section>
-        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">GMV Max</h3>
-        <div className="grid grid-cols-3 gap-3">
-          <KpiCard label="Ad Spend"   value={d.gmvMax.spend}   format="currency" />
-          <KpiCard label="Ad Revenue" value={d.gmvMax.revenue} format="currency" />
-          <KpiCard label="ROI"        value={d.gmvMax.roi}     format="roi" />
-        </div>
-      </section>
+          <section>
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">GMV Max</h3>
+            <div className="grid grid-cols-3 gap-3">
+              <KpiCard label="Ad Spend"   value={d!.gmvMax.spend}   format="currency" />
+              <KpiCard label="Ad Revenue" value={d!.gmvMax.revenue} format="currency" />
+              <KpiCard label="ROI"        value={d!.gmvMax.roi}     format="roi" />
+            </div>
+          </section>
 
-      <section>
-        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Recruiting</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <RecruitingCard
-            label="Messages Sent" total={d.msgs} pct={d.msgsPct}
-            g1={d.tiers.g1.msgs} g1pct={d.tiers.g1.msgsPct}
-            g2={d.tiers.g2.msgs} g2pct={d.tiers.g2.msgsPct}
-            g3={d.tiers.g3.msgs} g3pct={d.tiers.g3.msgsPct}
-          />
-          <RecruitingCard
-            label="Samples Shipped" total={d.samples} pct={d.samplesPct}
-            g1={d.tiers.g1.samples} g1pct={d.tiers.g1.samplesPct}
-            g2={d.tiers.g2.samples} g2pct={d.tiers.g2.samplesPct}
-            g3={d.tiers.g3.samples} g3pct={d.tiers.g3.samplesPct}
-          />
-        </div>
-      </section>
+          <section>
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Recruiting</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <RecruitingCard
+                label="Messages Sent" total={d!.msgs} pct={d!.msgsPct}
+                g1={d!.tiers.g1.msgs} g1pct={d!.tiers.g1.msgsPct}
+                g2={d!.tiers.g2.msgs} g2pct={d!.tiers.g2.msgsPct}
+                g3={d!.tiers.g3.msgs} g3pct={d!.tiers.g3.msgsPct}
+              />
+              <RecruitingCard
+                label="Samples Shipped" total={d!.samples} pct={d!.samplesPct}
+                g1={d!.tiers.g1.samples} g1pct={d!.tiers.g1.samplesPct}
+                g2={d!.tiers.g2.samples} g2pct={d!.tiers.g2.samplesPct}
+                g3={d!.tiers.g3.samples} g3pct={d!.tiers.g3.samplesPct}
+              />
+            </div>
+          </section>
 
-      {report.tables.topCreators?.length > 0 && (
-        <section>
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Top 15 Creators · by Store GMV</h3>
-          <CreatorTable creators={report.tables.topCreators} />
-        </section>
+          {report.tables?.topCreators?.length > 0 && (
+            <section>
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Top 15 Creators · by Store GMV</h3>
+              <CreatorTable creators={report.tables.topCreators} />
+            </section>
+          )}
+
+          {report.tables?.topVideos?.length > 0 && (
+            <section>
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Top 15 Videos · by GMV</h3>
+              <VideoTable videos={report.tables.topVideos} reportDate={report.report_date} />
+            </section>
+          )}
+
+          {report.tables?.activeCreators?.length > 0 && (
+            <section>
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Most Active Creators · by Videos Posted</h3>
+              <ActiveCreatorTable creators={report.tables.activeCreators} />
+            </section>
+          )}
+
+          <section>
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Outreach &amp; CRM Agents · Last 30 Days</h3>
+            <AgentsSection reportDate={report.report_date} initialAgents={report.agents} />
+          </section>
+        </>
       )}
-
-      {report.tables.topVideos?.length > 0 && (
-        <section>
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Top 15 Videos · by GMV</h3>
-          <VideoTable videos={report.tables.topVideos} reportDate={report.report_date} />
-        </section>
-      )}
-
-      {report.tables.activeCreators?.length > 0 && (
-        <section>
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Most Active Creators · by Videos Posted</h3>
-          <ActiveCreatorTable creators={report.tables.activeCreators} />
-        </section>
-      )}
-
-      <section>
-        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Outreach &amp; CRM Agents · Last 30 Days</h3>
-        <AgentsSection reportDate={report.report_date} initialAgents={report.agents} />
-      </section>
 
     </div>
   )
