@@ -320,7 +320,7 @@ export default function AdminPage() {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
   }
 
-  const TOTAL_PHASES = 11
+  const TOTAL_PHASES = 18
 
   async function runPhase(jobId: string): Promise<number | null> {
     const res = await fetch('/api/jobs/run', {
@@ -352,8 +352,9 @@ export default function AdminPage() {
           params: { today: format(selectedDate, 'yyyy-MM-dd') }
         })
       })
-      const { jobId } = await createRes.json()
-      if (!jobId) throw new Error('Failed to create job')
+      const createData = await createRes.json().catch(() => ({}))
+      if (!createRes.ok || !createData.jobId) throw new Error(createData.error || 'Failed to create job')
+      const { jobId } = createData
 
       // poll for status label updates
       pollRef.current = setInterval(async () => {

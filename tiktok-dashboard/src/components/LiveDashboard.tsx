@@ -56,8 +56,9 @@ export function LiveDashboard({ report, goals: _goals }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jobType: 'live_refresh', params: {} })
       })
-      const { jobId } = await createRes.json()
-      if (!jobId) throw new Error('Failed to create job')
+      const createData = await createRes.json().catch(() => ({}))
+      if (!createRes.ok || !createData.jobId) throw new Error(createData.error || 'Failed to create job')
+      const { jobId } = createData
 
       // poll for status updates while running phases sequentially
       pollRef.current = setInterval(async () => {

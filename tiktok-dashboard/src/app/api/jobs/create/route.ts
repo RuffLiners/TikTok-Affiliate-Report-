@@ -10,7 +10,12 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const { jobType = 'weekly_report', params = {} } = body
 
-  const supabase = supabaseAdmin()
+  let supabase: ReturnType<typeof supabaseAdmin>
+  try { supabase = supabaseAdmin() } catch (e: any) {
+    console.error('supabaseAdmin init failed:', e?.message)
+    return NextResponse.json({ error: `Database config error: ${e?.message}` }, { status: 503 })
+  }
+
   const { data, error } = await supabase
     .from('report_jobs')
     .insert({
