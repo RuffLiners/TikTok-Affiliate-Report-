@@ -18,19 +18,21 @@ async function getAnthropicKey(): Promise<string | null> {
   } catch { return null }
 }
 
-function buildAgentsPrompt(_startDate: string, _endDate: string): string {
+function buildAgentsPrompt(startDate: string, _endDate: string): string {
   return `You are a data extraction agent for Ruff Liners TikTok Shop.
 
 STORE ID: ${STORE_ID}
 
-TASK: Fetch ALL outreach AND CRM agents for store ${STORE_ID} and return them as a JSON array.
+TASK: Fetch outreach AND CRM agents created on or after ${startDate} for store ${STORE_ID} and return them as a JSON array.
 
 STEPS:
-1. Call list_outreach_agents with agentType="outreach", limit=50 for store ${STORE_ID}
-2. Call list_outreach_agents with agentType="crm", limit=50 for store ${STORE_ID}
-3. Return ALL agents from both lists — no date filtering.
+1. Call list_outreach_agents with agentType="outreach", limit=25 for store ${STORE_ID}
+2. Call list_outreach_agents with agentType="crm", limit=25 for store ${STORE_ID}
+3. From both lists combined, keep ONLY agents where created_time >= "${startDate}" (the 30-day window).
 4. Do NOT call get_outreach_agent — use only what list_outreach_agents returns.
 5. Output ONLY the JSON array. No prose, no markdown.
+
+NOTE: The tool returns the 25 most-recent agents per call. Filter them to the 30-day window before returning.
 
 CRITICAL OUTPUT RULE: Your ENTIRE response must be a single JSON array starting with [ and ending with ]. Nothing before or after.
 
