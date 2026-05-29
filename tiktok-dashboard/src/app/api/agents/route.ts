@@ -25,14 +25,14 @@ STORE ID: ${STORE_ID}
 
 TASK: Fetch outreach AND CRM agents created on or after ${startDate} for store ${STORE_ID} and return them as a JSON array.
 
-STEPS:
-1. Call list_outreach_agents with agentType="outreach", limit=25 for store ${STORE_ID}
-2. Call list_outreach_agents with agentType="crm", limit=25 for store ${STORE_ID}
-3. From both lists combined, keep ONLY agents where created_time >= "${startDate}" (the 30-day window).
-4. For EVERY agent in that filtered set, call get_outreach_agent to retrieve full detail fields: kw_filter, commission_display, exact list/segment name and size, gmv_filter range, other_filters.
-5. Output ONLY the JSON array. No prose, no markdown.
-
-NOTE: The tool returns the 25 most-recent agents per call. Filter them to the 30-day window, then enrich each with get_outreach_agent before returning.
+STEPS — make all 4 list calls to maximize coverage (tool caps at 25/call, so we call by status to get different subsets):
+1. list_outreach_agents agentType="outreach" status="running" limit=25
+2. list_outreach_agents agentType="outreach" status="stopped" limit=25
+3. list_outreach_agents agentType="crm" status="running" limit=25
+4. list_outreach_agents agentType="crm" status="stopped" limit=25
+5. Merge all 4 lists, deduplicate by campaign_id, keep ONLY agents where created_time >= "${startDate}".
+6. For EVERY agent in that filtered set, call get_outreach_agent to retrieve full detail fields: kw_filter, commission_display, exact list/segment name and size, gmv_filter range, other_filters.
+7. Output ONLY the JSON array. No prose, no markdown.
 
 CRITICAL OUTPUT RULE: Your ENTIRE response must be a single JSON array starting with [ and ending with ]. Nothing before or after.
 
