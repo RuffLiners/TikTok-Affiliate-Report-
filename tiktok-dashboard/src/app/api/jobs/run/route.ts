@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { format, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 
-export const maxDuration = 900
+export const maxDuration = 800
 export const dynamic = 'force-dynamic'
 
 function buildWindows(today: Date) {
@@ -211,12 +211,12 @@ async function callClaude(prompt: string, apiKey: string, withMcp: boolean): Pro
     if (tok) srv.authorization_token = tok
     body.mcp_servers = [srv]
   }
-  // 840s timeout — leaves 60s buffer before Vercel Pro 900s limit
+  // 740s timeout — leaves 60s buffer before Vercel Pro 800s limit
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-beta': 'mcp-client-2025-04-04' },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(840000)
+    signal: AbortSignal.timeout(740000)
   })
   if (!res.ok) { const t=await res.text(); throw new Error(`Claude API ${res.status}: ${t.slice(0,300)}`) }
   const data = await res.json()
