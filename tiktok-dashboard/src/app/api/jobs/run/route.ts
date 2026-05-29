@@ -38,7 +38,7 @@ Current 30d: ${w.d30.start} to ${w.d30.end} | Prior 30d: ${w.prior.start} to ${w
 RULES: Specify 2026 in all queries. Read every CSV with read_sandbox_file. Use creator_store_performance for GMV. New creators = first-ever video for this store. GMV Max only from May 14 2026 (use 0 if earlier).
 Output ONLY the JSON object requested — no explanation, no markdown.`
 
-// ONE query per phase for reliability on Vercel Hobby 300s limit
+// ONE query per phase — each phase is one Vercel function call (maxDuration=800)
 const PHASES: Record<number, { label: string; prompt: (w: ReturnType<typeof buildWindows>, pd: any) => string; mcp: boolean }> = {
   1: {
     label: 'Pulling current 30-day KPIs…',
@@ -212,12 +212,18 @@ async function callClaude(prompt: string, apiKey: string, withMcp: boolean): Pro
     body.mcp_servers = [srv]
   }
   // 740s timeout — leaves 60s buffer before Vercel Pro 800s limit
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-beta': 'mcp-client-2025-04-04' },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(740000)
-  })
+  let res: Response
+  try {
+    res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-beta': 'mcp-client-2025-04-04' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(740000)
+    })
+  } catch (e: any) {
+    const isTimeout = e?.name === 'TimeoutError' || e?.name === 'AbortError'
+    throw new Error(isTimeout ? 'Anthropic API timed out after 740s' : `Anthropic API unreachable: ${e?.message}`)
+  }
   if (!res.ok) { const t=await res.text(); throw new Error(`Claude API ${res.status}: ${t.slice(0,300)}`) }
   const data = await res.json()
   return (data.content||[]).filter((b:any)=>b.type==='text').map((b:any)=>b.text).join('\n')
@@ -236,7 +242,11 @@ export async function POST(req: NextRequest) {
   const { jobId } = await req.json().catch(()=>({}))
   if (!jobId) return NextResponse.json({ error: 'Missing jobId' }, { status: 400 })
 
-  const supabase = supabaseAdmin()
+  let supabase: ReturnType<typeof supabaseAdmin>
+  try { supabase = supabaseAdmin() } catch (e: any) {
+    return NextResponse.json({ error: `DB config error: ${e?.message}` }, { status: 503 })
+  }
+
   const { data: job } = await supabase.from('report_jobs').select('*').eq('id', jobId).single()
   if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 })
   if (job.status === 'done') return NextResponse.json({ ok: true, nextPhase: null })
@@ -269,8 +279,9 @@ export async function POST(req: NextRequest) {
     await upd(nextPhase, phaseConfig.label)
 
     if (nextPhase === 18) {
-      // Save phase — no Claude call
-      const report = assemble(w, pd, pd.analysis||{})
+      // Save phase — phase 17 stores analysis keys at top level of pd
+      const analysis = { d30: pd.d30||'', weekly: pd.weekly||'', monthly: pd.monthly||'' }
+      const report = assemble(w, pd, analysis)
       await supabase.from('weekly_reports').upsert(report, { onConflict:'report_date' })
       await supabase.from('report_jobs').update({ status:'done', phase:18, phase_label:'Complete ✓', updated_at:new Date().toISOString() }).eq('id',jobId)
       return NextResponse.json({ ok:true, nextPhase:null })

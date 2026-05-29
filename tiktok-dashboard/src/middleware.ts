@@ -8,7 +8,7 @@ const PUBLIC = ['/login', '/api/auth']
 // Routes that require full admin auth — view-only users are redirected to dashboard
 const ADMIN_ROUTES = ['/admin', '/api/admin', '/api/save-report', '/api/generate-report']
 
-export async function proxy(req: NextRequest) {
+export default async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname
   if (PUBLIC.some(p => path.startsWith(p))) return NextResponse.next()
 
@@ -18,7 +18,6 @@ export async function proxy(req: NextRequest) {
   const isAdminRoute = ADMIN_ROUTES.some(p => path.startsWith(p))
 
   if (isAdminRoute) {
-    // Admin routes require a valid JWT — view-only users get bounced to dashboard
     if (!authToken) {
       return NextResponse.redirect(new URL(viewToken ? '/dashboard' : '/login', req.url))
     }
