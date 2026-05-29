@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { WeeklyReport, Goals } from '@/lib/types'
 import { KpiCard } from './KpiCard'
@@ -17,55 +17,68 @@ interface Props {
   goals: Goals | null
 }
 
-const GENERATE_STEPS = [
-  'Pulling 30-day KPIs',
-  'Breaking down creator tiers',
-  'Fetching top creators & videos',
-  'Pulling 13 weeks of data',
-  'Pulling 6 months of data',
-  'Writing report analysis',
-  'Saving to dashboard',
-]
-
 export function LiveDashboard({ report, goals: _goals }: Props) {
   const router = useRouter()
   const d = report.d30
   const [refreshing, setRefreshing] = useState(false)
-  const [step, setStep] = useState(0)
+  const [phaseLabel, setPhaseLabel] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  function stopPoll() {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+  }
+
+  async function runNextPhase(jobId: string, nextPhase: number) {
+    if (nextPhase === null || nextPhase === undefined) return
+    const res = await fetch('/api/jobs/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobId })
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error || 'Phase failed')
+    return data.nextPhase
+  }
 
   async function refresh() {
     setRefreshing(true)
     setError(null)
-    setStep(0)
-
-    const delays = [0, 20000, 45000, 80000, 130000, 200000, 260000]
-    const timers = delays.map((ms, i) => setTimeout(() => setStep(i), ms))
+    setPhaseLabel('Starting…')
 
     try {
-      const res = await fetch('/api/generate-report', {
+      // create job
+      const createRes = await fetch('/api/jobs/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-        signal: AbortSignal.timeout(360000)
+        body: JSON.stringify({ jobType: 'live_refresh', params: {} })
       })
-      timers.forEach(clearTimeout)
-      const data = await res.json().catch(() => ({ error: 'Unknown error' }))
-      if (!res.ok) {
-        setError(data.error || 'Generation failed.')
-        setRefreshing(false)
-      } else {
-        setStep(GENERATE_STEPS.length)
-        setTimeout(() => {
+      const { jobId } = await createRes.json()
+      if (!jobId) throw new Error('Failed to create job')
+
+      // poll for status updates while running phases sequentially
+      pollRef.current = setInterval(async () => {
+        const statusRes = await fetch(`/api/jobs/${jobId}`)
+        const job = await statusRes.json()
+        if (job.phase_label) setPhaseLabel(job.phase_label)
+        if (job.status === 'done') {
+          stopPoll()
           router.refresh()
           setRefreshing(false)
-        }, 800)
-      }
-    } catch (e: unknown) {
-      timers.forEach(clearTimeout)
-      setError(e instanceof Error && e.name === 'TimeoutError'
-        ? 'Timed out after 6 minutes. Check the dashboard in a moment — it may have saved.'
-        : 'Connection error. Try again.')
+        } else if (job.status === 'error') {
+          stopPoll()
+          setError(job.error || 'Refresh failed.')
+          setRefreshing(false)
+        }
+      }, 3000)
+
+      // run phase 1 (live_refresh only needs 1 phase)
+      setPhaseLabel('Pulling 30-day KPIs…')
+      await runNextPhase(jobId, 1)
+
+    } catch (e: any) {
+      stopPoll()
+      setError(e?.message || 'Connection error. Try again.')
       setRefreshing(false)
     }
   }
@@ -91,7 +104,7 @@ export function LiveDashboard({ report, goals: _goals }: Props) {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                 </svg>
-                {GENERATE_STEPS[Math.min(step, GENERATE_STEPS.length - 1)]}…
+                {phaseLabel || 'Pulling live data…'}
               </>
             ) : (
               <>↺ Refresh live data</>
@@ -102,18 +115,7 @@ export function LiveDashboard({ report, goals: _goals }: Props) {
 
       {refreshing && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
-          <div className="flex gap-4 flex-wrap">
-            {GENERATE_STEPS.map((s, i) => (
-              <div key={s} className="flex items-center gap-1.5 text-xs">
-                <span className={i < step ? 'text-green-500' : i === step ? 'text-blue-500' : 'text-gray-300'}>
-                  {i < step ? '✓' : i === step ? '⟳' : '○'}
-                </span>
-                <span className={i < step ? 'text-gray-300 line-through' : i === step ? 'text-gray-700 font-medium' : 'text-gray-300'}>
-                  {s}
-                </span>
-              </div>
-            ))}
-          </div>
+          <p className="text-xs text-gray-500">{phaseLabel || 'Connecting to TikTok Shop data…'}</p>
         </div>
       )}
 

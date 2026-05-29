@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { format, subDays } from 'date-fns'
 import { ManageTab } from './ManageTab'
 
@@ -215,6 +215,8 @@ export default function AdminPage() {
   const [genError, setGenErr]   = useState('')
   const [genResult, setGenRes]  = useState<{ label: string; gmv: number; reportDate: string } | null>(null)
   const [genStep, setGenStep]   = useState(0)
+  const [phaseLabel, setPhaseLabel] = useState('')
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const [goals, setGoals]       = useState<any>(null)
   const [config, setConfig]     = useState<ConfigStatus | null>(null)
@@ -310,41 +312,75 @@ export default function AdminPage() {
     fetch('/api/admin/check-config').then(r => r.json()).then(d => { if (!d.error) setConfig(d) })
   }
 
+  function stopPoll() {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+  }
+
+  const TOTAL_PHASES = 6
+
+  async function runPhase(jobId: string, phase: number): Promise<number | null> {
+    const res = await fetch('/api/jobs/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobId })
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error || 'Phase failed')
+    return data.nextPhase ?? null
+  }
+
   async function generate() {
     setGen('running')
     setGenErr('')
     setGenRes(null)
     setGenStep(0)
-
-    const delays = [0, 20000, 45000, 80000, 130000, 200000, 260000]
-    const timers = delays.map((ms, i) => setTimeout(() => setGenStep(i), ms))
+    setPhaseLabel('Creating job…')
 
     try {
-      const res = await fetch('/api/generate-report', {
+      const createRes = await fetch('/api/jobs/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ today: format(selectedDate, 'yyyy-MM-dd') }),
-        signal: AbortSignal.timeout(360000)
+        body: JSON.stringify({
+          jobType: 'weekly_report',
+          params: { today: format(selectedDate, 'yyyy-MM-dd') }
+        })
       })
+      const { jobId } = await createRes.json()
+      if (!jobId) throw new Error('Failed to create job')
 
-      timers.forEach(clearTimeout)
+      // poll for status label updates
+      pollRef.current = setInterval(async () => {
+        const statusRes = await fetch(`/api/jobs/${jobId}`)
+        const job = await statusRes.json()
+        if (job.phase_label) setPhaseLabel(job.phase_label)
+        if (job.phase) setGenStep(job.phase)
+      }, 3000)
 
-      const data = await res.json().catch(() => ({ error: 'Unknown error' }))
+      // run phases sequentially, each is one Vercel function call
+      let nextPhase: number | null = 1
+      while (nextPhase !== null) {
+        nextPhase = await runPhase(jobId, nextPhase)
+      }
 
-      if (!res.ok) {
+      stopPoll()
+
+      // fetch final job state for result
+      const finalRes = await fetch(`/api/jobs/${jobId}`)
+      const finalJob = await finalRes.json()
+
+      if (finalJob.status === 'error') {
         setGen('error')
-        setGenErr(data.error || 'Something went wrong.')
+        setGenErr(finalJob.error || 'Generation failed.')
       } else {
-        setGenStep(GENERATE_STEPS.length)
+        setGenStep(TOTAL_PHASES)
+        setPhaseLabel('Complete ✓')
         setGen('success')
-        setGenRes({ label: data.label, gmv: data.gmv, reportDate: data.reportDate })
+        setGenRes({ label: format(selectedDate, 'MMMM d, yyyy'), gmv: 0, reportDate: format(selectedDate, 'yyyy-MM-dd') })
       }
     } catch (e: any) {
-      timers.forEach(clearTimeout)
+      stopPoll()
       setGen('error')
-      setGenErr(e?.name === 'TimeoutError'
-        ? 'Timed out after 6 minutes. The report may still be processing — check the dashboard in a minute.'
-        : 'Connection error. Try again.')
+      setGenErr(e?.message || 'Connection error. Try again.')
     }
   }
 
@@ -672,8 +708,8 @@ export default function AdminPage() {
                 <div className="flex items-center gap-3 mb-5">
                   <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
                   <div>
-                    <p className="font-semibold text-gray-900">Pulling data and writing analysis…</p>
-                    <p className="text-xs text-gray-400">Takes 5–6 minutes. Don&apos;t close this tab.</p>
+                    <p className="font-semibold text-gray-900">{phaseLabel || 'Starting…'}</p>
+                    <p className="text-xs text-gray-400">Takes 8–15 minutes. Keep this tab open.</p>
                   </div>
                 </div>
                 <div className="space-y-2.5">
