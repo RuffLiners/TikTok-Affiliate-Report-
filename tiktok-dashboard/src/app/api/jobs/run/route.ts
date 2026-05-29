@@ -218,11 +218,11 @@ async function callClaude(systemPrompt: string, userMsg: string, apiKey: string,
   }
 
   if (withMcp) {
-    body.mcp_servers = [{
-      type: 'url',
-      url: process.env.EUKA_MCP_URL!,
-      name: 'euka'
-    }]
+    const rawToken = (process.env.EUKA_BEARER_TOKEN || '').trim()
+    const eukaToken = rawToken.startsWith('Bearer ') ? rawToken.slice(7).trim() : rawToken
+    const mcpServer: any = { type: 'url', url: process.env.EUKA_MCP_URL!, name: 'euka' }
+    if (eukaToken) mcpServer.authorization_token = eukaToken
+    body.mcp_servers = [mcpServer]
   }
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
