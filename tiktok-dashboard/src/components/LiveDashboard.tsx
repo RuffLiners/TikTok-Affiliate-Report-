@@ -205,7 +205,7 @@ export function LiveDashboard({ report, goals: _goals }: Props) {
 
       <section>
         <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Outreach &amp; CRM Agents · Last 30 Days</h3>
-        <AgentsSection reportDate={report.report_date} />
+        <AgentsSection reportDate={report.report_date} initialAgents={report.agents} />
       </section>
 
     </div>

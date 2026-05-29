@@ -122,6 +122,7 @@ export interface WeeklyReport {
   weekly_charts: WeeklyCharts
   monthly_charts: MonthlyCharts
   tables: ReportTables
+  agents?: OutreachAgentRow[]
   analysis?: {
     performance?: string
     creators?: string
