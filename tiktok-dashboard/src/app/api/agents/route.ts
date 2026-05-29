@@ -5,7 +5,7 @@ import { OutreachAgentRow } from '@/lib/types'
 import { supabaseAdmin } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 300
+export const maxDuration = 800
 
 const STORE_ID = process.env.EUKA_STORE_ID!
 
@@ -24,49 +24,50 @@ function buildAgentsPrompt(startDate: string, endDate: string): string {
 STORE ID: ${STORE_ID}
 DATE WINDOW: ${startDate} to ${endDate}
 
-TASK: Fetch all outreach AND CRM agents created on or after ${startDate}.
+TASK: Fetch all outreach AND CRM agents for store ${STORE_ID}.
 
 STEPS:
-1. Call list_outreach_agents with agentType="outreach", limit=25 for store ${STORE_ID}
-2. Call list_outreach_agents with agentType="crm", limit=25 for store ${STORE_ID}
-3. For every agent with created_time >= "${startDate}", call get_outreach_agent to get full details
-4. Output ONLY the JSON array — no prose, no markdown.
+1. Call list_outreach_agents with agentType="outreach", limit=50 for store ${STORE_ID}
+2. Call list_outreach_agents with agentType="crm", limit=50 for store ${STORE_ID}
+3. Include ALL agents from both lists (do NOT filter by date — return everything).
+4. For each agent, use only the data returned by list_outreach_agents — do NOT call get_outreach_agent.
+5. Output ONLY the JSON array — no prose, no markdown.
 
 CRITICAL OUTPUT RULE: Your entire response must be a single JSON array starting with [ and ending with ]. No text before or after.
 
-JSON SCHEMA (one object per agent):
+JSON SCHEMA (one object per agent, use null/0/[] for any missing fields):
 {
   "id": <number>,
   "name": "<campaign_name>",
   "agent_type": "outreach" or "crm",
-  "campaign_type": "<campaign_type field>",
+  "campaign_type": "<campaign_type>",
   "status": "<bot_status>",
   "date_posted": "<created_time ISO string>",
-  "creators_reached": <total_conversations number>,
-  "remaining": <remaining_creators number>,
-  "samples_requested": <total_sample_request>,
-  "samples_shipped": <total_samples_shipped>,
-  "total_replies": <total_replies>,
-  "total_videos": <total_videos>,
-  "total_revenue": <total_revenue>,
-  "post_rate": <post_rate>,
-  "accepted_invites": <total_target_accepted_invites>,
-  "total_invites": <total_target_invites>,
-  "has_followups": <has_followups boolean>,
-  "use_ai_personalization": <use_ai_personalization boolean, default false>,
-  "daily_limit": <daily_limit or null>,
-  "targeting_method": "<targeting_method>",
-  "target_categories": [<target_categories array or []>],
-  "target_gmvs": [<target_gmvs array or []>],
-  "target_avg_views": [<target_avg_shoppable_video_views array or []>],
-  "target_followers": [<target_follower_counts array or []>],
-  "target_gender": <target_gender or null>,
-  "target_engagement": <target_engagement_rate or null>,
-  "free_samples": <target_collab_free_samples boolean, default false>,
-  "commission": [{"productId":"<id>","rate":<commission>}],
-  "products": [{"id":"<id>","title":"<title>"}],
-  "message": "<message field>",
-  "collab_message": "<target_collab_message or empty string>"
+  "creators_reached": <total_conversations or 0>,
+  "remaining": <remaining_creators or 0>,
+  "samples_requested": <total_sample_request or 0>,
+  "samples_shipped": <total_samples_shipped or 0>,
+  "total_replies": <total_replies or 0>,
+  "total_videos": <total_videos or 0>,
+  "total_revenue": <total_revenue or 0>,
+  "post_rate": <post_rate or 0>,
+  "accepted_invites": <total_target_accepted_invites or 0>,
+  "total_invites": <total_target_invites or 0>,
+  "has_followups": <has_followups boolean or false>,
+  "use_ai_personalization": false,
+  "daily_limit": null,
+  "targeting_method": "",
+  "target_categories": [],
+  "target_gmvs": [],
+  "target_avg_views": [],
+  "target_followers": [],
+  "target_gender": null,
+  "target_engagement": null,
+  "free_samples": false,
+  "commission": [],
+  "products": [],
+  "message": "",
+  "collab_message": ""
 }`
 }
 
@@ -97,7 +98,7 @@ function anthropicPost(apiKey: string, bodyStr: string): Promise<{ ok: boolean; 
       })
     })
     req.on('error', reject)
-    req.setTimeout(280_000, () => req.destroy(new Error('agents timeout')))
+    req.setTimeout(750_000, () => req.destroy(new Error('agents timeout')))
     req.write(bodyStr)
     req.end()
   })
