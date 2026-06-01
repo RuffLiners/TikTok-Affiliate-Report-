@@ -18,77 +18,71 @@ async function getAnthropicKey(): Promise<string | null> {
   } catch { return null }
 }
 
-function buildAgentsPrompt(startDate: string, _endDate: string): string {
+function buildAgentsPrompt(startDate: string, endDate: string): string {
   return `You are a data extraction agent for Ruff Liners TikTok Shop.
 
-STORE ID: ${STORE_ID}
+STORE_ID: ${STORE_ID}
+EUKA_MCP: https://app.euka.ai/api/mcp
 
-TASK: Fetch outreach AND CRM agents created on or after ${startDate} for store ${STORE_ID} and return them as a JSON array.
+GOAL: Return a JSON array of every outreach AND CRM agent created in the last 30 days, each fully enriched.
 
-STEPS — make the following list calls using searchQuery to get each segment (tool caps at 25/call; botStatus accepts array ["running","stopped","error"]):
+## STEP 0 — Window
 
-OUTREACH agents (agentType="outreach", botStatus=["running","stopped","error"], limit=25 each):
-1. searchQuery="G1"
-2. searchQuery="G2"
-3. searchQuery="G3"
-4. searchQuery="Video Volume"
-5. searchQuery="GMV Contest"
-6. searchQuery="New Agent"
-7. searchQuery="" (unfiltered, catches anything else)
+- CUTOFF = ${startDate} (inclusive)
+- The list tool has no date parameter. Filter client-side: keep an agent only if the date portion of its created_time (UTC) is >= ${startDate}. Do not look for a date filter on the tool — there isn't one.
 
-CRM agents (agentType="crm", botStatus=["running","stopped","error"], limit=25 each):
-8. searchQuery="G1"
-9. searchQuery="G2"
-10. searchQuery="G3"
-11. searchQuery="New Agent"
-12. searchQuery="" (unfiltered)
+## STEP 1 — Enumerate
 
-Merge all results, deduplicate by campaign_id. Return ALL — no date filtering.
-For EVERY agent in the merged set, call get_outreach_agent to get full detail fields: kw_filter, commission_display, exact list/segment name and size, gmv_filter range, other_filters.
-Output ONLY the JSON array. No prose, no markdown.
+list_outreach_agents caps at limit=25 per call and has no pagination. On every call pass: botStatus=["running","stopped","error"], limit=25, archived=false, storeId=${STORE_ID}.
 
-CRITICAL OUTPUT RULE: Your ENTIRE response must be a single JSON array starting with [ and ending with ]. Nothing before or after.
+Run these searches:
 
-FIELD MAPPING — map list_outreach_agents fields to this exact JSON schema:
-{
-  "id": <campaign_id number>,
-  "name": "<campaign_name>",
-  "agent_type": "outreach" or "crm",
-  "campaign_type": "<campaign_type string>",
-  "status": "<bot_status: running|stopped|error>",
-  "date_posted": "<created_time as ISO date string YYYY-MM-DD>",
-  "gmv_filter": "<the ACTUAL target_gmvs value from get_outreach_agent — format as min–max range e.g. '$2.5K–$2M', '$25K–$55K', '$70K–$100K'. NEVER derive from campaign name or tier. Use 'none' only if target_gmvs is truly empty>",
-  "kw_filter": "<keyword/search filter string, or '—' if none>",
-  "other_filters": "<other attribute filters description, or 'none'>",
-  "list_segment": "<list or segment name and size, or '— (filter-based)'>",
-  "commission_display": "<organic_commission% / ads_commission% e.g. '20% / 10%', or '—'>",
-  "creators_reached": <total_conversations number>,
-  "remaining": <remaining_creators number>,
-  "total_invites": <total_target_invites number>,
-  "accepted_invites": <total_target_accepted_invites number>,
-  "total_replies": <total_replies number>,
-  "samples_requested": <total_sample_request number>,
-  "samples_shipped": <total_samples_shipped number>,
-  "total_videos": <total_videos number>,
-  "total_revenue": <total_revenue number>,
-  "product_count": <number of products in this campaign>,
-  "has_followups": <has_followups boolean>,
-  "post_rate": <post_rate number or 0>,
-  "use_ai_personalization": <boolean or false>,
-  "daily_limit": <daily_limit or null>,
-  "targeting_method": "<targeting_method string>",
-  "target_categories": [],
-  "target_gmvs": [],
-  "target_avg_views": [],
-  "target_followers": [],
-  "target_gender": null,
-  "target_engagement": null,
-  "free_samples": false,
-  "commission": [],
-  "products": [],
-  "message": "",
-  "collab_message": ""
-}`
+OUTREACH (agentType="outreach"), searchQuery =
+"", "G1", "G2", "G3", "Video Volume", "GMV Contest", "New Agent"
+
+CRM (agentType="crm"), searchQuery =
+"", "G1", "G2", "G3", "New Agent", "Video Volume", "GMV Contest", "Tiktoktshopbonus"
+
+Merge all results → deduplicate by id → drop any agent with created_time older than ${startDate}.
+
+Completeness guard. Each response includes a total. If, for any single searchQuery, your in-window count for that bucket hits the 25-row cap AND that call's total > 25, the bucket overflowed — add narrower date-string queries for it (e.g. "G2 - 5/2", "G2 - 5/1", "G2 - 4/3") and repeat until no in-window bucket is truncated. If you cannot confirm full in-window coverage, stop and report the gap — never return a partial array.
+
+## STEP 2 — Enrich
+
+For EVERY in-window agent, call get_outreach_agent(campaignId=id, storeId=${STORE_ID}). This is the only source for gmv_filter, kw_filter, other_filters, list_segment, and commission_display.
+
+## STEP 3 — Field map
+
+| Output field        | Source |
+|---------------------|--------|
+| id                  | list.id |
+| name                | list.campaign_name |
+| agent_type          | "outreach" or "crm" — whichever list call produced it |
+| campaign_type       | list.campaign_type |
+| status              | list.bot_status |
+| date_posted         | list.created_time, date only, YYYY-MM-DD |
+| gmv_filter          | detail.target_gmvs joined with ", ", verbatim. "none" if null/empty. NEVER derive from campaign name. |
+| kw_filter           | detail.target_categories joined with ", "; "none" if empty |
+| other_filters       | Concise key: value summary of any other non-empty detail.target_* fields (target_avg_shoppable_video_views, target_avg_live_views, target_follower_counts, target_engagement_rate, target_creator_gender/target_gender, target_creator_languages, target_ages, target_fulfillment_rate, target_live_gmvs, target_ethnicity). "none" if all empty |
+| list_segment        | If detail.lists non-empty → join their names; else if detail.segments non-empty → join their names; else detail.targeting_method ("filters"/"list"/"segment"); "none" if absent |
+| commission_display  | Build from detail.product_commission_with_percentage (unique value, e.g. "20%") + if detail.include_shop_ads and detail.shop_ads_commission → append " + N% Shop Ads". Example: "20% + 6% Shop Ads". "none" if no commission data |
+| creators_reached    | list.total_conversations |
+| remaining           | list.remaining_creators |
+| total_invites       | list.total_target_invites |
+| accepted_invites    | list.total_target_accepted_invites |
+| total_replies       | list.total_replies |
+| samples_requested   | list.total_sample_request |
+| samples_shipped     | list.total_samples_shipped |
+| total_videos        | list.total_videos |
+| total_revenue       | list.total_revenue |
+| product_count       | length of list.products (0 if null) |
+| has_followups       | list.has_followups |
+
+## STEP 4 — Output
+
+Respond with ONLY the JSON array [ ... ]. No prose, no markdown fences. One object per in-window agent.
+
+{ "id":0,"name":"","agent_type":"outreach","campaign_type":"","status":"running","date_posted":"YYYY-MM-DD","gmv_filter":"","kw_filter":"","other_filters":"","list_segment":"","commission_display":"","creators_reached":0,"remaining":0,"total_invites":0,"accepted_invites":0,"total_replies":0,"samples_requested":0,"samples_shipped":0,"total_videos":0,"total_revenue":0,"product_count":0,"has_followups":false }`
 }
 
 function anthropicPost(apiKey: string, bodyStr: string): Promise<{ ok: boolean; status: number; text: () => Promise<string> }> {
@@ -151,6 +145,7 @@ async function callAgentsClaude(prompt: string, apiKey: string): Promise<Outreac
 
   // Follow-up turn if Claude responded in prose instead of a JSON array
   if (text.indexOf('[') === -1) {
+    const mcpServers = [{ type: 'url', url: process.env.EUKA_MCP_URL!, name: 'euka', ...(tok ? { authorization_token: tok } : {}) }]
     const followUpBody = {
       model: 'claude-sonnet-4-6',
       max_tokens: 8000,
@@ -158,7 +153,8 @@ async function callAgentsClaude(prompt: string, apiKey: string): Promise<Outreac
         { role: 'user', content: prompt },
         { role: 'assistant', content: data.content || [] },
         { role: 'user', content: 'Now output ONLY the JSON array. Start with [ and end with ]. Nothing else.' }
-      ]
+      ],
+      mcp_servers: mcpServers
     }
     const res2 = await anthropicPost(apiKey, JSON.stringify(followUpBody))
     if (!res2.ok) throw new Error(`Claude follow-up ${res2.status}`)
