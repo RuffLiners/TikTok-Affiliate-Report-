@@ -176,7 +176,7 @@ export default async function ReportPage({ params }: Props) {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 px-6 py-4 sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
+        <div className="mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/dashboard" className="text-gray-400 hover:text-gray-600 transition-colors">
               <ChevronLeft size={18} />
@@ -192,7 +192,7 @@ export default async function ReportPage({ params }: Props) {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-6">
+      <main className="mx-auto px-6 py-6">
         <Tabs defaultValue="30d">
           <TabsList className="mb-6">
             <TabsTrigger value="30d">Last 30 Days</TabsTrigger>
@@ -274,11 +274,9 @@ export default async function ReportPage({ params }: Props) {
               <ActiveCreatorTable creators={report.tables.activeCreators} />
             </section>
 
-            <section className="-mx-6">
-              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-6">Outreach &amp; CRM Agents · Last 30 Days</h2>
-              <div className="px-6">
-                <AgentsSection reportDate={reportDate} initialAgents={report.agents} />
-              </div>
+            <section>
+              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Outreach &amp; CRM Agents · Last 30 Days</h2>
+              <AgentsSection reportDate={reportDate} initialAgents={report.agents} />
             </section>
           </TabsContent>
 

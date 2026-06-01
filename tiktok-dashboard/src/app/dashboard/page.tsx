@@ -20,7 +20,7 @@ export default async function DashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 px-6 py-4">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
+        <div className="mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-lg font-semibold text-gray-900">Ruff Liners · TikTok Shop</h1>
             <p className="text-sm text-gray-500">TikTok Affiliate Dashboard</p>
@@ -55,7 +55,7 @@ export default async function DashboardPage() {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-6 py-8">
+      <main className="mx-auto px-6 py-8">
         <LiveDashboard report={latestReport ?? null} goals={goals} />
       </main>
     </div>
