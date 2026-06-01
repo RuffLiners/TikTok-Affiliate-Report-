@@ -58,7 +58,7 @@ export default async function ReportsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 px-6 py-4">
-        <div className="mx-auto flex items-center justify-between">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-lg font-semibold text-gray-900">Ruff Liners · TikTok Shop</h1>
             <p className="text-sm text-gray-500">TikTok Affiliate Dashboard</p>
@@ -93,7 +93,7 @@ export default async function ReportsPage() {
         </div>
       </header>
 
-      <main className="mx-auto px-6 py-8">
+      <main className="max-w-5xl mx-auto px-6 py-8">
         <div className="mb-6">
           <h2 className="text-base font-semibold text-gray-900">Weekly Reports</h2>
           <p className="text-sm text-gray-400 mt-0.5">{reports?.length ?? 0} reports saved</p>
