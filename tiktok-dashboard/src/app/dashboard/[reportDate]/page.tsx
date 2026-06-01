@@ -274,9 +274,11 @@ export default async function ReportPage({ params }: Props) {
               <ActiveCreatorTable creators={report.tables.activeCreators} />
             </section>
 
-            <section>
-              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Outreach &amp; CRM Agents · Last 30 Days</h2>
-              <AgentsSection reportDate={reportDate} initialAgents={report.agents} />
+            <section className="-mx-6">
+              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-6">Outreach &amp; CRM Agents · Last 30 Days</h2>
+              <div className="px-6">
+                <AgentsSection reportDate={reportDate} initialAgents={report.agents} />
+              </div>
             </section>
           </TabsContent>
 

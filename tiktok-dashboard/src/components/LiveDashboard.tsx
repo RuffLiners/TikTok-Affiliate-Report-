@@ -221,9 +221,11 @@ export function LiveDashboard({ report, goals: _goals }: Props) {
             </section>
           )}
 
-          <section>
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Outreach &amp; CRM Agents · Last 30 Days</h3>
-            <AgentsSection reportDate={report.report_date} initialAgents={report.agents} />
+          <section className="-mx-6">
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-6">Outreach &amp; CRM Agents · Last 30 Days</h3>
+            <div className="px-6">
+              <AgentsSection reportDate={report.report_date} initialAgents={report.agents} />
+            </div>
           </section>
         </>
       )}
