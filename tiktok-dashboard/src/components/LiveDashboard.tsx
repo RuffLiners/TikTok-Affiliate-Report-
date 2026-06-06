@@ -12,6 +12,7 @@ import { ActiveCreatorTable } from './tables/ActiveCreatorTable'
 import { AnalysisCard } from './AnalysisCard'
 import { AgentsSection } from './AgentsSection'
 import { ManualEntryPanel } from './ManualEntryPanel'
+import { GmvMaxAgeTable } from './GmvMaxAgeTable'
 
 interface Props {
   report: WeeklyReport | null
@@ -175,11 +176,22 @@ export function LiveDashboard({ report, goals: _goals }: Props) {
 
           <section>
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">GMV Max</h3>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-3 mb-3">
               <KpiCard label="Ad Spend"   value={d!.gmvMax.spend}   format="currency" />
               <KpiCard label="Ad Revenue" value={d!.gmvMax.revenue} format="currency" />
               <KpiCard label="ROI"        value={d!.gmvMax.roi}     format="roi" />
             </div>
+            {d!.gmvMaxByAge && d!.gmvMaxByAge.length > 0 && (
+              <>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 mt-4">Spend by Content Age</p>
+                <GmvMaxAgeTable
+                  rows={d!.gmvMaxByAge}
+                  totalSpend={d!.gmvMax.spend}
+                  totalRevenue={d!.gmvMax.revenue}
+                  totalRoi={d!.gmvMax.roi}
+                />
+              </>
+            )}
           </section>
 
           <section>

@@ -72,7 +72,7 @@ RULES: Always specify year 2026 in queries. Read every CSV with read_sandbox_fil
 CRITICAL OUTPUT RULE: You MUST respond with ONLY a single JSON object. No explanations, no analysis, no markdown, no prose before or after. Your entire response must start with { and end with }. Fill in real numbers from the data.`
 
 // ONE query per phase — each phase is one Vercel function call (maxDuration=800)
-const PHASES: Record<number, { label: string; prompt: (w: ReturnType<typeof buildWindows>, pd: any) => string; mcp: boolean }> = {
+const PHASES: Record<number, { label: string; prompt: (w: ReturnType<typeof buildWindows>, pd: any) => string; mcp: boolean; isAgents?: boolean; maxTokens?: number }> = {
   1: {
     label: 'Pulling current 30-day KPIs…',
     mcp: true,
@@ -86,7 +86,7 @@ const PHASES: Record<number, { label: string; prompt: (w: ReturnType<typeof buil
   3: {
     label: 'Pulling creator tier breakdown…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Current 30d (${w.d30.start}–${w.d30.end}) by creator tier — pull every creator from creator_store_performance who posted in this window, classify each by their global gmv_30d (G1 <$25K, G2 $25K–$100K, G3 >$100K), then sum: creators who posted, new creators, videos posted, and STORE GMV (the same gmv field from creator_store_performance, NOT global GMV). G1+G2+G3 store GMV must sum to the overall 30d total. Once you have the data, output ONLY the JSON — no analysis, no explanation.\nReturn ONLY: {"A3":{"g1":{"creators":0,"newCreators":0,"videos":0,"gmv":0},"g2":{"creators":0,"newCreators":0,"videos":0,"gmv":0},"g3":{"creators":0,"newCreators":0,"videos":0,"gmv":0}}}`
+    prompt: w => BASE(w) + `\n\nQuery: Current 30d (${w.d30.start}–${w.d30.end}) by creator tier — pull every creator from creator_store_performance who posted in this window, classify each by their global gmv_30d (G1 <$25K, G2 $25K–$100K, G3 >$100K), then sum: creators who posted, new creators, videos posted, total views, and STORE GMV (the same gmv field from creator_store_performance, NOT global GMV). G1+G2+G3 store GMV must sum to the overall 30d total. Once you have the data, output ONLY the JSON — no analysis, no explanation.\nReturn ONLY: {"A3":{"g1":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0},"g2":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0},"g3":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}}}`
   },
   4: {
     label: 'Pulling current outreach data…',
@@ -103,58 +103,103 @@ const PHASES: Record<number, { label: string; prompt: (w: ReturnType<typeof buil
     mcp: true,
     prompt: w => BASE(w) + `\n\nQuery: GMV Max current 30d (${w.d30.start}–${w.d30.end}): total ad spend, attributed revenue, blended ROI. Use 0 if data unavailable before May 14 2026.\nOutput: {"A6":{"spend":0,"revenue":0,"roi":0}}`
   },
-  // live_refresh saves after phase 6
   7: {
+    label: 'Pulling GMV Max content age…',
+    mcp: true,
+    prompt: w => BASE(w) + `\n\nQuery: GMV Max spend current 30d (${w.d30.start}–${w.d30.end}) broken down by how old the video was at the end of the window. Buckets based on video publish date vs ${w.d30.end}: "< 30 days" (posted ${w.d30.start}–${w.d30.end}), "1–2 months" (31–60 days before ${w.d30.end}), "2–3 months" (61–90 days), "3–5 months" (91–150 days), "5+ months" (151+ days). For each non-empty bucket output: label, videos (count), spend, revenue, roi (revenue/spend, 0 if no spend), pct (spend as % of total spend).\nOutput: {"A7":[{"label":"< 30 days","videos":0,"spend":0,"revenue":0,"roi":0,"pct":0}]}`
+  },
+  8: {
+    label: 'Pulling outreach agents…',
+    mcp: true,
+    isAgents: true,
+    maxTokens: 8000,
+    prompt: w => {
+      const startDate = w.prior.start  // agents look back ~30d from report date
+      const endDate = w.reportDate
+      return `You are a data extraction agent for Ruff Liners TikTok Shop.
+
+STORE_ID: ${process.env.EUKA_STORE_ID}
+
+GOAL: Return a JSON array of every outreach AND CRM agent created in the last 30 days, each fully enriched.
+
+## STEP 0 — Window
+- CUTOFF = ${startDate} (inclusive)
+- The list tool has no date parameter. Filter client-side: keep an agent only if the date portion of its created_time (UTC) is >= ${startDate}. Do not look for a date filter on the tool — there isn't one.
+
+## STEP 1 — Enumerate
+list_outreach_agents caps at limit=25 per call and has no pagination. On every call pass: botStatus=["running","stopped","error"], limit=25, archived=false, storeId=${process.env.EUKA_STORE_ID}.
+
+Run these searches:
+OUTREACH (agentType="outreach"), searchQuery = "", "G1", "G2", "G3", "Video Volume", "GMV Contest", "New Agent"
+CRM (agentType="crm"), searchQuery = "", "G1", "G2", "G3", "New Agent", "Video Volume", "GMV Contest", "Tiktoktshopbonus"
+
+Merge all results → deduplicate by id → drop any agent with created_time older than ${startDate}.
+
+Completeness guard: if any single searchQuery in-window count hits the 25-row cap AND that call's total > 25, add narrower date-string queries and repeat until no bucket is truncated.
+
+## STEP 2 — Enrich
+For EVERY in-window agent, call get_outreach_agent(campaignId=id, storeId=${process.env.EUKA_STORE_ID}).
+
+## STEP 3 — Field map
+id, name, agent_type ("outreach"/"crm"), campaign_type, status (bot_status), date_posted (created_time date only YYYY-MM-DD), gmv_filter (target_gmvs joined ", "; "none" if empty), kw_filter (target_categories joined ", "; "none" if empty), other_filters (concise summary of other non-empty target_* fields; "none" if all empty), list_segment (lists names or segments names or targeting_method; "none" if absent), commission_display (unique commission rate + shop ads if present; "none" if absent), creators_reached (total_conversations), remaining (remaining_creators), total_invites (total_target_invites), accepted_invites (total_target_accepted_invites), total_replies, samples_requested (total_sample_request), samples_shipped (total_samples_shipped), total_videos, total_revenue, product_count (length of products array), has_followups
+
+## STEP 4 — Output
+Respond with ONLY the JSON array. No prose, no markdown fences.
+[{"id":0,"name":"","agent_type":"outreach","campaign_type":"","status":"running","date_posted":"YYYY-MM-DD","gmv_filter":"","kw_filter":"","other_filters":"","list_segment":"","commission_display":"","creators_reached":0,"remaining":0,"total_invites":0,"accepted_invites":0,"total_replies":0,"samples_requested":0,"samples_shipped":0,"total_videos":0,"total_revenue":0,"product_count":0,"has_followups":false}]`
+    }
+  },
+  // live_refresh saves after phase 8 (A1-A8 complete, includes agents)
+  9: {
     label: 'Pulling top 15 creators…',
     mcp: true,
     prompt: w => BASE(w) + `\n\nQuery: Top 15 creators by store GMV (${w.d30.start}–${w.d30.end}): handle, followers, store GMV, global gmv_30d, views, videos L30d, videos with any GMV L30d, lifetime videos for this store, videos L7d, orders, AOV, engagement rate.\nOutput: {"topCreators":[{"h":"","flw":0,"sgmv":0,"ggmv":0,"views":0,"v30":0,"vmgmv":0,"vlife":0,"v7":0,"ord":0,"aov":0,"eng":null}]}`
   },
-  8: {
+  10: {
     label: 'Pulling top 15 videos…',
     mcp: true,
     prompt: w => BASE(w) + `\n\nQuery: Top 15 videos by store GMV (${w.d30.start}–${w.d30.end}): creator handle, product name (shorten: "Hard Bottom Backseat Extenders for Dogs with Door Protection"→"Back Seat Ext.", "XL Floor Cover for Full-Size Crew Cab Trucks with Fold Up Seats"→"XL Floor Cover", "Travel Dog Bed for Car"→"Travel Dog Bed"), GMV, views, orders, AOV, publish date, likes, comments, product clicks.\nOutput: {"topVideos":[{"h":"","ggmv":0,"prod":"","gmv":0,"views":0,"ord":0,"aov":0,"likes":0,"cmt":0,"clicks":null,"date":""}]}`
   },
-  9: {
+  11: {
     label: 'Pulling most active creators…',
     mcp: true,
     prompt: w => BASE(w) + `\n\nQuery: Top 15 creators by videos posted (${w.d30.start}–${w.d30.end}): handle, global GMV, followers, videos posted, GMV from those videos (new video GMV), total store GMV, total views, avg views per video, orders.\nOutput: {"activeCreators":[{"h":"","ggmv":0,"flw":0,"v30":0,"gmvN":0,"gmvT":0,"views":0,"avgv":0,"ord":0}]}`
   },
-  10: {
+  12: {
     label: 'Pulling 13-week GMV trends…',
     mcp: true,
     prompt: w => BASE(w) + `\n\nQuery: Weekly GMV + orders for all 13 Sun–Sat weeks in ${w.weeksRange}. Return 13 rows in chronological order.\nOutput (exactly 13 items): {"C1":[{"gmv":0,"orders":0}]}`
   },
-  11: {
+  13: {
     label: 'Pulling 13-week creator trends…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Weekly creators, new creators, videos posted, store GMV by tier (G1/G2/G3) for all 13 weeks in ${w.weeksRange}. Return 13 rows per tier.\nOutput (exactly 13 items per array): {"C2":{"g1":[{"creators":0,"newCreators":0,"videos":0,"gmv":0}],"g2":[{"creators":0,"newCreators":0,"videos":0,"gmv":0}],"g3":[{"creators":0,"newCreators":0,"videos":0,"gmv":0}]}}`
+    prompt: w => BASE(w) + `\n\nQuery: Weekly creators, new creators, videos posted, views, store GMV by tier (G1/G2/G3) for all 13 weeks in ${w.weeksRange}. Return 13 rows per tier.\nOutput (exactly 13 items per array): {"C2":{"g1":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"g2":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"g3":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}]}}`
   },
-  12: {
+  14: {
     label: 'Pulling 13-week retention & video trends…',
     mcp: true,
     prompt: w => BASE(w) + `\n\nQuery: Weekly retention rate + total videos posted + total views for all 13 weeks in ${w.weeksRange}.\nOutput (exactly 13 items): {"C3":[0],"C4":[{"videos":0,"views":0}]}`
   },
-  13: {
+  15: {
     label: 'Pulling 13-week outreach trends…',
     mcp: true,
     prompt: w => BASE(w) + `\n\nQuery: Weekly messages sent + samples shipped by tier (G1/G2/G3) for all 13 weeks in ${w.weeksRange}.\nOutput (exactly 13 items per array): {"C5":{"g1":[{"msgs":0,"samples":0}],"g2":[{"msgs":0,"samples":0}],"g3":[{"msgs":0,"samples":0}]}}`
   },
-  14: {
+  16: {
     label: 'Pulling 6-month GMV trends…',
     mcp: true,
     prompt: w => BASE(w) + `\n\nQuery: Monthly GMV + views for each of the 6 months: ${w.monthKeys}. Return 6 rows chronological.\nOutput (exactly 6 items): {"D1":[{"gmv":0,"views":0}]}`
   },
-  15: {
+  17: {
     label: 'Pulling 6-month creator trends…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Monthly creators, new creators, videos, store GMV by tier (G1/G2/G3) for months ${w.monthKeys}. Return 6 rows per tier.\nOutput (exactly 6 items per array): {"D2":{"g1":[{"creators":0,"newCreators":0,"videos":0,"gmv":0}],"g2":[{"creators":0,"newCreators":0,"videos":0,"gmv":0}],"g3":[{"creators":0,"newCreators":0,"videos":0,"gmv":0}]}}`
+    prompt: w => BASE(w) + `\n\nQuery: Monthly creators, new creators, videos, views, store GMV by tier (G1/G2/G3) for months ${w.monthKeys}. Return 6 rows per tier.\nOutput (exactly 6 items per array): {"D2":{"g1":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"g2":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"g3":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}]}}`
   },
-  16: {
+  18: {
     label: 'Pulling 6-month retention & outreach…',
     mcp: true,
     prompt: w => BASE(w) + `\n\nQuery: Monthly retention rate + outreach (messages sent + samples shipped by tier G1/G2/G3) for months ${w.monthKeys}.\nOutput (exactly 6 items per array): {"D3":[0],"D4":{"g1":[{"msgs":0,"samples":0}],"g2":[{"msgs":0,"samples":0}],"g3":[{"msgs":0,"samples":0}]}}`
   },
-  17: {
+  19: {
     label: 'Writing analysis…',
     mcp: false,
     prompt: (w, pd) => {
@@ -173,15 +218,15 @@ Write 3 analyses:
 Output ONLY: {"d30":"para1\\n\\npara2\\n\\npara3\\n\\npara4\\n\\npara5","weekly":"para1\\n\\npara2\\n\\npara3","monthly":"para1\\n\\npara2\\n\\npara3"}`
     }
   },
-  18: {
+  20: {
     label: 'Saving report…',
     mcp: false,
     prompt: () => '' // handled in code, not via claude
   }
 }
 
-const LIVE_SAVE_AFTER = 6  // live_refresh saves after phase 6 (A1-A6 complete)
-const TOTAL_PHASES = 18
+const LIVE_SAVE_AFTER = 8  // live_refresh saves after phase 8 (A1-A7 + agents complete)
+const TOTAL_PHASES = 20
 
 function assemble(w: ReturnType<typeof buildWindows>, pd: any, analysis: any) {
   const a1=pd.A1||{}, a2=pd.A2||{}, a3=pd.A3||{g1:{},g2:{},g3:{}}, a4=pd.A4||{total:{},g1:{},g2:{},g3:{}}, a5=pd.A5||{total:{},g1:{},g2:{},g3:{}}, a6=pd.A6||{}
@@ -197,12 +242,13 @@ function assemble(w: ReturnType<typeof buildWindows>, pd: any, analysis: any) {
       creators:a1.creators||0, creatorsPct:pct(a1.creators||0,a2.creators||0), newCreators:a1.newCreators||0, newCreatorsPct:pct(a1.newCreators||0,a2.newCreators||0),
       retention:a1.retention||0, retentionDelta:delta(a1.retention||0,a2.retention||0),
       gmvMax:{spend:a6.spend||0,revenue:a6.revenue||0,roi:a6.roi||0},
+      gmvMaxByAge:(pd.A7&&pd.A7.length>0)?pd.A7:undefined,
       msgs:a4.total?.msgs||0, msgsPct:pct(a4.total?.msgs||0,a5.total?.msgs||0),
       samples:a4.total?.samples||0, samplesPct:pct(a4.total?.samples||0,a5.total?.samples||0),
       tiers:{
-        g1:{creators:a3.g1?.creators||0,newCreators:a3.g1?.newCreators||0,videos:a3.g1?.videos||0,gmv:a3.g1?.gmv||0,msgs:a4.g1?.msgs||0,msgsPct:pct(a4.g1?.msgs||0,a5.g1?.msgs||0),samples:a4.g1?.samples||0,samplesPct:pct(a4.g1?.samples||0,a5.g1?.samples||0)},
-        g2:{creators:a3.g2?.creators||0,newCreators:a3.g2?.newCreators||0,videos:a3.g2?.videos||0,gmv:a3.g2?.gmv||0,msgs:a4.g2?.msgs||0,msgsPct:pct(a4.g2?.msgs||0,a5.g2?.msgs||0),samples:a4.g2?.samples||0,samplesPct:pct(a4.g2?.samples||0,a5.g2?.samples||0)},
-        g3:{creators:a3.g3?.creators||0,newCreators:a3.g3?.newCreators||0,videos:a3.g3?.videos||0,gmv:a3.g3?.gmv||0,msgs:a4.g3?.msgs||0,msgsPct:pct(a4.g3?.msgs||0,a5.g3?.msgs||0),samples:a4.g3?.samples||0,samplesPct:pct(a4.g3?.samples||0,a5.g3?.samples||0)}
+        g1:{creators:a3.g1?.creators||0,newCreators:a3.g1?.newCreators||0,videos:a3.g1?.videos||0,views:a3.g1?.views||0,gmv:a3.g1?.gmv||0,msgs:a4.g1?.msgs||0,msgsPct:pct(a4.g1?.msgs||0,a5.g1?.msgs||0),samples:a4.g1?.samples||0,samplesPct:pct(a4.g1?.samples||0,a5.g1?.samples||0)},
+        g2:{creators:a3.g2?.creators||0,newCreators:a3.g2?.newCreators||0,videos:a3.g2?.videos||0,views:a3.g2?.views||0,gmv:a3.g2?.gmv||0,msgs:a4.g2?.msgs||0,msgsPct:pct(a4.g2?.msgs||0,a5.g2?.msgs||0),samples:a4.g2?.samples||0,samplesPct:pct(a4.g2?.samples||0,a5.g2?.samples||0)},
+        g3:{creators:a3.g3?.creators||0,newCreators:a3.g3?.newCreators||0,videos:a3.g3?.videos||0,views:a3.g3?.views||0,gmv:a3.g3?.gmv||0,msgs:a4.g3?.msgs||0,msgsPct:pct(a4.g3?.msgs||0,a5.g3?.msgs||0),samples:a4.g3?.samples||0,samplesPct:pct(a4.g3?.samples||0,a5.g3?.samples||0)}
       }
     },
     weekly_charts:{
@@ -211,6 +257,7 @@ function assemble(w: ReturnType<typeof buildWindows>, pd: any, analysis: any) {
       ncg1:c2.g1?.map((r:any)=>r.newCreators||0)||[], ncg2:c2.g2?.map((r:any)=>r.newCreators||0)||[], ncg3:c2.g3?.map((r:any)=>r.newCreators||0)||[],
       vg1:c2.g1?.map((r:any)=>r.videos||0)||[], vg2:c2.g2?.map((r:any)=>r.videos||0)||[], vg3:c2.g3?.map((r:any)=>r.videos||0)||[],
       gg1:c2.g1?.map((r:any)=>r.gmv||0)||[], gg2:c2.g2?.map((r:any)=>r.gmv||0)||[], gg3:c2.g3?.map((r:any)=>r.gmv||0)||[],
+      vwg1:c2.g1?.map((r:any)=>r.views||0)||[], vwg2:c2.g2?.map((r:any)=>r.views||0)||[], vwg3:c2.g3?.map((r:any)=>r.views||0)||[],
       ret:c3.map((r:any)=>typeof r==='number'?r:0), vid:c4.map((r:any)=>r.videos||0),
       mg1:c5.g1?.map((r:any)=>r.msgs||0)||[], mg2:c5.g2?.map((r:any)=>r.msgs||0)||[], mg3:c5.g3?.map((r:any)=>r.msgs||0)||[],
       sg1:c5.g1?.map((r:any)=>r.samples||0)||[], sg2:c5.g2?.map((r:any)=>r.samples||0)||[], sg3:c5.g3?.map((r:any)=>r.samples||0)||[]
@@ -221,11 +268,13 @@ function assemble(w: ReturnType<typeof buildWindows>, pd: any, analysis: any) {
       ncg1:d2.g1?.map((r:any)=>r.newCreators||0)||[], ncg2:d2.g2?.map((r:any)=>r.newCreators||0)||[], ncg3:d2.g3?.map((r:any)=>r.newCreators||0)||[],
       vg1:d2.g1?.map((r:any)=>r.videos||0)||[], vg2:d2.g2?.map((r:any)=>r.videos||0)||[], vg3:d2.g3?.map((r:any)=>r.videos||0)||[],
       gg1:d2.g1?.map((r:any)=>r.gmv||0)||[], gg2:d2.g2?.map((r:any)=>r.gmv||0)||[], gg3:d2.g3?.map((r:any)=>r.gmv||0)||[],
+      vwg1:d2.g1?.map((r:any)=>r.views||0)||[], vwg2:d2.g2?.map((r:any)=>r.views||0)||[], vwg3:d2.g3?.map((r:any)=>r.views||0)||[],
       ret:d3.map((r:any)=>typeof r==='number'?r:0),
       mg1:d4.g1?.map((r:any)=>r.msgs||0)||[], mg2:d4.g2?.map((r:any)=>r.msgs||0)||[], mg3:d4.g3?.map((r:any)=>r.msgs||0)||[],
       sg1:d4.g1?.map((r:any)=>r.samples||0)||[], sg2:d4.g2?.map((r:any)=>r.samples||0)||[], sg3:d4.g3?.map((r:any)=>r.samples||0)||[]
     },
     tables:{topCreators:pd.topCreators||[], topVideos:pd.topVideos||[], activeCreators:pd.activeCreators||[]},
+    agents:pd.agents||[],
     analysis:{d30:analysis?.d30||'', weekly:analysis?.weekly||'', monthly:analysis?.monthly||''}
   }
 }
@@ -263,8 +312,8 @@ async function callClaudeRaw(body: any, apiKey: string, timeoutMs = 680_000): Pr
   return JSON.parse(await res.text())
 }
 
-async function callClaude(prompt: string, apiKey: string, withMcp: boolean): Promise<string> {
-  const body: any = { model: 'claude-sonnet-4-6', max_tokens: 4000, messages: [{ role: 'user', content: prompt }] }
+async function callClaude(prompt: string, apiKey: string, withMcp: boolean, maxTokens = 4000): Promise<string> {
+  const body: any = { model: 'claude-sonnet-4-6', max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] }
   if (withMcp) {
     const raw = (process.env.EUKA_BEARER_TOKEN||'').trim()
     const tok = raw.startsWith('Bearer ') ? raw.slice(7).trim() : raw
@@ -273,8 +322,9 @@ async function callClaude(prompt: string, apiKey: string, withMcp: boolean): Pro
     body.mcp_servers = [srv]
   }
 
-  // MCP call: 680s. Non-MCP: 120s.
-  const data = await callClaudeRaw(body, apiKey, withMcp ? 680_000 : 120_000)
+  // MCP call: 680s. Non-MCP: 120s. Agents: 750s (complex multi-step enumeration).
+  const timeoutMs = withMcp ? (maxTokens > 4000 ? 750_000 : 680_000) : 120_000
+  const data = await callClaudeRaw(body, apiKey, timeoutMs)
   const text = extractTextBlocks(data)
 
   // If no JSON in the response, send a follow-up turn (no MCP needed, 90s is plenty)
@@ -357,28 +407,39 @@ export async function POST(req: NextRequest) {
 
     await upd(nextPhase, phaseConfig.label)
 
-    if (nextPhase === 18) {
-      // Save phase — phase 17 stores analysis keys at top level of pd
+    if (nextPhase === 20) {
+      // Save phase — phase 19 stores analysis keys at top level of pd
       const analysis = { d30: pd.d30||'', weekly: pd.weekly||'', monthly: pd.monthly||'' }
       const report = assemble(w, pd, analysis)
       await supabase.from('weekly_reports').upsert(report, { onConflict:'report_date' })
-      await supabase.from('report_jobs').update({ status:'done', phase:18, phase_label:'Complete ✓', updated_at:new Date().toISOString() }).eq('id',jobId)
+      await supabase.from('report_jobs').update({ status:'done', phase:20, phase_label:'Complete ✓', updated_at:new Date().toISOString() }).eq('id',jobId)
       return NextResponse.json({ ok:true, nextPhase:null })
     }
 
-    const text = await callClaude(phaseConfig.prompt(w, pd), apiKey, phaseConfig.mcp)
-    let parsed: any
-    try {
-      parsed = extractJson(text)
-    } catch {
-      const preview = text.slice(0, 600)
-      console.error(`Phase ${nextPhase} non-JSON response:`, preview)
-      throw new Error(`No JSON in Claude response (phase ${nextPhase}). Claude said: ${preview}`)
+    const text = await callClaude(phaseConfig.prompt(w, pd), apiKey, phaseConfig.mcp, phaseConfig.maxTokens)
+    if (phaseConfig.isAgents) {
+      // Agents response is a JSON array; extract it directly
+      const start = text.indexOf('['), end = text.lastIndexOf(']')
+      if (start !== -1 && end !== -1) {
+        try { pd.agents = JSON.parse(text.slice(start, end + 1)) } catch { pd.agents = [] }
+      } else {
+        pd.agents = []
+      }
+      await upd(nextPhase, `Phase ${nextPhase} done`)
+    } else {
+      let parsed: any
+      try {
+        parsed = extractJson(text)
+      } catch {
+        const preview = text.slice(0, 600)
+        console.error(`Phase ${nextPhase} non-JSON response:`, preview)
+        throw new Error(`No JSON in Claude response (phase ${nextPhase}). Claude said: ${preview}`)
+      }
+      Object.assign(pd, parsed)
+      await upd(nextPhase, `Phase ${nextPhase} done`)
     }
-    Object.assign(pd, parsed)
-    await upd(nextPhase, `Phase ${nextPhase} done`)
 
-    // live_refresh: save after collecting A1-A6 (phases 1-6)
+    // live_refresh: save after collecting A1-A7 + agents (phases 1-8)
     // Writes to app_config key 'live_report' — never touches weekly_reports
     if (isLive && nextPhase === LIVE_SAVE_AFTER) {
       const fullReport = assemble(w, pd, { d30:'', weekly:'', monthly:'' })
@@ -388,7 +449,7 @@ export async function POST(req: NextRequest) {
         data_window: fullReport.data_window,
         d30: fullReport.d30,
         tables: { topCreators:[], topVideos:[], activeCreators:[] },
-        agents: [],
+        agents: fullReport.agents,
         analysis: { d30:'' },
       }
       await supabase.from('app_config').upsert({ key:'live_report', value: JSON.stringify(liveData) }, { onConflict:'key' })
