@@ -87,7 +87,7 @@ PHASE 1 — RUN ALL DATA QUERIES
 
 [A1] Current 30d totals: GMV, orders, videos, views, creators, new creators, retention vs prior
 [A2] Prior 30d totals: same fields
-[A3] Current 30d by tier (G1 <$25K, G2 $25K-$100K, G3 >$100K): creators, new creators, videos, GMV
+[A3] Current 30d by tier (G1 <$25K, G2 $25K-$100K, G3 >$100K): creators, new creators, videos, views, GMV
 [A4] Current 30d outreach by tier: messages sent, samples shipped + totals
 [A5] Prior 30d outreach totals + by tier
 [A6] GMV Max current 30d: ad spend, revenue, ROI
@@ -96,12 +96,12 @@ PHASE 1 — RUN ALL DATA QUERIES
 [B3] Top 15 videos by store GMV — creator, product, GMV, views, orders, AOV, publish date, likes, comments, product clicks
 [B4] Top 15 creators by videos posted — GMV from new videos only, total GMV, views, avg views, orders
 [C1] 13 weeks GMV + orders: ${w.weeksRange}
-[C2] 13 weeks by tier: creators, new creators, videos, GMV (39 rows)
+[C2] 13 weeks by tier: creators, new creators, videos, views, GMV (39 rows)
 [C3] 13 weeks retention rate (13 rows)
 [C4] 13 weeks total videos + views (13 rows)
 [C5] 13 weeks outreach by tier: messages + samples (39 rows)
 [D1] 6 months GMV + views: ${w.monthKeys}
-[D2] 6 months by tier: creators, new creators, videos, GMV (18 rows)
+[D2] 6 months by tier: creators, new creators, videos, views, GMV (18 rows)
 [D3] 6 months retention rate (6 rows)
 [D4] 6 months outreach by tier: messages + samples (18 rows)
 
@@ -130,9 +130,9 @@ Output ONLY this JSON. No prose before or after.
     "gmvMax":{"spend":0,"revenue":0,"roi":0},
     "msgs":0,"msgsPct":0,"samples":0,"samplesPct":0,
     "tiers":{
-      "g1":{"creators":0,"newCreators":0,"videos":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0},
-      "g2":{"creators":0,"newCreators":0,"videos":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0},
-      "g3":{"creators":0,"newCreators":0,"videos":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0}
+      "g1":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0},
+      "g2":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0},
+      "g3":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0}
     }
   },
   "weeklyCharts":{
@@ -142,6 +142,7 @@ Output ONLY this JSON. No prose before or after.
     "ncg1":[],"ncg2":[],"ncg3":[],
     "vg1":[],"vg2":[],"vg3":[],
     "gg1":[],"gg2":[],"gg3":[],
+    "vwg1":[],"vwg2":[],"vwg3":[],
     "ret":[],"vid":[],
     "mg1":[],"mg2":[],"mg3":[],
     "sg1":[],"sg2":[],"sg3":[]
@@ -153,6 +154,7 @@ Output ONLY this JSON. No prose before or after.
     "ncg1":[],"ncg2":[],"ncg3":[],
     "vg1":[],"vg2":[],"vg3":[],
     "gg1":[],"gg2":[],"gg3":[],
+    "vwg1":[],"vwg2":[],"vwg3":[],
     "ret":[],
     "mg1":[],"mg2":[],"mg3":[],
     "sg1":[],"sg2":[],"sg3":[]

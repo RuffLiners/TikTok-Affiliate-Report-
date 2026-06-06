@@ -2,6 +2,7 @@ export interface TierData {
   creators: number
   newCreators: number
   videos: number
+  views: number
   gmv: number
   msgs: number
   msgsPct: number
@@ -40,6 +41,7 @@ export interface WeeklyCharts {
   ncg1: number[]; ncg2: number[]; ncg3: number[]
   vg1: number[];  vg2: number[];  vg3: number[]
   gg1: number[];  gg2: number[];  gg3: number[]
+  vwg1: number[]; vwg2: number[]; vwg3: number[]
   ret: number[]
   vid: number[]
   mg1: number[]; mg2: number[]; mg3: number[]
@@ -54,6 +56,7 @@ export interface MonthlyCharts {
   ncg1: number[]; ncg2: number[]; ncg3: number[]
   vg1: number[];  vg2: number[];  vg3: number[]
   gg1: number[];  gg2: number[];  gg3: number[]
+  vwg1: number[]; vwg2: number[]; vwg3: number[]
   ret: number[]
   mg1: number[]; mg2: number[]; mg3: number[]
   sg1: number[]; sg2: number[]; sg3: number[]

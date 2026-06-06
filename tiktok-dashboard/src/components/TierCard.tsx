@@ -21,6 +21,7 @@ export function TierCard({ label, data, color }: Props) {
           ['Creators', data.creators],
           ['New creators', data.newCreators],
           ['Videos', data.videos],
+          ['Views', (data.views ?? 0).toLocaleString('en-US')],
           ['GMV', f$(data.gmv)],
           ['GMV / creator', f$(Math.round(data.gmv / Math.max(data.creators, 1)))],
         ].map(([k, v]) => (

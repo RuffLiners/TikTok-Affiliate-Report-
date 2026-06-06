@@ -59,6 +59,7 @@ export function WeeklyCharts({ data }: Props) {
   const ncRows = buildRows(['g1','g2','g3'], { g1: data.ncg1, g2: data.ncg2, g3: data.ncg3 })
   const vRows  = buildRows(['g1','g2','g3'], { g1: data.vg1,  g2: data.vg2,  g3: data.vg3  })
   const ggRows = buildRows(['g1','g2','g3'], { g1: data.gg1,  g2: data.gg2,  g3: data.gg3  })
+  const vwRows = buildRows(['g1','g2','g3'], { g1: data.vwg1 ?? [], g2: data.vwg2 ?? [], g3: data.vwg3 ?? [] })
   const retRows = buildRows(['ret'], { ret: data.ret })
   const vidRows = buildRows(['vid'], { vid: data.vid })
   const mgRows = buildRows(['g1','g2','g3'], { g1: data.mg1, g2: data.mg2, g3: data.mg3 })
@@ -134,6 +135,17 @@ export function WeeklyCharts({ data }: Props) {
             <ResponsiveContainer width="100%" height={ht}>
               <BarChart data={ggRows} barCategoryGap="25%">
                 {axis}{yaxis(fmtDollar)}{tip}
+                <Bar dataKey="g1" stackId="a" fill={G1} />
+                <Bar dataKey="g2" stackId="a" fill={G2} />
+                <Bar dataKey="g3" stackId="a" fill={G3} radius={[3,3,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          <ChartCard title="Views by Tier" legend={tierLegend}>
+            <ResponsiveContainer width="100%" height={ht}>
+              <BarChart data={vwRows} barCategoryGap="25%">
+                {axis}{yaxis(fmtK)}{tip}
                 <Bar dataKey="g1" stackId="a" fill={G1} />
                 <Bar dataKey="g2" stackId="a" fill={G2} />
                 <Bar dataKey="g3" stackId="a" fill={G3} radius={[3,3,0,0]} />
