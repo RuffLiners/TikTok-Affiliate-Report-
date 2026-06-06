@@ -90,7 +90,8 @@ PHASE 1 — RUN ALL DATA QUERIES
 [A3] Current 30d by tier (G1 <$25K, G2 $25K-$100K, G3 >$100K): creators, new creators, videos, views, GMV
 [A4] Current 30d outreach by tier: messages sent, samples shipped + totals
 [A5] Prior 30d outreach totals + by tier
-[A6] GMV Max current 30d: ad spend, revenue, ROI
+[A6] GMV Max current 30d: total ad spend, revenue, ROI
+[A7] GMV Max current 30d by content age: group all videos that received GMV Max spend by how old the video was relative to the end of the 30d window — buckets: "< 30 days" (posted within the 30d window), "1–2 months" (31–60 days old), "2–3 months" (61–90 days old), "3–5 months" (91–150 days old), "5+ months" (151+ days old). For each bucket: video count, total spend, total revenue, ROI (revenue/spend), spend as % of total spend. Omit any bucket with zero videos.
 [B1] Top 15 creators by store GMV — handle, followers, store GMV, global gmv_30d, views, videos L30d, videos L7d, orders, AOV, engagement rate
 [B2] For B1 handles: videos with any GMV L30d, lifetime videos ever
 [B3] Top 15 videos by store GMV — creator, product, GMV, views, orders, AOV, publish date, likes, comments, product clicks
@@ -128,6 +129,7 @@ Output ONLY this JSON. No prose before or after.
     "views":0,"viewsPct":0,"creators":0,"creatorsPct":0,"newCreators":0,"newCreatorsPct":0,
     "retention":0,"retentionDelta":0,
     "gmvMax":{"spend":0,"revenue":0,"roi":0},
+    "gmvMaxByAge":[{"label":"< 30 days","videos":0,"spend":0,"revenue":0,"roi":0,"pct":0}],
     "msgs":0,"msgsPct":0,"samples":0,"samplesPct":0,
     "tiers":{
       "g1":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0},

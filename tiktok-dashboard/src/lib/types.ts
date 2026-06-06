@@ -26,6 +26,7 @@ export interface D30Data {
   retention: number
   retentionDelta: number
   gmvMax: { spend: number; revenue: number; roi: number }
+  gmvMaxByAge?: Array<{ label: string; videos: number; spend: number; revenue: number; roi: number; pct: number }>
   msgs: number
   msgsPct: number
   samples: number

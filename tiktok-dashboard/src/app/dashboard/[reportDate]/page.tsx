@@ -16,6 +16,7 @@ import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { AnalysisCard } from '@/components/AnalysisCard'
 import { AgentsSection } from '@/components/AgentsSection'
+import { GmvMaxAgeTable } from '@/components/GmvMaxAgeTable'
 
 export const revalidate = 3600
 
@@ -234,11 +235,22 @@ export default async function ReportPage({ params }: Props) {
 
             <section>
               <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">GMV Max</h2>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-3 mb-3">
                 <KpiCard label="Ad Spend" value={d.gmvMax.spend} format="currency" />
                 <KpiCard label="Ad Revenue" value={d.gmvMax.revenue} format="currency" />
                 <KpiCard label="ROI" value={d.gmvMax.roi} format="roi" />
               </div>
+              {d.gmvMaxByAge && d.gmvMaxByAge.length > 0 && (
+                <>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 mt-4">Spend by Content Age</p>
+                  <GmvMaxAgeTable
+                    rows={d.gmvMaxByAge}
+                    totalSpend={d.gmvMax.spend}
+                    totalRevenue={d.gmvMax.revenue}
+                    totalRoi={d.gmvMax.roi}
+                  />
+                </>
+              )}
             </section>
 
             <section>
