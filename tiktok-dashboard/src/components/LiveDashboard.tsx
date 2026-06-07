@@ -19,7 +19,17 @@ interface Props {
   goals: Goals | null
 }
 
-export function LiveDashboard({ report, goals: _goals }: Props) {
+function friendlyError(msg: string): string {
+  if (msg.includes('Connection error while communicating with MCP')) return 'TikTok data server unavailable — try again in a moment.'
+  if (msg.includes('Claude API 400') || msg.includes('invalid_request_error')) return 'Data query error — try again.'
+  if (msg.includes('Claude API 5') || msg.includes('overloaded')) return 'Claude is busy — try again in a moment.'
+  if (msg.includes('timeout') || msg.includes('Timeout')) return 'Data pull timed out — try again.'
+  if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) return 'Network error — check your connection and try again.'
+  // truncate long raw JSON errors
+  return msg.length > 120 ? msg.slice(0, 120) + '…' : msg
+}
+
+({ report, goals: _goals }: Props) {
   const router = useRouter()
   const d = report?.d30
   const [refreshing, setRefreshing] = useState(false)
@@ -87,7 +97,7 @@ export function LiveDashboard({ report, goals: _goals }: Props) {
 
     } catch (e: any) {
       stopPoll()
-      setError(String(e?.message || 'Connection error. Try again.'))
+      setError(friendlyError(String(e?.message || 'Connection error. Try again.')))
       setRefreshing(false)
     }
   }
