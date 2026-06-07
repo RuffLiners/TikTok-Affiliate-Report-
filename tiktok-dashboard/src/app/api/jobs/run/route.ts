@@ -101,7 +101,7 @@ const PHASES: Record<number, { label: string; prompt: (w: ReturnType<typeof buil
   6: {
     label: 'Pulling GMV Max data…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: GMV Max current 30d (${w.d30.start}–${w.d30.end}): total ad spend, attributed revenue, blended ROI. Use 0 if data unavailable before May 14 2026.\nOutput: {"A6":{"spend":0,"revenue":0,"roi":0}}`
+    prompt: w => BASE(w) + `\n\nQuery: GMV Max current 30d (${w.d30.start}–${w.d30.end}): (1) total ad spend, attributed revenue, blended ROI; (2) ad spend and ROI broken down by creator tier (classify each video's creator by global gmv_30d: G1 <$25K, G2 $25K–$100K, G3 >$100K). Use 0 for all if data unavailable before May 14 2026.\nOutput: {"A6":{"spend":0,"revenue":0,"roi":0,"g1":{"spend":0,"roi":0},"g2":{"spend":0,"roi":0},"g3":{"spend":0,"roi":0}}}`
   },
   7: {
     label: 'Pulling GMV Max content age…',
@@ -272,9 +272,9 @@ function assemble(w: ReturnType<typeof buildWindows>, pd: any, analysis: any) {
       msgs:a4.total?.msgs||0, msgsPct:pct(a4.total?.msgs||0,a5.total?.msgs||0),
       samples:a4.total?.samples||0, samplesPct:pct(a4.total?.samples||0,a5.total?.samples||0),
       tiers:{
-        g1:{creators:a3.g1?.creators||0,newCreators:a3.g1?.newCreators||0,videos:a3.g1?.videos||0,views:a3.g1?.views||0,gmv:a3.g1?.gmv||0,msgs:a4.g1?.msgs||0,msgsPct:pct(a4.g1?.msgs||0,a5.g1?.msgs||0),samples:a4.g1?.samples||0,samplesPct:pct(a4.g1?.samples||0,a5.g1?.samples||0)},
-        g2:{creators:a3.g2?.creators||0,newCreators:a3.g2?.newCreators||0,videos:a3.g2?.videos||0,views:a3.g2?.views||0,gmv:a3.g2?.gmv||0,msgs:a4.g2?.msgs||0,msgsPct:pct(a4.g2?.msgs||0,a5.g2?.msgs||0),samples:a4.g2?.samples||0,samplesPct:pct(a4.g2?.samples||0,a5.g2?.samples||0)},
-        g3:{creators:a3.g3?.creators||0,newCreators:a3.g3?.newCreators||0,videos:a3.g3?.videos||0,views:a3.g3?.views||0,gmv:a3.g3?.gmv||0,msgs:a4.g3?.msgs||0,msgsPct:pct(a4.g3?.msgs||0,a5.g3?.msgs||0),samples:a4.g3?.samples||0,samplesPct:pct(a4.g3?.samples||0,a5.g3?.samples||0)}
+        g1:{creators:a3.g1?.creators||0,newCreators:a3.g1?.newCreators||0,videos:a3.g1?.videos||0,views:a3.g1?.views||0,gmv:a3.g1?.gmv||0,gmvMaxSpend:a6.g1?.spend||undefined,gmvMaxRoi:a6.g1?.roi||undefined,msgs:a4.g1?.msgs||0,msgsPct:pct(a4.g1?.msgs||0,a5.g1?.msgs||0),samples:a4.g1?.samples||0,samplesPct:pct(a4.g1?.samples||0,a5.g1?.samples||0)},
+        g2:{creators:a3.g2?.creators||0,newCreators:a3.g2?.newCreators||0,videos:a3.g2?.videos||0,views:a3.g2?.views||0,gmv:a3.g2?.gmv||0,gmvMaxSpend:a6.g2?.spend||undefined,gmvMaxRoi:a6.g2?.roi||undefined,msgs:a4.g2?.msgs||0,msgsPct:pct(a4.g2?.msgs||0,a5.g2?.msgs||0),samples:a4.g2?.samples||0,samplesPct:pct(a4.g2?.samples||0,a5.g2?.samples||0)},
+        g3:{creators:a3.g3?.creators||0,newCreators:a3.g3?.newCreators||0,videos:a3.g3?.videos||0,views:a3.g3?.views||0,gmv:a3.g3?.gmv||0,gmvMaxSpend:a6.g3?.spend||undefined,gmvMaxRoi:a6.g3?.roi||undefined,msgs:a4.g3?.msgs||0,msgsPct:pct(a4.g3?.msgs||0,a5.g3?.msgs||0),samples:a4.g3?.samples||0,samplesPct:pct(a4.g3?.samples||0,a5.g3?.samples||0)}
       }
     },
     weekly_charts:{

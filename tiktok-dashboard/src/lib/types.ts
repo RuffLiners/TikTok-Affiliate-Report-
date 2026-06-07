@@ -4,6 +4,8 @@ export interface TierData {
   videos: number
   views: number
   gmv: number
+  gmvMaxSpend?: number
+  gmvMaxRoi?: number
   msgs: number
   msgsPct: number
   samples: number

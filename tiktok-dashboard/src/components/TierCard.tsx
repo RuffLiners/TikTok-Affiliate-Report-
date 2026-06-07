@@ -24,6 +24,10 @@ export function TierCard({ label, data, color }: Props) {
           ['Views', (data.views ?? 0).toLocaleString('en-US')],
           ['GMV', f$(data.gmv)],
           ['GMV / creator', f$(Math.round(data.gmv / Math.max(data.creators, 1)))],
+          ...(data.gmvMaxSpend != null && data.gmvMaxSpend > 0 ? [
+            ['GMV Max Spend', f$(data.gmvMaxSpend)],
+            ['GMV Max ROI', data.gmvMaxRoi != null ? data.gmvMaxRoi.toFixed(2) + '×' : '—'],
+          ] : []),
         ].map(([k, v]) => (
           <div key={String(k)} className="flex justify-between text-sm">
             <span className={cn('text-xs', c.label)}>{k}</span>
