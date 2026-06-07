@@ -42,7 +42,8 @@ export function LiveDashboard({ report, goals: _goals }: Props) {
     if (!res.ok) {
       // also fetch job row to get the stored error message
       const jobRes = await fetch(`/api/jobs/${jobId}`).then(r => r.json()).catch(() => ({}))
-      throw new Error(String(jobRes.error || data.error || `Phase failed (HTTP ${res.status})`))
+      const errMsg = String(jobRes?.error ?? data?.error ?? `Phase failed (HTTP ${res.status})`)
+      throw new Error(errMsg)
     }
     return data.nextPhase
   }
@@ -63,31 +64,30 @@ export function LiveDashboard({ report, goals: _goals }: Props) {
       if (!createRes.ok || !createData.jobId) throw new Error(createData.error || 'Failed to create job')
       const { jobId } = createData
 
-      // poll for status updates while running phases sequentially
+      // poll for status label updates only — primary driver is the while loop below
       pollRef.current = setInterval(async () => {
-        const statusRes = await fetch(`/api/jobs/${jobId}`)
-        const job = await statusRes.json()
-        if (job.phase_label) setPhaseLabel(job.phase_label)
-        if (job.status === 'done') {
-          stopPoll()
-          router.refresh()
-          setRefreshing(false)
-        } else if (job.status === 'error') {
-          stopPoll()
-          setError(job.error || 'Refresh failed.')
-          setRefreshing(false)
-        }
+        try {
+          const statusRes = await fetch(`/api/jobs/${jobId}`)
+          const job = await statusRes.json().catch(() => null)
+          if (!job) return
+          if (job.phase_label) setPhaseLabel(job.phase_label)
+        } catch { /* ignore poll errors — while loop is the source of truth */ }
       }, 3000)
 
-      // run phases sequentially until done (live_refresh stops after phase 6)
+      // run phases sequentially until done
       let nextPhase: number | null = 1
       while (nextPhase !== null) {
         nextPhase = await runNextPhase(jobId)
       }
 
+      // phases complete — stop poll, refresh data
+      stopPoll()
+      router.refresh()
+      setRefreshing(false)
+
     } catch (e: any) {
       stopPoll()
-      setError(e?.message || 'Connection error. Try again.')
+      setError(String(e?.message || 'Connection error. Try again.'))
       setRefreshing(false)
     }
   }
