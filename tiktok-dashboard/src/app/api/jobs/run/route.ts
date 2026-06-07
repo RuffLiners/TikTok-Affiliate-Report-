@@ -350,7 +350,27 @@ async function callClaude(prompt: string, apiKey: string, withMcp: boolean, maxT
 
   // MCP call: 680s. Non-MCP: 120s. Agents: 750s (complex multi-step enumeration).
   const timeoutMs = withMcp ? (maxTokens > 4000 ? 750_000 : 680_000) : 120_000
-  const data = await callClaudeRaw(body, apiKey, timeoutMs)
+
+  // Retry up to 2 times on MCP connection errors (transient Euka server unavailability)
+  let data: any
+  let lastErr: Error | null = null
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) {
+      const delay = attempt * 8000
+      console.warn(`MCP connection error, retry ${attempt}/2 after ${delay/1000}s…`)
+      await new Promise(r => setTimeout(r, delay))
+    }
+    try {
+      data = await callClaudeRaw(body, apiKey, timeoutMs)
+      lastErr = null
+      break
+    } catch (e: any) {
+      const isMcpConnErr = e?.message?.includes('Connection error while communicating with MCP')
+      if (isMcpConnErr && attempt < 2) { lastErr = e; continue }
+      throw e
+    }
+  }
+  if (lastErr) throw lastErr
   const text = extractTextBlocks(data)
 
   // If no JSON in the response, send a follow-up turn (no MCP needed, 90s is plenty)
