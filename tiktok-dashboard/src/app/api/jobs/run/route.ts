@@ -107,7 +107,7 @@ const PHASES: Record<number, { label: string; prompt: (w: ReturnType<typeof buil
     label: 'Pulling GMV Max content age…',
     mcp: true,
     optional: true,
-    prompt: w => BASE(w) + `\n\nQuery: GMV Max spend current 30d (${w.d30.start}–${w.d30.end}) broken down by how old the video was at the end of the window. Buckets based on video publish date vs ${w.d30.end}: "< 30 days" (posted ${w.d30.start}–${w.d30.end}), "1–2 months" (31–60 days before ${w.d30.end}), "2–3 months" (61–90 days), "3–5 months" (91–150 days), "5+ months" (151+ days). For each non-empty bucket output: label, videos (count), spend, revenue, roi (revenue/spend, 0 if no spend), pct (spend as % of total spend).\nOutput: {"A7":[{"label":"< 30 days","videos":0,"spend":0,"revenue":0,"roi":0,"pct":0}]}`
+    prompt: w => BASE(w) + `\n\nQuery: GMV Max spend current 30d (${w.d30.start}–${w.d30.end}) broken down by how old the video was at the end of the window. Buckets based on video publish date vs ${w.d30.end}: "< 30 days" (posted ${w.d30.start}–${w.d30.end}), "1–2 months" (31–60 days before ${w.d30.end}), "2–3 months" (61–90 days), "3–5 months" (91–150 days), "5+ months" (151+ days), "Unknown post date" (publish date missing or unavailable). For each non-empty bucket output: label, videos (count), spend, revenue, roi (revenue/spend, 0 if no spend), pct (spend as % of total spend).\nOutput: {"A7":[{"label":"< 30 days","videos":0,"spend":0,"revenue":0,"roi":0,"pct":0}]}`
   },
   8: {
     label: 'Pulling outreach agents…',

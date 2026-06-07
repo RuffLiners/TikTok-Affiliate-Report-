@@ -91,7 +91,7 @@ PHASE 1 — RUN ALL DATA QUERIES
 [A4] Current 30d outreach by tier: messages sent, samples shipped + totals
 [A5] Prior 30d outreach totals + by tier
 [A6] GMV Max current 30d: total ad spend, revenue, ROI
-[A7] GMV Max current 30d by content age: group all videos that received GMV Max spend by how old the video was relative to the end of the 30d window — buckets: "< 30 days" (posted within the 30d window), "1–2 months" (31–60 days old), "2–3 months" (61–90 days old), "3–5 months" (91–150 days old), "5+ months" (151+ days old). For each bucket: video count, total spend, total revenue, ROI (revenue/spend), spend as % of total spend. Omit any bucket with zero videos.
+[A7] GMV Max current 30d by content age: group all videos that received GMV Max spend by how old the video was relative to the end of the 30d window — buckets: "< 30 days" (posted within the 30d window), "1–2 months" (31–60 days old), "2–3 months" (61–90 days old), "3–5 months" (91–150 days old), "5+ months" (151+ days old), "Unknown post date" (publish date missing or unavailable). For each non-empty bucket: video count, total spend, total revenue, ROI (revenue/spend), spend as % of total spend.
 [B1] Top 15 creators by store GMV — handle, followers, store GMV, global gmv_30d, views, videos L30d, videos L7d, orders, AOV, engagement rate
 [B2] For B1 handles: videos with any GMV L30d, lifetime videos ever
 [B3] Top 15 videos by store GMV — creator, product, GMV, views, orders, AOV, publish date, likes, comments, product clicks
