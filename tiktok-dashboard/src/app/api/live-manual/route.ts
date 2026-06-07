@@ -60,7 +60,12 @@ export async function POST(req: NextRequest) {
 
   if (isNewFormat) {
     // New format: Claude outputs assembled d30 directly (same as weekly report)
-    d30 = phaseData.d30
+    d30 = {
+      ...phaseData.d30,
+      gmvMaxByAge: (Array.isArray(phaseData.d30?.gmvMaxByAge) && phaseData.d30.gmvMaxByAge.length > 0)
+        ? phaseData.d30.gmvMaxByAge
+        : undefined,
+    }
     tables = phaseData.tables || { topCreators: [], topVideos: [], activeCreators: [] }
     agents = Array.isArray(phaseData.agents) ? phaseData.agents : []
   } else {
@@ -140,7 +145,7 @@ PART A — KPI & TABLE QUERIES:
 3. Current 30d by creator tier (G1 = global gmv_30d <$25K, G2 = $25K–$100K, G3 = >$100K): creators, new creators, videos, views, store GMV
 4. Current 30d outreach by tier: messages sent + samples shipped + overall totals
 5. Prior 30d outreach: totals + by tier
-6. GMV Max current 30d: total ad spend, attributed revenue, blended ROI (use 0 if before May 14 2026)
+6. GMV Max current 30d: total ad spend, attributed revenue, blended ROI (use 0 if before May 14 2026). Also break down spend by content age — buckets based on video publish date vs ${w.d30.end}: "< 30 days" (posted ${w.d30.start}–${w.d30.end}), "1–2 months" (31–60 days before ${w.d30.end}), "2–3 months" (61–90 days), "3–5 months" (91–150 days), "5+ months" (151+ days). For each non-empty bucket include: label, videos (count), spend, revenue, roi (revenue/spend, 0 if no spend), pct (spend as % of total spend).
 7. Top 15 creators by store GMV — handle, followers, store GMV, global gmv_30d, views, videos L30d, videos w/GMV L30d, lifetime videos, videos L7d, orders, AOV, engagement rate
 8. Top 15 videos by store GMV — creator handle, product name, GMV, views, orders, AOV, publish date, likes, comments, product clicks
 9. Top 15 creators by videos posted — handle, followers, GMV from new-period videos only, total store GMV, views, avg views/video, orders
@@ -165,6 +170,7 @@ OUTPUT — respond with ONLY this JSON object, nothing before or after:
     "creators": 0, "creatorsPct": 0, "newCreators": 0, "newCreatorsPct": 0,
     "retention": 0, "retentionDelta": 0,
     "gmvMax": { "spend": 0, "revenue": 0, "roi": 0 },
+    "gmvMaxByAge": [{ "label":"< 30 days","videos":0,"spend":0,"revenue":0,"roi":0,"pct":0 }],
     "msgs": 0, "msgsPct": 0, "samples": 0, "samplesPct": 0,
     "tiers": {
       "g1": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
