@@ -72,7 +72,7 @@ RULES: Always specify year 2026 in queries. Read every CSV with read_sandbox_fil
 CRITICAL OUTPUT RULE: You MUST respond with ONLY a single JSON object. No explanations, no analysis, no markdown, no prose before or after. Your entire response must start with { and end with }. Fill in real numbers from the data.`
 
 // ONE query per phase — each phase is one Vercel function call (maxDuration=800)
-const PHASES: Record<number, { label: string; prompt: (w: ReturnType<typeof buildWindows>, pd: any) => string; mcp: boolean; isAgents?: boolean; maxTokens?: number; optional?: boolean }> = {
+const PHASES: Record<number, { label: string; prompt: (w: ReturnType<typeof buildWindows>, pd: any) => string; promptLive?: (w: ReturnType<typeof buildWindows>, pd: any) => string; mcp: boolean; isAgents?: boolean; maxTokens?: number; optional?: boolean }> = {
   1: {
     label: 'Pulling current 30-day KPIs…',
     mcp: true,
@@ -115,6 +115,30 @@ const PHASES: Record<number, { label: string; prompt: (w: ReturnType<typeof buil
     optional: true,
     isAgents: true,
     maxTokens: 8000,
+    promptLive: w => {
+      const startDate = w.d30.start
+      return `You are a data extraction agent for Ruff Liners TikTok Shop.
+
+STORE_ID: ${process.env.EUKA_STORE_ID}
+
+GOAL: Return a JSON array of every outreach AND CRM agent created since ${startDate}. List-only — do NOT call get_outreach_agent for enrichment.
+
+STEP 1 — Enumerate
+list_outreach_agents caps at limit=25 per call. On every call pass: botStatus=["running","stopped","error"], limit=25, archived=false, storeId=${process.env.EUKA_STORE_ID}.
+
+Run these searches:
+OUTREACH (agentType="outreach"), searchQuery = "", "G1", "G2", "G3", "Video Volume", "GMV Contest", "New Agent"
+CRM (agentType="crm"), searchQuery = "", "G1", "G2", "G3", "New Agent", "Video Volume", "GMV Contest", "Tiktoktshopbonus"
+
+Merge all results → deduplicate by id → drop any agent with created_time older than ${startDate}.
+
+STEP 2 — Field map (from list data only — omit any field not returned by the list tool)
+id, name, agent_type ("outreach"/"crm"), campaign_type, status (bot_status), date_posted (created_time date only YYYY-MM-DD), creators_reached (total_conversations), remaining (remaining_creators), total_invites, accepted_invites, total_replies, samples_requested (total_sample_request), samples_shipped, total_videos, total_revenue, product_count (length of products array). Set gmv_filter, kw_filter, other_filters, list_segment, commission_display to "" and has_followups to false.
+
+STEP 3 — Output
+Respond with ONLY the JSON array. No prose, no markdown fences.
+[{"id":0,"name":"","agent_type":"outreach","campaign_type":"","status":"running","date_posted":"YYYY-MM-DD","gmv_filter":"","kw_filter":"","other_filters":"","list_segment":"","commission_display":"","creators_reached":0,"remaining":0,"total_invites":0,"accepted_invites":0,"total_replies":0,"samples_requested":0,"samples_shipped":0,"total_videos":0,"total_revenue":0,"product_count":0,"has_followups":false}]`
+    },
     prompt: w => {
       const startDate = w.prior.start  // agents look back ~30d from report date
       const endDate = w.reportDate
@@ -227,7 +251,7 @@ Output ONLY: {"d30":"para1\\n\\npara2\\n\\npara3\\n\\npara4\\n\\npara5","weekly"
   }
 }
 
-const LIVE_SAVE_AFTER = 8  // live_refresh saves after phase 8 (A1-A7 + agents complete)
+const LIVE_SAVE_AFTER = 11  // live_refresh saves after phase 11 (KPIs + agents + all 3 tables complete)
 const TOTAL_PHASES = 20
 
 function assemble(w: ReturnType<typeof buildWindows>, pd: any, analysis: any) {
@@ -419,8 +443,9 @@ export async function POST(req: NextRequest) {
     }
 
     let text: string
+    const activePrompt = (isLive && phaseConfig.promptLive) ? phaseConfig.promptLive(w, pd) : phaseConfig.prompt(w, pd)
     try {
-      text = await callClaude(phaseConfig.prompt(w, pd), apiKey, phaseConfig.mcp, phaseConfig.maxTokens)
+      text = await callClaude(activePrompt, apiKey, phaseConfig.mcp, phaseConfig.maxTokens)
     } catch (e: any) {
       if (!phaseConfig.optional) throw e
       // Optional phase failed — log, set defaults, continue
@@ -430,7 +455,7 @@ export async function POST(req: NextRequest) {
       // Still do live save if this was the final live phase
       if (isLive && nextPhase === LIVE_SAVE_AFTER) {
         const fullReport = assemble(w, pd, { d30:'', weekly:'', monthly:'' })
-        const liveData = { report_date: fullReport.report_date, label: fullReport.label, data_window: fullReport.data_window, d30: fullReport.d30, tables: { topCreators:[], topVideos:[], activeCreators:[] }, agents: fullReport.agents, analysis: { d30:'' } }
+        const liveData = { report_date: fullReport.report_date, label: fullReport.label, data_window: fullReport.data_window, d30: fullReport.d30, tables: fullReport.tables, agents: fullReport.agents, analysis: { d30:'' } }
         await supabase.from('app_config').upsert({ key:'live_report', value: JSON.stringify(liveData) }, { onConflict:'key' })
         await supabase.from('report_jobs').update({ status:'done', phase:nextPhase, phase_label:'Done ✓', updated_at:new Date().toISOString() }).eq('id',jobId)
         return NextResponse.json({ ok:true, nextPhase:null })
@@ -470,7 +495,7 @@ export async function POST(req: NextRequest) {
         label: fullReport.label,
         data_window: fullReport.data_window,
         d30: fullReport.d30,
-        tables: { topCreators:[], topVideos:[], activeCreators:[] },
+        tables: fullReport.tables,
         agents: fullReport.agents,
         analysis: { d30:'' },
       }
