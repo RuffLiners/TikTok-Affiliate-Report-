@@ -72,7 +72,7 @@ RULES: Always specify year 2026 in queries. Read every CSV with read_sandbox_fil
 CRITICAL OUTPUT RULE: You MUST respond with ONLY a single JSON object. No explanations, no analysis, no markdown, no prose before or after. Your entire response must start with { and end with }. Fill in real numbers from the data.`
 
 // ONE query per phase — each phase is one Vercel function call (maxDuration=800)
-const PHASES: Record<number, { label: string; prompt: (w: ReturnType<typeof buildWindows>, pd: any) => string; mcp: boolean; isAgents?: boolean; maxTokens?: number }> = {
+const PHASES: Record<number, { label: string; prompt: (w: ReturnType<typeof buildWindows>, pd: any) => string; mcp: boolean; isAgents?: boolean; maxTokens?: number; optional?: boolean }> = {
   1: {
     label: 'Pulling current 30-day KPIs…',
     mcp: true,
@@ -106,11 +106,13 @@ const PHASES: Record<number, { label: string; prompt: (w: ReturnType<typeof buil
   7: {
     label: 'Pulling GMV Max content age…',
     mcp: true,
+    optional: true,
     prompt: w => BASE(w) + `\n\nQuery: GMV Max spend current 30d (${w.d30.start}–${w.d30.end}) broken down by how old the video was at the end of the window. Buckets based on video publish date vs ${w.d30.end}: "< 30 days" (posted ${w.d30.start}–${w.d30.end}), "1–2 months" (31–60 days before ${w.d30.end}), "2–3 months" (61–90 days), "3–5 months" (91–150 days), "5+ months" (151+ days). For each non-empty bucket output: label, videos (count), spend, revenue, roi (revenue/spend, 0 if no spend), pct (spend as % of total spend).\nOutput: {"A7":[{"label":"< 30 days","videos":0,"spend":0,"revenue":0,"roi":0,"pct":0}]}`
   },
   8: {
     label: 'Pulling outreach agents…',
     mcp: true,
+    optional: true,
     isAgents: true,
     maxTokens: 8000,
     prompt: w => {
@@ -416,7 +418,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok:true, nextPhase:null })
     }
 
-    const text = await callClaude(phaseConfig.prompt(w, pd), apiKey, phaseConfig.mcp, phaseConfig.maxTokens)
+    let text: string
+    try {
+      text = await callClaude(phaseConfig.prompt(w, pd), apiKey, phaseConfig.mcp, phaseConfig.maxTokens)
+    } catch (e: any) {
+      if (!phaseConfig.optional) throw e
+      // Optional phase failed — log, set defaults, continue
+      console.warn(`Optional phase ${nextPhase} skipped: ${e?.message?.slice(0,200)}`)
+      if (phaseConfig.isAgents) pd.agents = []
+      await upd(nextPhase, `Phase ${nextPhase} unavailable`)
+      // Still do live save if this was the final live phase
+      if (isLive && nextPhase === LIVE_SAVE_AFTER) {
+        const fullReport = assemble(w, pd, { d30:'', weekly:'', monthly:'' })
+        const liveData = { report_date: fullReport.report_date, label: fullReport.label, data_window: fullReport.data_window, d30: fullReport.d30, tables: { topCreators:[], topVideos:[], activeCreators:[] }, agents: fullReport.agents, analysis: { d30:'' } }
+        await supabase.from('app_config').upsert({ key:'live_report', value: JSON.stringify(liveData) }, { onConflict:'key' })
+        await supabase.from('report_jobs').update({ status:'done', phase:nextPhase, phase_label:'Done ✓', updated_at:new Date().toISOString() }).eq('id',jobId)
+        return NextResponse.json({ ok:true, nextPhase:null })
+      }
+      const next = nextPhase + 1
+      return NextResponse.json({ ok:true, nextPhase: next > TOTAL_PHASES ? null : next })
+    }
+
     if (phaseConfig.isAgents) {
       // Agents response is a JSON array; extract it directly
       const start = text.indexOf('['), end = text.lastIndexOf(']')
