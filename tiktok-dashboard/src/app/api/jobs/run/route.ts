@@ -140,7 +140,7 @@ Respond with ONLY the JSON array. No prose, no markdown fences.
 [{"id":0,"name":"","agent_type":"outreach","campaign_type":"","status":"running","date_posted":"YYYY-MM-DD","gmv_filter":"","kw_filter":"","other_filters":"","list_segment":"","commission_display":"","creators_reached":0,"remaining":0,"total_invites":0,"accepted_invites":0,"total_replies":0,"samples_requested":0,"samples_shipped":0,"total_videos":0,"total_revenue":0,"product_count":0,"has_followups":false}]`
     },
     prompt: w => {
-      const startDate = w.prior.start  // agents look back ~30d from report date
+      const startDate = w.d30.start  // agents: current 30d window
       const endDate = w.reportDate
       return `You are a data extraction agent for Ruff Liners TikTok Shop.
 

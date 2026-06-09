@@ -110,6 +110,8 @@ QUERIES TO RUN (read every CSV file Euka returns):
 19. This week's top 10 creators by store GMV (${f(weekSun)}–${f(weekSat)}): handle, global gmv_30d, store GMV this week, views this week, videos posted this week, orders, AOV
 20. Top 10 videos by GMV posted this week (${f(weekSun)}–${f(weekSat)}): creator handle, global gmv_30d, product name, GMV, views, orders, AOV, likes, comments, product clicks, publish date
 21. This week's top 10 most active creators by videos posted (${f(weekSun)}–${f(weekSat)}): handle, global gmv_30d, store GMV this week, views this week, videos posted, orders, AOV
+22. GMV Max spend current 30d (${f(gmvStart)}–${f(gmvEnd)}) broken down by content age. Buckets by video publish date vs ${f(gmvEnd)}: "< 30 days" (posted ${f(gmvStart)}–${f(gmvEnd)}), "1–2 months" (31–60 days before ${f(gmvEnd)}), "2–3 months" (61–90 days), "3–5 months" (91–150 days), "5+ months" (151+ days), "Unknown post date" (publish date missing). For each non-empty bucket: label, videos (count), spend, revenue, roi (revenue/spend, 0 if no spend), pct (spend % of total). Omit empty buckets. Output [] if GMV Max data unavailable.
+23. Outreach & CRM agents created in the last 30 days (${f(gmvStart)}–${f(gmvEnd)}): call list_outreach_agents with agentType="outreach" and agentType="crm", multiple searchQuery values ("", "G1", "G2", "G3", "Video Volume", "GMV Contest", "New Agent", "Tiktoktshopbonus"), limit=25, archived=false. Merge and deduplicate by id, keep only agents with created_time >= ${f(gmvStart)}. Call get_outreach_agent for each to enrich. Map to: id, name, agent_type ("outreach"/"crm"), campaign_type, status (bot_status), date_posted (YYYY-MM-DD from created_time), gmv_filter (target_gmvs joined ", "; "none" if empty), kw_filter (target_categories joined ", "; "none" if empty), other_filters (summary of other non-empty target_* fields; "none" if all empty), list_segment (lists/segments names; "none" if absent), commission_display (unique commission rate; "none" if absent), creators_reached (total_conversations), remaining (remaining_creators), total_invites, accepted_invites, total_replies, samples_requested (total_sample_request), samples_shipped, total_videos, total_revenue, product_count (length of products array), has_followups.
 ${goalsSection}
 ANALYSIS — write 4 focused sections after pulling all data:
 - "performance": 3–4 paragraphs — This week's headline numbers (last complete Sun–Sat week), MTD progress vs monthly goal (state if on/off track and by how much), QTD progress vs quarterly goal, what's driving results. Be specific: name the creators/products/tiers moving the numbers.
@@ -131,6 +133,7 @@ OUTPUT — respond with ONLY this JSON object, nothing before or after it:
     "creators": 0, "creatorsPct": 0, "newCreators": 0, "newCreatorsPct": 0,
     "retention": 0, "retentionDelta": 0,
     "gmvMax": { "spend": 0, "revenue": 0, "roi": 0 },
+    "gmvMaxByAge": [{ "label":"< 30 days","videos":0,"spend":0,"revenue":0,"roi":0,"pct":0 }],
     "msgs": 0, "msgsPct": 0, "samples": 0, "samplesPct": 0,
     "tiers": {
       "g1": { "creators":0,"newCreators":0,"videos":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
@@ -180,6 +183,9 @@ OUTPUT — respond with ONLY this JSON object, nothing before or after it:
       { "h":"handle","ggmv":0,"gmv":0,"views":0,"vid":0,"ord":0,"aov":0 }
     ]
   },
+  "agents": [
+    { "id":0,"name":"","agent_type":"outreach","campaign_type":"","status":"running","date_posted":"YYYY-MM-DD","gmv_filter":"","kw_filter":"","other_filters":"","list_segment":"","commission_display":"","creators_reached":0,"remaining":0,"total_invites":0,"accepted_invites":0,"total_replies":0,"samples_requested":0,"samples_shipped":0,"total_videos":0,"total_revenue":0,"product_count":0,"has_followups":false }
+  ],
   "analysis": {
     "performance": "Write 3-4 paragraphs. Use \\n\\n between paragraphs.",
     "creators": "Write 2-3 paragraphs. Use \\n\\n between paragraphs.",
