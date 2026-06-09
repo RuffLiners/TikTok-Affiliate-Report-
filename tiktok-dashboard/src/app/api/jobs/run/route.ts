@@ -86,7 +86,7 @@ const PHASES: Record<number, { label: string; prompt: (w: ReturnType<typeof buil
   3: {
     label: 'Pulling creator tier breakdown…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Current 30d (${w.d30.start}–${w.d30.end}) by creator tier — pull every creator from creator_store_performance who posted in this window, classify each by their global gmv_30d (G1 <$25K, G2 $25K–$100K, G3 >$100K), then sum: creators who posted, new creators, videos posted, total views, and STORE GMV (the same gmv field from creator_store_performance, NOT global GMV). G1+G2+G3 store GMV must sum to the overall 30d total. Once you have the data, output ONLY the JSON — no analysis, no explanation.\nReturn ONLY: {"A3":{"g1":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0},"g2":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0},"g3":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}}}`
+    prompt: w => BASE(w) + `\n\nQuery: Current 30d (${w.d30.start}–${w.d30.end}) by creator tier — pull every creator from creator_store_performance who posted in this window, classify each by their global gmv_30d (G1 <$25K, G2 $25K–$100K, G3 >$100K), then sum: creators who posted, new creators, videos posted, total views, and STORE GMV (the same gmv field from creator_store_performance, NOT global GMV). G1+G2+G3 store GMV must sum to the overall 30d total. G1+G2+G3 total views must also sum to approximately the overall 30d total views — do not leave views as 0. Once you have the data, output ONLY the JSON — no analysis, no explanation.\nReturn ONLY: {"A3":{"g1":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0},"g2":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0},"g3":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}}}`
   },
   4: {
     label: 'Pulling current outreach data…',
@@ -198,7 +198,7 @@ Respond with ONLY the JSON array. No prose, no markdown fences.
   13: {
     label: 'Pulling 13-week creator trends…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Weekly creators, new creators, videos posted, views, store GMV by tier (G1/G2/G3) for all 13 weeks in ${w.weeksRange}. Return 13 rows per tier.\nOutput (exactly 13 items per array): {"C2":{"g1":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"g2":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"g3":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}]}}`
+    prompt: w => BASE(w) + `\n\nQuery: Weekly creators, new creators, videos posted, views, store GMV by tier (G1/G2/G3) for all 13 weeks in ${w.weeksRange}. Return 13 rows per tier. Views must be populated — each week's G1+G2+G3 views should sum to approximately the week's total views (do not leave views as 0 if total views exist).\nOutput (exactly 13 items per array): {"C2":{"g1":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"g2":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"g3":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}]}}`
   },
   14: {
     label: 'Pulling 13-week retention & video trends…',

@@ -91,7 +91,7 @@ DATE WINDOWS — use these exactly:
 QUERIES TO RUN (read every CSV file Euka returns):
 1. Current 30d totals: GMV, orders, videos posted, views, creators posted, new creators (first-ever post for this store), retention rate vs prior period
 2. Prior 30d: same totals for % change calculations
-3. Current 30d by creator tier (G1 = global gmv_30d <$25K, G2 = $25K–$100K, G3 = >$100K): creators, new creators, videos posted, store GMV
+3. Current 30d by creator tier (G1 = global gmv_30d <$25K, G2 = $25K–$100K, G3 = >$100K): creators, new creators, videos posted, total views, store GMV — G1+G2+G3 views must sum to the overall 30d total views (do not leave views as 0)
 4. Current 30d outreach by tier: messages sent + samples shipped, plus overall totals
 5. Prior 30d outreach: totals + by tier (for % change)
 6. GMV Max current 30d: total ad spend, attributed revenue, blended ROI (use 0 if data unavailable before May 14 2026)
@@ -136,9 +136,9 @@ OUTPUT — respond with ONLY this JSON object, nothing before or after it:
     "gmvMaxByAge": [{ "label":"< 30 days","videos":0,"spend":0,"revenue":0,"roi":0,"pct":0 }],
     "msgs": 0, "msgsPct": 0, "samples": 0, "samplesPct": 0,
     "tiers": {
-      "g1": { "creators":0,"newCreators":0,"videos":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
-      "g2": { "creators":0,"newCreators":0,"videos":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
-      "g3": { "creators":0,"newCreators":0,"videos":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 }
+      "g1": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
+      "g2": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
+      "g3": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 }
     }
   },
   "weeklyCharts": {
