@@ -107,7 +107,7 @@ const PHASES: Record<number, { label: string; prompt: (w: ReturnType<typeof buil
     label: 'Pulling GMV Max content age…',
     mcp: true,
     optional: true,
-    prompt: w => BASE(w) + `\n\nQuery: GMV Max spend current 30d (${w.d30.start}–${w.d30.end}) broken down by how old the video was at the end of the window. Buckets based on video publish date vs ${w.d30.end}: "< 30 days" (posted ${w.d30.start}–${w.d30.end}), "1–2 months" (31–60 days before ${w.d30.end}), "2–3 months" (61–90 days), "3–5 months" (91–150 days), "5+ months" (151+ days), "Unknown post date" (publish date missing or unavailable). For each non-empty bucket output: label, videos (count), spend, revenue, roi (revenue/spend, 0 if no spend), pct (spend as % of total spend).\nOutput: {"A7":[{"label":"< 30 days","videos":0,"spend":0,"revenue":0,"roi":0,"pct":0}]}`
+    prompt: w => BASE(w) + `\n\nQuery: GMV Max spend current 30d (${w.d30.start}–${w.d30.end}) broken down by content age. Use get_dashboard_ads_overview or query_store_data to pull GMV Max video-level data (each video's spend, revenue, publish_date). Then bucket each video by how old it was on ${w.d30.end}: "< 30 days" (publish_date >= ${w.d30.start}), "1–2 months" (31–60 days before ${w.d30.end}), "2–3 months" (61–90 days), "3–5 months" (91–150 days), "5+ months" (151+ days), "Unknown post date" (publish_date missing). Aggregate per bucket: videos (count), spend (sum), revenue (sum), roi (revenue/spend, 0 if no spend), pct (spend as % of total spend). Omit empty buckets. If the data is unavailable or the query fails output [].\nOutput: {"A7":[{"label":"< 30 days","videos":0,"spend":0,"revenue":0,"roi":0,"pct":0}]}`
   },
   8: {
     label: 'Pulling outreach agents…',
@@ -456,6 +456,18 @@ export async function POST(req: NextRequest) {
     if (nextPhase === 20) {
       // Save phase — phase 19 stores analysis keys at top level of pd
       const analysis = { d30: pd.d30||'', weekly: pd.weekly||'', monthly: pd.monthly||'' }
+
+      // Fallback: if agents weren't fetched in Phase 8, pull from most recent live_report
+      if (!pd.agents || pd.agents.length === 0) {
+        try {
+          const { data: liveConfig } = await supabase.from('app_config').select('value').eq('key','live_report').single()
+          if (liveConfig?.value) {
+            const lr = typeof liveConfig.value === 'string' ? JSON.parse(liveConfig.value) : liveConfig.value
+            if (lr?.agents?.length > 0) pd.agents = lr.agents
+          }
+        } catch { /* ignore — report saves without agents */ }
+      }
+
       const report = assemble(w, pd, analysis)
       await supabase.from('weekly_reports').upsert(report, { onConflict:'report_date' })
       await supabase.from('report_jobs').update({ status:'done', phase:20, phase_label:'Complete ✓', updated_at:new Date().toISOString() }).eq('id',jobId)
