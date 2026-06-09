@@ -463,13 +463,17 @@ export async function POST(req: NextRequest) {
     }
 
     let text: string
-    const activePrompt = (isLive && phaseConfig.promptLive) ? phaseConfig.promptLive(w, pd) : phaseConfig.prompt(w, pd)
+    const activePrompt = phaseConfig.promptLive
+      ? phaseConfig.promptLive(w, pd)
+      : phaseConfig.prompt(w, pd)
     try {
       text = await callClaude(activePrompt, apiKey, phaseConfig.mcp, phaseConfig.maxTokens)
     } catch (e: any) {
       if (!phaseConfig.optional) throw e
-      // Optional phase failed — log, set defaults, continue
-      console.warn(`Optional phase ${nextPhase} skipped: ${e?.message?.slice(0,200)}`)
+      // Optional phase failed — log error into phase_data so it's visible, set defaults, continue
+      const errMsg = e?.message?.slice(0,400) || 'unknown error'
+      console.warn(`Optional phase ${nextPhase} skipped: ${errMsg}`)
+      pd[`_phase${nextPhase}Error`] = errMsg
       if (phaseConfig.isAgents) pd.agents = []
       await upd(nextPhase, `Phase ${nextPhase} unavailable`)
       // Still do live save if this was the final live phase
