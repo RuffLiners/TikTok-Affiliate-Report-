@@ -168,7 +168,7 @@ export function WeeklyCharts({ data }: Props) {
             </ResponsiveContainer>
           </ChartCard>
 
-          <ChartCard title="Videos per Creator">
+          <ChartCard title="Total Videos">
             <ResponsiveContainer width="100%" height={ht}>
               <BarChart data={vidRows} barCategoryGap="30%">
                 {axis}{yaxis(String)}{tip}

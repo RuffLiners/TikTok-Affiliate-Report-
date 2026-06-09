@@ -148,6 +148,7 @@ OUTPUT — respond with ONLY this JSON object, nothing before or after it:
     "ncg1":[],"ncg2":[],"ncg3":[],
     "vg1":[],"vg2":[],"vg3":[],
     "gg1":[],"gg2":[],"gg3":[],
+    "vwg1":[],"vwg2":[],"vwg3":[],
     "ret":[],"vid":[],
     "mg1":[],"mg2":[],"mg3":[],
     "sg1":[],"sg2":[],"sg3":[]
@@ -159,6 +160,7 @@ OUTPUT — respond with ONLY this JSON object, nothing before or after it:
     "ncg1":[],"ncg2":[],"ncg3":[],
     "vg1":[],"vg2":[],"vg3":[],
     "gg1":[],"gg2":[],"gg3":[],
+    "vwg1":[],"vwg2":[],"vwg3":[],
     "ret":[],
     "mg1":[],"mg2":[],"mg3":[],
     "sg1":[],"sg2":[],"sg3":[]
