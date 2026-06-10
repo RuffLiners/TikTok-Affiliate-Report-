@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
     weekly_charts:  report.weeklyCharts,
     monthly_charts: report.monthlyCharts,
     tables:         report.tables,
+    agents:         report.agents || [],
     analysis:       report.analysis
   }
 
