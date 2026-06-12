@@ -19,7 +19,7 @@ Please guide me through these steps in order. Explain what each service is and w
 STEP 1 — Get the code (GitHub)
 - Explain what GitHub is (1–2 sentences)
 - Ask me to create a free account at github.com if I don't have one
-- Tell me to go to this repository: https://github.com/ruffliners/tiktok-affiliate-report-
+- Tell me to go to the GitHub repository that was shared with me (the person sharing this kit should provide the URL)
 - Explain what "forking" means and ask me to fork the repo to my own GitHub account
 - Confirm I can see the code in my own GitHub account before continuing
 

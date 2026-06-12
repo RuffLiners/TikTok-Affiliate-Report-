@@ -48,9 +48,9 @@ The full process takes about 45–60 minutes the first time:
 
 ### Step 1 — Fork the Repository
 
-1. Go to the source GitHub repository
+1. Go to the GitHub repository URL provided to you by whoever shared this kit
 2. Click **Fork** (top right) → **Create fork**
-3. You now have your own copy at `github.com/YOUR-USERNAME/tiktok-affiliate-report-`
+3. You now have your own copy at `github.com/YOUR-USERNAME/repository-name`
 
 ### Step 2 — Set Up Supabase
 
@@ -220,10 +220,10 @@ npx ts-node scripts/insert-report.ts
 
 ## Customizing for Your Brand
 
-The app name "Ruff Liners" appears in a few places. To white-label it for your brand:
+The app name appears in a few places in the code. To white-label it for your brand:
 
-1. Search for "Ruff Liners" in the `tiktok-dashboard/src/` folder
-2. Replace with your brand name
+1. Search for the placeholder brand name in the `tiktok-dashboard/src/` folder
+2. Replace every instance with your brand name
 3. The main locations are:
    - `src/app/dashboard/page.tsx` — header title
    - `src/app/dashboard/[reportDate]/page.tsx` — report header
