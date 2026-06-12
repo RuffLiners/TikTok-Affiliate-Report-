@@ -119,8 +119,8 @@ async function main() {
       weekly_charts: REPORT_DATA.weeklyCharts,
       monthly_charts: REPORT_DATA.monthlyCharts,
       tables: REPORT_DATA.tables,
-      agents: REPORT_DATA.agents ?? [],
-      analysis: REPORT_DATA.analysis ?? {}
+      agents: (REPORT_DATA as any).agents ?? [],
+      analysis: (REPORT_DATA as any).analysis ?? {}
     }, { onConflict: 'report_date' })
 
   if (error) {
