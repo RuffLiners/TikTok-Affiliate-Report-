@@ -59,7 +59,9 @@ export function MonthlyCharts({ data }: Props) {
   const ncRows = buildRows(['g1','g2','g3'], { g1: data.ncg1, g2: data.ncg2, g3: data.ncg3 })
   const vRows  = buildRows(['g1','g2','g3'], { g1: data.vg1,  g2: data.vg2,  g3: data.vg3  })
   const ggRows = buildRows(['g1','g2','g3'], { g1: data.gg1,  g2: data.gg2,  g3: data.gg3  })
-  const vwRows = buildRows(['g1','g2','g3'], { g1: data.vwg1 ?? [], g2: data.vwg2 ?? [], g3: data.vwg3 ?? [] })
+  const vwg1 = data.vwg1 ?? []; const vwg2 = data.vwg2 ?? []; const vwg3 = data.vwg3 ?? []
+  const hasVwData = [...vwg1, ...vwg2, ...vwg3].some(v => v > 0)
+  const vwRows = buildRows(['g1','g2','g3'], { g1: vwg1, g2: vwg2, g3: vwg3 })
   const retRows = buildRows(['ret'], { ret: data.ret })
   const mgRows = buildRows(['g1','g2','g3'], { g1: data.mg1, g2: data.mg2, g3: data.mg3 })
   const sgRows = buildRows(['g1','g2','g3'], { g1: data.sg1, g2: data.sg2, g3: data.sg3 })
@@ -142,14 +144,20 @@ export function MonthlyCharts({ data }: Props) {
           </ChartCard>
 
           <ChartCard title="Views by Tier" legend={tierLegend}>
-            <ResponsiveContainer width="100%" height={ht}>
-              <BarChart data={vwRows} barCategoryGap="25%">
-                {axis}{yaxis(fmtK)}{tip}
-                <Bar dataKey="g1" stackId="a" fill={G1} />
-                <Bar dataKey="g2" stackId="a" fill={G2} />
-                <Bar dataKey="g3" stackId="a" fill={G3} radius={[3,3,0,0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {hasVwData ? (
+              <ResponsiveContainer width="100%" height={ht}>
+                <BarChart data={vwRows} barCategoryGap="25%">
+                  {axis}{yaxis(fmtK)}{tip}
+                  <Bar dataKey="g1" stackId="a" fill={G1} />
+                  <Bar dataKey="g2" stackId="a" fill={G2} />
+                  <Bar dataKey="g3" stackId="a" fill={G3} radius={[3,3,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center text-xs text-gray-400" style={{ height: ht }}>
+                Views by tier not available for this report
+              </div>
+            )}
           </ChartCard>
 
           <ChartCard title="Retention Rate">
