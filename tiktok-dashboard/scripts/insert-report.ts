@@ -118,7 +118,9 @@ async function main() {
       d30: REPORT_DATA.d30,
       weekly_charts: REPORT_DATA.weeklyCharts,
       monthly_charts: REPORT_DATA.monthlyCharts,
-      tables: REPORT_DATA.tables
+      tables: REPORT_DATA.tables,
+      agents: REPORT_DATA.agents ?? [],
+      analysis: REPORT_DATA.analysis ?? {}
     }, { onConflict: 'report_date' })
 
   if (error) {
