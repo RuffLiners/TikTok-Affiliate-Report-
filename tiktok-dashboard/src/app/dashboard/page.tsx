@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { cookies } from 'next/headers'
 import { supabaseAdmin } from '@/lib/supabase'
-import { LiveDashboard } from '@/components/LiveDashboard'
+import LiveDashboard from '@/components/LiveDashboard'
 import { WeeklyReport } from '@/lib/types'
 
 export const revalidate = 0
