@@ -76,7 +76,7 @@ const PHASES: Record<number, { label: string; prompt: (w: ReturnType<typeof buil
   1: {
     label: 'Pulling current 30-day KPIs…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Current 30d (${w.d30.start}–${w.d30.end}) totals from creator_store_performance: total GMV, orders, videos posted, views, total creators who posted, new creators (first-ever post for this store), retention rate.\nOutput: {"A1":{"gmv":0,"orders":0,"videos":0,"views":0,"creators":0,"newCreators":0,"retention":0}}`
+    prompt: w => BASE(w) + `\n\nQuery two things for ${w.d30.start}–${w.d30.end}:\n1) From creator_store_performance: affiliate GMV (store gmv), orders, videos posted, views, total creators who posted, new creators (first-ever post for this store), retention rate.\n2) From get_dashboard_performance_overview (or equivalent account-level source): total account GMV for the same window — this includes affiliate videos, product card sales, and in-house content. If unavailable, set totalGmv to 0.\nOutput: {"A1":{"gmv":0,"totalGmv":0,"orders":0,"videos":0,"views":0,"creators":0,"newCreators":0,"retention":0}}`
   },
   2: {
     label: 'Pulling prior 30-day KPIs…',
@@ -101,7 +101,7 @@ const PHASES: Record<number, { label: string; prompt: (w: ReturnType<typeof buil
   6: {
     label: 'Pulling GMV Max data…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: GMV Max current 30d (${w.d30.start}–${w.d30.end}): (1) total ad spend, attributed revenue, blended ROI; (2) ad spend and ROI broken down by creator tier (classify each video's creator by global gmv_30d: G1 <$25K, G2 $25K–$100K, G3 >$100K). Use 0 for all if data unavailable before May 14 2026.\nOutput: {"A6":{"spend":0,"revenue":0,"roi":0,"g1":{"spend":0,"roi":0},"g2":{"spend":0,"roi":0},"g3":{"spend":0,"roi":0}}}`
+    prompt: w => BASE(w) + `\n\nQuery: GMV Max current 30d (${w.d30.start}–${w.d30.end}): (1) TOTAL account-level ad spend, attributed revenue, blended ROI — use get_dashboard_ads_overview which includes ALL content types (affiliate videos, product cards, in-house content), NOT just affiliate videos; (2) ad spend and ROI broken down by creator tier for affiliate videos only (classify each video's creator by global gmv_30d: G1 <$25K, G2 $25K–$100K, G3 >$100K). Use 0 for all if data unavailable before May 14 2026.\nOutput: {"A6":{"spend":0,"revenue":0,"roi":0,"g1":{"spend":0,"roi":0},"g2":{"spend":0,"roi":0},"g3":{"spend":0,"roi":0}}}`
   },
   7: {
     label: 'Pulling GMV Max content age…',
@@ -213,7 +213,7 @@ Respond with ONLY the JSON array. No prose, no markdown fences.
   16: {
     label: 'Pulling 6-month GMV trends…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Monthly GMV + views for each of the 6 months: ${w.monthKeys}. Return 6 rows chronological.\nOutput (exactly 6 items): {"D1":[{"gmv":0,"views":0}]}`
+    prompt: w => BASE(w) + `\n\nQuery two things for each of the 6 months: ${w.monthKeys}:\n1) From creator_store_performance: affiliate GMV (gmv) + views. Return 6 rows chronological.\n2) From get_dashboard_performance_overview (or equivalent account-level source): total account GMV per month (totalGmv) — includes affiliate, product cards, in-house. If unavailable, set totalGmv to 0.\nOutput (exactly 6 items): {"D1":[{"gmv":0,"totalGmv":0,"views":0}]}`
   },
   17: {
     label: 'Pulling 6-month creator trends…',
@@ -263,7 +263,7 @@ function assemble(w: ReturnType<typeof buildWindows>, pd: any, analysis: any) {
   return {
     report_date:w.reportDate, label:w.label, data_window:w.dataWindow,
     d30:{
-      gmv:a1.gmv||0, gmvPct:pct(a1.gmv||0,a2.gmv||0), orders:a1.orders||0, ordersPct:pct(a1.orders||0,a2.orders||0),
+      gmv:a1.gmv||0, gmvPct:pct(a1.gmv||0,a2.gmv||0), totalGmv:a1.totalGmv||undefined, orders:a1.orders||0, ordersPct:pct(a1.orders||0,a2.orders||0),
       videos:a1.videos||0, videosPct:pct(a1.videos||0,a2.videos||0), views:a1.views||0, viewsPct:pct(a1.views||0,a2.views||0),
       creators:a1.creators||0, creatorsPct:pct(a1.creators||0,a2.creators||0), newCreators:a1.newCreators||0, newCreatorsPct:pct(a1.newCreators||0,a2.newCreators||0),
       retention:a1.retention||0, retentionDelta:delta(a1.retention||0,a2.retention||0),
@@ -289,7 +289,7 @@ function assemble(w: ReturnType<typeof buildWindows>, pd: any, analysis: any) {
       sg1:c5.g1?.map((r:any)=>r.samples||0)||[], sg2:c5.g2?.map((r:any)=>r.samples||0)||[], sg3:c5.g3?.map((r:any)=>r.samples||0)||[]
     },
     monthly_charts:{
-      labels:w.monthLabels, gmv:d1.map((r:any)=>r.gmv||0), views:d1.map((r:any)=>r.views||0),
+      labels:w.monthLabels, gmv:d1.map((r:any)=>r.gmv||0), totalGmv:d1.every((r:any)=>!r.totalGmv)?undefined:d1.map((r:any)=>r.totalGmv||0), views:d1.map((r:any)=>r.views||0),
       crg1:d2.g1?.map((r:any)=>r.creators||0)||[], crg2:d2.g2?.map((r:any)=>r.creators||0)||[], crg3:d2.g3?.map((r:any)=>r.creators||0)||[],
       ncg1:d2.g1?.map((r:any)=>r.newCreators||0)||[], ncg2:d2.g2?.map((r:any)=>r.newCreators||0)||[], ncg3:d2.g3?.map((r:any)=>r.newCreators||0)||[],
       vg1:d2.g1?.map((r:any)=>r.videos||0)||[], vg2:d2.g2?.map((r:any)=>r.videos||0)||[], vg3:d2.g3?.map((r:any)=>r.videos||0)||[],

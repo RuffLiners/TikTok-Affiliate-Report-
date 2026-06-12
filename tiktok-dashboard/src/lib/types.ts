@@ -15,6 +15,7 @@ export interface TierData {
 export interface D30Data {
   gmv: number
   gmvPct: number
+  totalGmv?: number  // total account GMV (affiliate + product cards + in-house)
   orders: number
   ordersPct: number
   videos: number
@@ -54,6 +55,7 @@ export interface WeeklyCharts {
 export interface MonthlyCharts {
   labels: string[]
   gmv: number[]
+  totalGmv?: number[]  // total account GMV per month (affiliate + product cards + in-house)
   views: number[]
   crg1: number[]; crg2: number[]; crg3: number[]
   ncg1: number[]; ncg2: number[]; ncg3: number[]

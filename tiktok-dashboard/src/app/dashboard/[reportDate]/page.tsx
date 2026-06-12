@@ -145,8 +145,12 @@ export default async function ReportPage({ params }: Props) {
   const qtdGmv = mc.gmv.slice(-3).reduce((a: number, b: number) => a + b, 0)
 
   // Month-to-date + projected values from monthly_charts last entry
+  // Use total account GMV (includes product cards + in-house) for targets; fall back to affiliate GMV for older reports
   const { pct: monthPct } = getMonthProgress(reportDate)
-  const mtdGmv    = mc.gmv.at(-1) ?? 0
+  const mtdGmv    = (mc.totalGmv?.at(-1) || 0) > 0 ? (mc.totalGmv!.at(-1)!) : (mc.gmv.at(-1) ?? 0)
+  const qtdTotalGmv = mc.totalGmv && mc.totalGmv.some((v: number) => v > 0)
+    ? mc.totalGmv.slice(-3).reduce((a: number, b: number) => a + b, 0)
+    : qtdGmv
   const mtdVidG1  = mc.vg1.at(-1) ?? 0
   const mtdVidG2  = mc.vg2.at(-1) ?? 0
   const mtdVidG3  = mc.vg3.at(-1) ?? 0
@@ -263,7 +267,7 @@ export default async function ReportPage({ params }: Props) {
                   {/* Revenue — GMV */}
                   {(goals.monthlyGmvTarget || goals.quarterlyGmvTarget) && (
                     <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Revenue — GMV</p>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Revenue — Total Account GMV</p>
                       {goals.monthlyGmvTarget && (
                         <MonthlyTargetRow
                           label={`Monthly · ${goals.monthlyPeriod ?? currentMonthLabel}`}
@@ -274,7 +278,7 @@ export default async function ReportPage({ params }: Props) {
                       {goals.quarterlyGmvTarget && (
                         <TargetRow
                           label={`Quarterly · ${goals.quarterlyPeriod ?? 'Current Quarter'}`}
-                          actual={qtdGmv} target={goals.quarterlyGmvTarget}
+                          actual={qtdTotalGmv} target={goals.quarterlyGmvTarget}
                           fmt="currency" note="last 3 months"
                         />
                       )}

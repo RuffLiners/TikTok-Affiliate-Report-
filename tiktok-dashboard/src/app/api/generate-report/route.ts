@@ -85,12 +85,12 @@ RULES:
 PHASE 1 — RUN ALL DATA QUERIES
 ═══════════════════════════════
 
-[A1] Current 30d totals: GMV, orders, videos, views, creators, new creators, retention vs prior
-[A2] Prior 30d totals: same fields
+[A1] Current 30d totals: affiliate GMV (from creator_store_performance), PLUS total account GMV (totalGmv, from get_dashboard_performance_overview — includes affiliate + product cards + in-house; set 0 if unavailable), orders, videos, views, creators, new creators, retention vs prior
+[A2] Prior 30d totals: same fields (no totalGmv needed for prior)
 [A3] Current 30d by tier (G1 <$25K, G2 $25K-$100K, G3 >$100K): creators, new creators, videos, views, GMV
 [A4] Current 30d outreach by tier: messages sent, samples shipped + totals
 [A5] Prior 30d outreach totals + by tier
-[A6] GMV Max current 30d: total ad spend, revenue, ROI
+[A6] GMV Max current 30d: TOTAL account-level ad spend/revenue/ROI via get_dashboard_ads_overview (includes all content types: affiliate, product cards, in-house)
 [A7] GMV Max current 30d by content age: group all videos that received GMV Max spend by how old the video was relative to the end of the 30d window — buckets: "< 30 days" (posted within the 30d window), "1–2 months" (31–60 days old), "2–3 months" (61–90 days old), "3–5 months" (91–150 days old), "5+ months" (151+ days old), "Unknown post date" (publish date missing or unavailable). For each non-empty bucket: video count, total spend, total revenue, ROI (revenue/spend), spend as % of total spend.
 [B1] Top 15 creators by store GMV — handle, followers, store GMV, global gmv_30d, views, videos L30d, videos L7d, orders, AOV, engagement rate
 [B2] For B1 handles: videos with any GMV L30d, lifetime videos ever
@@ -101,7 +101,7 @@ PHASE 1 — RUN ALL DATA QUERIES
 [C3] 13 weeks retention rate (13 rows)
 [C4] 13 weeks total videos + views (13 rows)
 [C5] 13 weeks outreach by tier: messages + samples (39 rows)
-[D1] 6 months GMV + views: ${w.monthKeys}
+[D1] 6 months GMV + views: ${w.monthKeys} — for each month return affiliate gmv (creator_store_performance), total account totalGmv (get_dashboard_performance_overview, 0 if unavailable), and views
 [D2] 6 months by tier: creators, new creators, videos, views, GMV (18 rows)
 [D3] 6 months retention rate (6 rows)
 [D4] 6 months outreach by tier: messages + samples (18 rows)
@@ -125,7 +125,7 @@ Output ONLY this JSON. No prose before or after.
 {
   "meta": { "reportDate": "${w.reportDate}", "label": "${w.label}", "dataWindow": "${w.dataWindow}" },
   "d30": {
-    "gmv":0,"gmvPct":0,"orders":0,"ordersPct":0,"videos":0,"videosPct":0,
+    "gmv":0,"gmvPct":0,"totalGmv":0,"orders":0,"ordersPct":0,"videos":0,"videosPct":0,
     "views":0,"viewsPct":0,"creators":0,"creatorsPct":0,"newCreators":0,"newCreatorsPct":0,
     "retention":0,"retentionDelta":0,
     "gmvMax":{"spend":0,"revenue":0,"roi":0},
@@ -151,7 +151,7 @@ Output ONLY this JSON. No prose before or after.
   },
   "monthlyCharts":{
     "labels":${JSON.stringify(w.monthLabels)},
-    "gmv":[],"views":[],
+    "gmv":[],"totalGmv":[],"views":[],
     "crg1":[],"crg2":[],"crg3":[],
     "ncg1":[],"ncg2":[],"ncg3":[],
     "vg1":[],"vg2":[],"vg3":[],
