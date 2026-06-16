@@ -103,7 +103,7 @@ QUERIES TO RUN (read every CSV file Euka returns):
 12. 13 weeks by tier: creators posted, new creators, videos, store GMV per week per tier (39 rows)
 13. 13 weeks: retention rate per week (13 rows)
 14. 13 weeks: messages sent + samples shipped by tier per week (39 rows)
-15. 6 months: for the current partial month use ${f(gmvStart).slice(0,7)}-01 through ${f(today)} (do NOT cap at ${f(gmvEnd)}); for prior complete months use full month ranges. For each month: (a) affiliate GMV (gmv) + views from creator_store_performance, (b) total account GMV (totalGmv) from get_dashboard_performance_overview — includes affiliate, product cards, in-house. Set totalGmv to 0 if unavailable. (6 rows)
+15. 6 months: for the current partial month use ${f(today).slice(0,7)}-01 through ${f(today)} (do NOT cap at ${f(gmvEnd)}); for prior complete months use full month ranges. For each month: (a) affiliate GMV (gmv) + views from creator_store_performance, (b) total account GMV (totalGmv) from get_dashboard_performance_overview — includes affiliate, product cards, in-house. Set totalGmv to 0 if unavailable. (6 rows)
 16. 6 months by tier: creators, new creators, videos, GMV (18 rows)
 17. 6 months: retention rate per month (6 rows)
 18. 6 months: messages sent + samples shipped + samples approved by tier per month (18 rows; samples approved maps to sag1/sag2/sag3)
