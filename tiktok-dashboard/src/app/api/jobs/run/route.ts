@@ -49,7 +49,8 @@ function buildWindows(today: Date) {
   }).reverse()
   const months = Array.from({ length: 6 }, (_, i) => {
     const d = subMonths(today, 5 - i); const ip = i === 5
-    return { key: format(d, 'yyyy-MM'), label: format(d, 'MMM') + (ip ? '*' : ''), start: startOfMonth(d), end: ip ? gmvEnd : endOfMonth(d) }
+    // current partial month: use today as end so MTD covers the full date range available
+    return { key: format(d, 'yyyy-MM'), label: format(d, 'MMM') + (ip ? '*' : ''), start: startOfMonth(d), end: ip ? today : endOfMonth(d) }
   })
   const f = (d: Date) => format(d, 'yyyy-MM-dd')
   return {
@@ -57,6 +58,7 @@ function buildWindows(today: Date) {
     dataWindow: `${format(gmvStart, 'MMM d')} – ${format(gmvEnd, 'MMM d, yyyy')}`,
     d30: { start: f(gmvStart), end: f(gmvEnd) }, prior: { start: f(priorStart), end: f(priorEnd) },
     last7: { start: f(last7Start), end: f(lastSat) }, weeks, months,
+    currentMonthStart: f(startOfMonth(today)), currentMonthEnd: f(today),
     weekLabels: weeks.map(w => `${w.start.getMonth()+1}/${w.start.getDate()}`),
     monthLabels: months.map(m => m.label),
     weeksRange: `${f(weeks[0].start)} to ${f(lastSat)}`,
@@ -213,7 +215,7 @@ Respond with ONLY the JSON array. No prose, no markdown fences.
   16: {
     label: 'Pulling 6-month GMV trends…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery two things for each of the 6 months: ${w.monthKeys}:\n1) From creator_store_performance: affiliate GMV (gmv) + views. Return 6 rows chronological.\n2) From get_dashboard_performance_overview (or equivalent account-level source): total account GMV per month (totalGmv) — includes affiliate, product cards, in-house. If unavailable, set totalGmv to 0.\nOutput (exactly 6 items): {"D1":[{"gmv":0,"totalGmv":0,"views":0}]}`
+    prompt: w => BASE(w) + `\n\nFor each of the 6 months query two metrics. Month date ranges: ${w.months.map((m: any) => `${m.key}: ${format(m.start,'yyyy-MM-dd')}–${format(m.end,'yyyy-MM-dd')}`).join(', ')}. IMPORTANT: for the current partial month (${w.months[5].key}) use the full range ${w.currentMonthStart}–${w.currentMonthEnd} — do NOT cap at ${w.d30.end}.\n1) affiliate GMV (gmv) + views from creator_store_performance for each month's exact date range.\n2) Total account GMV (totalGmv) from get_dashboard_performance_overview for each month's exact date range — this includes affiliate videos, product cards, in-house content. Set to 0 if unavailable.\nReturn 6 rows chronological.\nOutput (exactly 6 items): {"D1":[{"gmv":0,"totalGmv":0,"views":0}]}`
   },
   17: {
     label: 'Pulling 6-month creator trends…',
