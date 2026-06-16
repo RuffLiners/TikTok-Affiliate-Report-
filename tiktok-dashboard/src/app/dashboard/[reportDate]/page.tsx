@@ -155,7 +155,11 @@ export default async function ReportPage({ params }: Props) {
   const mtdVidG2  = mc.vg2.at(-1) ?? 0
   const mtdVidG3  = mc.vg3.at(-1) ?? 0
   const mtdVideos = mtdVidG1 + mtdVidG2 + mtdVidG3
-  const mtdSamples = (mc.sg1.at(-1) ?? 0) + (mc.sg2.at(-1) ?? 0) + (mc.sg3.at(-1) ?? 0)
+  const mtdSamplesShipped  = (mc.sg1.at(-1) ?? 0) + (mc.sg2.at(-1) ?? 0) + (mc.sg3.at(-1) ?? 0)
+  const mtdSamplesApproved = mc.sag1 && mc.sag2 && mc.sag3
+    ? (mc.sag1.at(-1) ?? 0) + (mc.sag2.at(-1) ?? 0) + (mc.sag3.at(-1) ?? 0)
+    : mtdSamplesShipped
+  const mtdSamples = mtdSamplesApproved
   const safe = (v: number) => monthPct > 0 ? v / monthPct : v
   const projGmv     = safe(mtdGmv)
   const projVideos  = safe(mtdVideos)
@@ -167,7 +171,7 @@ export default async function ReportPage({ params }: Props) {
   // Trends from last 4 weeks
   const gmvTrend = calcTrend(wc.gmv)
   const vidTrend = calcTrend(wc.vid)
-  const weeklyTotalSamples = wc.sg1.map((v: number, i: number) => v + (wc.sg2[i] ?? 0) + (wc.sg3[i] ?? 0))
+  const weeklyTotalSamples = (wc.sag1 ?? wc.sg1).map((v: number, i: number) => v + ((wc.sag2 ?? wc.sg2)[i] ?? 0) + ((wc.sag3 ?? wc.sg3)[i] ?? 0))
   const sampTrend = calcTrend(weeklyTotalSamples)
 
   // 30d totals used as monthly proxies
@@ -312,7 +316,7 @@ export default async function ReportPage({ params }: Props) {
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
                         Samples · {goals.monthlySamplesPeriod ?? currentMonthLabel}
                       </p>
-                      <MonthlyTargetRow label="Samples Shipped" mtd={mtdSamples} projected={projSamples} target={goals.monthlySamplesTarget} trend={sampTrend} monthPct={monthPct} />
+                      <MonthlyTargetRow label="Samples Approved" mtd={mtdSamples} projected={projSamples} target={goals.monthlySamplesTarget} trend={sampTrend} monthPct={monthPct} />
                     </div>
                   )}
 
@@ -321,10 +325,12 @@ export default async function ReportPage({ params }: Props) {
                     <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">GMV Max — Spend</p>
                       {goals.monthlyGmvMaxSpendTarget && (
-                        <TargetRow
+                        <MonthlyTargetRow
                           label={`Monthly · ${goals.monthlyGmvMaxSpendPeriod ?? currentMonthLabel}`}
-                          actual={d.gmvMax.spend} target={goals.monthlyGmvMaxSpendTarget}
-                          fmt="currency" note="30d"
+                          mtd={d.gmvMax.spend}
+                          projected={monthPct > 0 ? d.gmvMax.spend / monthPct : d.gmvMax.spend}
+                          target={goals.monthlyGmvMaxSpendTarget}
+                          fmt="currency" monthPct={monthPct}
                         />
                       )}
                       {goals.quarterlyGmvMaxSpendTarget && (

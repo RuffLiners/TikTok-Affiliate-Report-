@@ -68,24 +68,6 @@ export function D30Content({ report }: Props) {
         )}
       </section>
 
-      <section>
-        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Recruiting</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <RecruitingCard
-            label="Messages Sent" total={d.msgs} pct={d.msgsPct}
-            g1={d.tiers.g1.msgs} g1pct={d.tiers.g1.msgsPct}
-            g2={d.tiers.g2.msgs} g2pct={d.tiers.g2.msgsPct}
-            g3={d.tiers.g3.msgs} g3pct={d.tiers.g3.msgsPct}
-          />
-          <RecruitingCard
-            label="Samples Shipped" total={d.samples} pct={d.samplesPct}
-            g1={d.tiers.g1.samples} g1pct={d.tiers.g1.samplesPct}
-            g2={d.tiers.g2.samples} g2pct={d.tiers.g2.samplesPct}
-            g3={d.tiers.g3.samples} g3pct={d.tiers.g3.samplesPct}
-          />
-        </div>
-      </section>
-
       {report.tables?.topCreators?.length > 0 && (
         <section>
           <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Top 15 Creators · by Store GMV</h3>
@@ -109,6 +91,20 @@ export function D30Content({ report }: Props) {
 
       <section>
         <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Outreach &amp; CRM Agents · Last 30 Days</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+          <RecruitingCard
+            label="Messages Sent" total={d.msgs} pct={d.msgsPct}
+            g1={d.tiers.g1.msgs} g1pct={d.tiers.g1.msgsPct}
+            g2={d.tiers.g2.msgs} g2pct={d.tiers.g2.msgsPct}
+            g3={d.tiers.g3.msgs} g3pct={d.tiers.g3.msgsPct}
+          />
+          <RecruitingCard
+            label="Samples Shipped" total={d.samples} pct={d.samplesPct}
+            g1={d.tiers.g1.samples} g1pct={d.tiers.g1.samplesPct}
+            g2={d.tiers.g2.samples} g2pct={d.tiers.g2.samplesPct}
+            g3={d.tiers.g3.samples} g3pct={d.tiers.g3.samplesPct}
+          />
+        </div>
         <AgentsSection reportDate={report.report_date} initialAgents={report.agents} />
       </section>
     </div>

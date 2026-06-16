@@ -50,6 +50,7 @@ export interface WeeklyCharts {
   vid: number[]
   mg1: number[]; mg2: number[]; mg3: number[]
   sg1: number[]; sg2: number[]; sg3: number[]
+  sag1?: number[]; sag2?: number[]; sag3?: number[]  // samples approved per tier per week
 }
 
 export interface MonthlyCharts {
@@ -65,6 +66,7 @@ export interface MonthlyCharts {
   ret: number[]
   mg1: number[]; mg2: number[]; mg3: number[]
   sg1: number[]; sg2: number[]; sg3: number[]
+  sag1?: number[]; sag2?: number[]; sag3?: number[]  // samples approved per tier per month
 }
 
 export interface Creator {
