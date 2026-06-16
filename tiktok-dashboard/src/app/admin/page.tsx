@@ -89,7 +89,7 @@ DATE WINDOWS — use these exactly:
 - 6 months: the 5 complete calendar months before this one + current partial month through ${f(today)} (use today's date for the current month — do NOT cap at ${f(gmvEnd)})
 
 QUERIES TO RUN (read every CSV file Euka returns):
-1. Current 30d totals: GMV, orders, videos posted, views, creators posted, new creators (first-ever post for this store), retention rate vs prior period
+1. Current 30d totals: (a) GMV, orders, videos posted, views, creators posted, new creators (first-ever post for this store), retention rate vs prior period from creator_store_performance; (b) call get_dashboard_performance_overview for the same window and read fields named exactly "totalShopGMV" → shopGmv and "totalAffiliateGMV" → affiliateGmv. GUARDRAIL: only use totalShopGMV when gmvFiltered === false AND filteredGmvUnavailable === false AND shopGmvError === null; otherwise set shopGmv to 0
 2. Prior 30d: same totals for % change calculations
 3. Current 30d by creator tier (G1 = global gmv_30d <$25K, G2 = $25K–$100K, G3 = >$100K): creators, new creators, videos posted, total views, store GMV — G1+G2+G3 views must sum to the overall 30d total views (do not leave views as 0)
 4. Current 30d outreach by tier: messages sent + samples shipped + samples approved, plus overall totals
@@ -103,7 +103,7 @@ QUERIES TO RUN (read every CSV file Euka returns):
 12. 13 weeks by tier: creators posted, new creators, videos, store GMV per week per tier (39 rows)
 13. 13 weeks: retention rate per week (13 rows)
 14. 13 weeks: messages sent + samples shipped by tier per week (39 rows)
-15. 6 months: for the current partial month use ${f(today).slice(0,7)}-01 through ${f(today)} (do NOT cap at ${f(gmvEnd)}); for prior complete months use full month ranges. For each month: (a) affiliate GMV (gmv) + views from creator_store_performance, (b) total account GMV (totalGmv) from get_dashboard_performance_overview — includes affiliate, product cards, in-house. Set totalGmv to 0 if unavailable. (6 rows)
+15. 6 months: for the current partial month use ${f(today).slice(0,7)}-01 through ${f(today)} (do NOT cap at ${f(gmvEnd)}); for prior complete months use full month ranges. For each month: (a) affiliate GMV (gmv) + views from creator_store_performance, (b) call get_dashboard_performance_overview and read the field named exactly "totalShopGMV" → output as shopGmv; also read "totalAffiliateGMV" → output as affiliateGmv. GUARDRAIL: only use totalShopGMV when gmvFiltered === false AND filteredGmvUnavailable === false AND shopGmvError === null; otherwise set shopGmv to 0. Set shopGmv/affiliateGmv to 0 if unavailable. (6 rows)
 16. 6 months by tier: creators, new creators, videos, GMV (18 rows)
 17. 6 months: retention rate per month (6 rows)
 18. 6 months: messages sent + samples shipped + samples approved by tier per month (18 rows; samples approved maps to sag1/sag2/sag3)
@@ -128,7 +128,8 @@ OUTPUT — respond with ONLY this JSON object, nothing before or after it. CRITI
     "dataWindow": "${fLabel(gmvStart)} – ${fLabel(gmvEnd)}, ${format(gmvEnd, 'yyyy')}"
   },
   "d30": {
-    "gmv": 0, "gmvPct": 0, "orders": 0, "ordersPct": 0,
+    "gmv": 0, "gmvPct": 0, "shopGmv": 0, "shopGmvPct": 0, "affiliateGmv": 0, "affiliateGmvPct": 0,
+    "orders": 0, "ordersPct": 0,
     "videos": 0, "videosPct": 0, "views": 0, "viewsPct": 0,
     "creators": 0, "creatorsPct": 0, "newCreators": 0, "newCreatorsPct": 0,
     "retention": 0, "retentionDelta": 0,
@@ -155,7 +156,7 @@ OUTPUT — respond with ONLY this JSON object, nothing before or after it. CRITI
   },
   "monthlyCharts": {
     "labels": ["fill","in","6","month","labels","e.g. May*"],
-    "gmv":[],"totalGmv":[],"views":[],
+    "gmv":[],"shopGmv":[],"affiliateGmv":[],"views":[],
     "crg1":[],"crg2":[],"crg3":[],
     "ncg1":[],"ncg2":[],"ncg3":[],
     "vg1":[],"vg2":[],"vg3":[],

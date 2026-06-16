@@ -13,9 +13,12 @@ export interface TierData {
 }
 
 export interface D30Data {
-  gmv: number
+  gmv: number        // affiliate GMV from creator_store_performance (backward compat)
   gmvPct: number
-  totalGmv?: number  // total account GMV (affiliate + product cards + in-house)
+  shopGmv?: number   // total/account GMV from get_dashboard_performance_overview (totalShopGMV)
+  affiliateGmv?: number     // affiliate-only from get_dashboard_performance_overview (totalAffiliateGMV)
+  affiliateGmvPct?: number
+  totalGmv?: number  // legacy alias for shopGmv (kept for backward compat)
   orders: number
   ordersPct: number
   videos: number

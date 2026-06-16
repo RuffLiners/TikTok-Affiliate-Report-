@@ -78,7 +78,7 @@ const PHASES: Record<number, { label: string; prompt: (w: ReturnType<typeof buil
   1: {
     label: 'Pulling current 30-day KPIs…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery two things for ${w.d30.start}–${w.d30.end}:\n1) From creator_store_performance: affiliate GMV (store gmv), orders, videos posted, views, total creators who posted, new creators (first-ever post for this store), retention rate.\n2) From get_dashboard_performance_overview (or equivalent account-level source): total account GMV for the same window — this includes affiliate videos, product card sales, and in-house content. If unavailable, set totalGmv to 0.\nOutput: {"A1":{"gmv":0,"totalGmv":0,"orders":0,"videos":0,"views":0,"creators":0,"newCreators":0,"retention":0}}`
+    prompt: w => BASE(w) + `\n\nQuery two things for ${w.d30.start}–${w.d30.end}:\n1) From creator_store_performance: affiliate GMV (store gmv), orders, videos posted, views, total creators who posted, new creators (first-ever post for this store), retention rate.\n2) Call get_dashboard_performance_overview for the same window. The response contains: totalShopGMV (map → shopGmv), totalShopGMVDifference (map → shopGmvPct), totalAffiliateGMV (map → affiliateGmv), totalAffiliateGMVDifference (map → affiliateGmvPct). GUARDRAIL: only populate shopGmv/affiliateGmv if shopGmvError === null AND gmvFiltered === false AND filteredGmvUnavailable === false; otherwise set both to 0.\nOutput: {"A1":{"gmv":0,"shopGmv":0,"shopGmvPct":0,"affiliateGmv":0,"affiliateGmvPct":0,"orders":0,"videos":0,"views":0,"creators":0,"newCreators":0,"retention":0}}`
   },
   2: {
     label: 'Pulling prior 30-day KPIs…',
@@ -215,7 +215,7 @@ Respond with ONLY the JSON array. No prose, no markdown fences.
   16: {
     label: 'Pulling 6-month GMV trends…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nFor each of the 6 months query two metrics. Month date ranges: ${w.months.map((m: any) => `${m.key}: ${format(m.start,'yyyy-MM-dd')}–${format(m.end,'yyyy-MM-dd')}`).join(', ')}. IMPORTANT: for the current partial month (${w.months[5].key}) use the full range ${w.currentMonthStart}–${w.currentMonthEnd} — do NOT cap at ${w.d30.end}.\n1) affiliate GMV (gmv) + views from creator_store_performance for each month's exact date range.\n2) Total account GMV (totalGmv) from get_dashboard_performance_overview for each month's exact date range — this includes affiliate videos, product cards, in-house content. Set to 0 if unavailable.\nReturn 6 rows chronological.\nOutput (exactly 6 items): {"D1":[{"gmv":0,"totalGmv":0,"views":0}]}`
+    prompt: w => BASE(w) + `\n\nFor each of the 6 months query two metrics. Month date ranges: ${w.months.map((m: any) => `${m.key}: ${format(m.start,'yyyy-MM-dd')}–${format(m.end,'yyyy-MM-dd')}`).join(', ')}. IMPORTANT: for the current partial month (${w.months[5].key}) use the full range ${w.currentMonthStart}–${w.currentMonthEnd} — do NOT cap at ${w.d30.end}.\n1) affiliate GMV (gmv) + views from creator_store_performance for each month's exact date range.\n2) For each month call get_dashboard_performance_overview. Map totalShopGMV → shopGmv (total/account GMV including product cards). GUARDRAIL: set shopGmv to 0 for any month where shopGmvError is non-null or gmvFiltered/filteredGmvUnavailable is true.\nReturn 6 rows chronological.\nOutput (exactly 6 items): {"D1":[{"gmv":0,"shopGmv":0,"views":0}]}`
   },
   17: {
     label: 'Pulling 6-month creator trends…',
@@ -265,7 +265,9 @@ function assemble(w: ReturnType<typeof buildWindows>, pd: any, analysis: any) {
   return {
     report_date:w.reportDate, label:w.label, data_window:w.dataWindow,
     d30:{
-      gmv:a1.gmv||0, gmvPct:pct(a1.gmv||0,a2.gmv||0), totalGmv:a1.totalGmv||undefined, orders:a1.orders||0, ordersPct:pct(a1.orders||0,a2.orders||0),
+      gmv:a1.gmv||0, gmvPct:pct(a1.gmv||0,a2.gmv||0),
+      shopGmv:a1.shopGmv||undefined, affiliateGmv:a1.affiliateGmv||undefined, affiliateGmvPct:a1.affiliateGmvPct||undefined,
+      orders:a1.orders||0, ordersPct:pct(a1.orders||0,a2.orders||0),
       videos:a1.videos||0, videosPct:pct(a1.videos||0,a2.videos||0), views:a1.views||0, viewsPct:pct(a1.views||0,a2.views||0),
       creators:a1.creators||0, creatorsPct:pct(a1.creators||0,a2.creators||0), newCreators:a1.newCreators||0, newCreatorsPct:pct(a1.newCreators||0,a2.newCreators||0),
       retention:a1.retention||0, retentionDelta:delta(a1.retention||0,a2.retention||0),
@@ -291,7 +293,7 @@ function assemble(w: ReturnType<typeof buildWindows>, pd: any, analysis: any) {
       sg1:c5.g1?.map((r:any)=>r.samples||0)||[], sg2:c5.g2?.map((r:any)=>r.samples||0)||[], sg3:c5.g3?.map((r:any)=>r.samples||0)||[]
     },
     monthly_charts:{
-      labels:w.monthLabels, gmv:d1.map((r:any)=>r.gmv||0), totalGmv:d1.every((r:any)=>!r.totalGmv)?undefined:d1.map((r:any)=>r.totalGmv||0), views:d1.map((r:any)=>r.views||0),
+      labels:w.monthLabels, gmv:d1.map((r:any)=>r.gmv||0), totalGmv:d1.every((r:any)=>!r.shopGmv)?undefined:d1.map((r:any)=>r.shopGmv||0), views:d1.map((r:any)=>r.views||0),
       crg1:d2.g1?.map((r:any)=>r.creators||0)||[], crg2:d2.g2?.map((r:any)=>r.creators||0)||[], crg3:d2.g3?.map((r:any)=>r.creators||0)||[],
       ncg1:d2.g1?.map((r:any)=>r.newCreators||0)||[], ncg2:d2.g2?.map((r:any)=>r.newCreators||0)||[], ncg3:d2.g3?.map((r:any)=>r.newCreators||0)||[],
       vg1:d2.g1?.map((r:any)=>r.videos||0)||[], vg2:d2.g2?.map((r:any)=>r.videos||0)||[], vg3:d2.g3?.map((r:any)=>r.videos||0)||[],

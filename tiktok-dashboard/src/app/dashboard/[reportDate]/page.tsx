@@ -148,6 +148,7 @@ export default async function ReportPage({ params }: Props) {
   // Use total account GMV (includes product cards + in-house) for targets; fall back to affiliate GMV for older reports
   const { pct: monthPct } = getMonthProgress(reportDate)
   const mtdGmv    = (mc.totalGmv?.at(-1) || 0) > 0 ? (mc.totalGmv!.at(-1)!) : (mc.gmv.at(-1) ?? 0)
+  const mtdAffiliateGmv = mc.gmv.at(-1) ?? 0
   const qtdTotalGmv = mc.totalGmv && mc.totalGmv.some((v: number) => v > 0)
     ? mc.totalGmv.slice(-3).reduce((a: number, b: number) => a + b, 0)
     : qtdGmv
@@ -271,13 +272,18 @@ export default async function ReportPage({ params }: Props) {
                   {/* Revenue — GMV */}
                   {(goals.monthlyGmvTarget || goals.quarterlyGmvTarget) && (
                     <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Revenue — Affiliate GMV</p>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Revenue — Total GMV</p>
                       {goals.monthlyGmvTarget && (
                         <MonthlyTargetRow
                           label={`Monthly · ${goals.monthlyPeriod ?? currentMonthLabel}`}
                           mtd={mtdGmv} projected={projGmv} target={goals.monthlyGmvTarget}
                           fmt="currency" trend={gmvTrend} monthPct={monthPct}
                         />
+                      )}
+                      {mtdAffiliateGmv > 0 && mtdAffiliateGmv !== mtdGmv && (
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          Affiliate GMV: <span className="font-medium text-gray-600">${Math.round(mtdAffiliateGmv).toLocaleString('en-US')}</span> MTD
+                        </p>
                       )}
                       {goals.quarterlyGmvTarget && (
                         <TargetRow

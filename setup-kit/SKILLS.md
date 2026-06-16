@@ -48,13 +48,17 @@ Each saved report includes all of the above PLUS:
 
 | Data | Source |
 |------|--------|
-| GMV, Orders, Videos, Views | Euka → TikTok Shop creator_store_performance |
+| Affiliate GMV, Orders, Videos, Views | Euka → `creator_store_performance` |
+| Total account GMV (shopGmv) | Euka → `get_dashboard_performance_overview` → `totalShopGMV` |
+| Affiliate GMV from overview (affiliateGmv) | Euka → `get_dashboard_performance_overview` → `totalAffiliateGMV` |
 | Creator tier classification | Euka → global gmv_30d per creator |
 | Outreach agents | Euka → list_outreach_agents + get_outreach_agent |
 | GMV Max (ad data) | Euka → get_dashboard_ads_overview |
-| Samples shipped | Euka → outreach agent data |
+| Samples shipped/approved | Euka → outreach agent data |
 | Messages sent | Euka → outreach overview metrics |
 | AI analysis | Claude (Anthropic) with your data as context |
+
+> **Field name note**: The overview endpoint returns `totalShopGMV` (not `totalGmv`). See `setup-kit/field-map.md` for the full API→report field mapping and guardrail rules.
 
 ---
 
@@ -83,13 +87,27 @@ Creators are automatically classified based on their **global TikTok Shop GMV in
 
 ---
 
+## GMV Fields in the Report
+
+The report tracks GMV from two sources:
+
+| Field | What it measures | Used for |
+|-------|-----------------|----------|
+| `gmv` | Affiliate-only GMV from `creator_store_performance` | Backward-compat; 30d tier breakdowns |
+| `shopGmv` | Total account GMV (`totalShopGMV` from overview) | **Target tracker** — includes affiliate + product cards + in-house |
+| `affiliateGmv` | Affiliate-only from overview (`totalAffiliateGMV`) | Shown as a sub-line on targets page when shopGmv is available |
+
+The dashboard shows **both** Total GMV and Affiliate GMV tiles in the Last 30 Days tab so you can see the full picture.
+
+---
+
 ## Configurable Goals (Insights Tab)
 
 Set any combination of these targets in the Manage page:
-- Monthly GMV target + period label
+- Monthly GMV target + period label (compared against Total account GMV / shopGmv)
 - Quarterly GMV target
 - Monthly videos (total + by tier G1/G2/G3)
-- Monthly samples shipped
+- Monthly samples approved
 - Monthly + quarterly GMV Max spend budget
 - Monthly + quarterly GMV Max ROI target
 - Active creators per tier (30-day)
