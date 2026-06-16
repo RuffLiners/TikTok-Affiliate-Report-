@@ -86,7 +86,7 @@ DATE WINDOWS — use these exactly:
 - Prior 30d: ${f(priorStart)} to ${f(priorEnd)}
 - Last complete week (most recent Sun–Sat): ${f(weekSun)} to ${f(weekSat)} — use this as "this week" in analysis
 - 13 complete Sun–Sat weeks ending on ${f(weekSat)} (inclusive — the most recent complete week IS ${f(weekSun)}–${f(weekSat)})
-- 6 months: the 5 complete calendar months before this one + current partial month through ${f(gmvEnd)}
+- 6 months: the 5 complete calendar months before this one + current partial month through ${f(today)} (use today's date for the current month — do NOT cap at ${f(gmvEnd)})
 
 QUERIES TO RUN (read every CSV file Euka returns):
 1. Current 30d totals: GMV, orders, videos posted, views, creators posted, new creators (first-ever post for this store), retention rate vs prior period
@@ -103,7 +103,7 @@ QUERIES TO RUN (read every CSV file Euka returns):
 12. 13 weeks by tier: creators posted, new creators, videos, store GMV per week per tier (39 rows)
 13. 13 weeks: retention rate per week (13 rows)
 14. 13 weeks: messages sent + samples shipped by tier per week (39 rows)
-15. 6 months: total account GMV (affiliate + product cards, maps to "totalGmv"), affiliate GMV only (maps to "gmv"), and views per month (6 rows)
+15. 6 months: for the current partial month use ${f(gmvStart).slice(0,7)}-01 through ${f(today)} (do NOT cap at ${f(gmvEnd)}); for prior complete months use full month ranges. For each month: (a) affiliate GMV (gmv) + views from creator_store_performance, (b) total account GMV (totalGmv) from get_dashboard_performance_overview — includes affiliate, product cards, in-house. Set totalGmv to 0 if unavailable. (6 rows)
 16. 6 months by tier: creators, new creators, videos, GMV (18 rows)
 17. 6 months: retention rate per month (6 rows)
 18. 6 months: messages sent + samples shipped + samples approved by tier per month (18 rows; samples approved maps to sag1/sag2/sag3)
