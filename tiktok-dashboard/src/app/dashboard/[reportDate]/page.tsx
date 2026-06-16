@@ -271,7 +271,7 @@ export default async function ReportPage({ params }: Props) {
                   {/* Revenue — GMV */}
                   {(goals.monthlyGmvTarget || goals.quarterlyGmvTarget) && (
                     <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Revenue — Total Account GMV</p>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Revenue — Affiliate GMV</p>
                       {goals.monthlyGmvTarget && (
                         <MonthlyTargetRow
                           label={`Monthly · ${goals.monthlyPeriod ?? currentMonthLabel}`}
