@@ -47,7 +47,7 @@ QUERIES TO RUN (read every CSV file Euka returns):
 1. Current 30d totals: GMV, orders, videos posted, views, creators posted, new creators (first-ever post for this store), retention rate vs prior period
 2. Prior 30d: same totals for % change calculations
 3. Current 30d by creator tier (G1 = global gmv_30d <$25K, G2 = $25K–$100K, G3 = >$100K): creators, new creators, videos posted, total views, store GMV — G1+G2+G3 views must sum to the overall 30d total views (do not leave views as 0)
-4. Current 30d outreach by tier: messages sent + samples shipped, plus overall totals
+4. Current 30d outreach by tier: messages sent + samples shipped + samples approved, plus overall totals
 5. Prior 30d outreach: totals + by tier (for % change)
 6. GMV Max current 30d: total ad spend, attributed revenue, blended ROI (use 0 if data unavailable before May 14 2026)
 7. Top 15 creators by store GMV — handle, followers, store GMV, global gmv_30d, views, videos L30d, videos w/GMV L30d, lifetime videos, videos L7d, orders, AOV, engagement rate
@@ -58,10 +58,10 @@ QUERIES TO RUN (read every CSV file Euka returns):
 12. 13 weeks by tier: creators posted, new creators, videos, views, store GMV per week per tier (39 rows) — include views per tier per week
 13. 13 weeks: retention rate per week (13 rows)
 14. 13 weeks: messages sent + samples shipped by tier per week (39 rows)
-15. 6 months: total GMV + views per month (6 rows)
+15. 6 months: for each month query its exact date range (current partial month goes through today — do NOT cap at the 30d end date). For each month: (a) affiliate GMV + views from creator_store_performance, (b) total account GMV (totalGmv) from get_dashboard_performance_overview — includes affiliate, product cards, in-house. Set totalGmv to 0 if unavailable. (6 rows)
 16. 6 months by tier: creators, new creators, videos, views, GMV (18 rows) — include views per tier per month
 17. 6 months: retention rate per month (6 rows)
-18. 6 months: messages + samples by tier per month (18 rows)
+18. 6 months: messages sent + samples shipped + samples approved by tier per month (18 rows; samples approved maps to sag1/sag2/sag3)
 19. This week's top 10 creators by store GMV ([WEEK START]–[WEEK END]): handle, global gmv_30d, store GMV this week, views this week, videos posted this week, orders, AOV
 20. Top 10 videos by GMV posted this week ([WEEK START]–[WEEK END]): creator handle, global gmv_30d, product name, GMV, views, orders, AOV, likes, comments, product clicks, publish date
 21. This week's top 10 most active creators by videos posted ([WEEK START]–[WEEK END]): handle, global gmv_30d, store GMV this week, views this week, videos posted, orders, AOV
@@ -110,7 +110,7 @@ OUTPUT — respond with ONLY this JSON object, nothing before or after it. CRITI
   },
   "monthlyCharts": {
     "labels": [],
-    "gmv":[],"views":[],
+    "gmv":[],"totalGmv":[],"views":[],
     "crg1":[],"crg2":[],"crg3":[],
     "ncg1":[],"ncg2":[],"ncg3":[],
     "vg1":[],"vg2":[],"vg3":[],
@@ -118,7 +118,8 @@ OUTPUT — respond with ONLY this JSON object, nothing before or after it. CRITI
     "vwg1":[],"vwg2":[],"vwg3":[],
     "ret":[],
     "mg1":[],"mg2":[],"mg3":[],
-    "sg1":[],"sg2":[],"sg3":[]
+    "sg1":[],"sg2":[],"sg3":[],
+    "sag1":[],"sag2":[],"sag3":[]
   },
   "tables": {
     "topCreators": [],
