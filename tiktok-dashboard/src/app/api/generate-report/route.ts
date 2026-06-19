@@ -87,9 +87,9 @@ PHASE 1 — RUN ALL DATA QUERIES
 
 [A1] Current 30d totals: affiliate GMV (from creator_store_performance), PLUS total account GMV (totalGmv, from get_dashboard_performance_overview — includes affiliate + product cards + in-house; set 0 if unavailable), orders, videos, views, creators, new creators, retention vs prior
 [A2] Prior 30d totals: same fields (no totalGmv needed for prior)
-[A3] Current 30d by tier (G1 <$25K, G2 $25K-$100K, G3 >$100K): creators, new creators, videos, views, GMV
-[A4] Current 30d outreach by tier: messages sent, samples shipped + totals
-[A5] Prior 30d outreach totals + by tier
+[A3] Current 30d by creator level (L1 <$5K, L2 $5K–$25K, L3 $25K–$60K, L4 $60K–$150K, L5 $150K–$400K, L6 $400K–$1.5M, L7 $1.5M+): creators, new creators, videos, views, GMV
+[A4] Current 30d outreach by level: messages sent, samples shipped + totals
+[A5] Prior 30d outreach totals + by level
 [A6] GMV Max current 30d: TOTAL account-level ad spend/revenue/ROI via get_dashboard_ads_overview (includes all content types: affiliate, product cards, in-house)
 [A7] GMV Max current 30d by content age: group all videos that received GMV Max spend by how old the video was relative to the end of the 30d window — buckets: "< 30 days" (posted within the 30d window), "1–2 months" (31–60 days old), "2–3 months" (61–90 days old), "3–5 months" (91–150 days old), "5+ months" (151+ days old), "Unknown post date" (publish date missing or unavailable). For each non-empty bucket: video count, total spend, total revenue, ROI (revenue/spend), spend as % of total spend.
 [B1] Top 15 creators by store GMV — handle, followers, store GMV, global gmv_30d, views, videos L30d, videos L7d, orders, AOV, engagement rate
@@ -97,14 +97,14 @@ PHASE 1 — RUN ALL DATA QUERIES
 [B3] Top 15 videos by store GMV — creator, product, GMV, views, orders, AOV, publish date, likes, comments, product clicks
 [B4] Top 15 creators by videos posted — GMV from new videos only, total GMV, views, avg views, orders
 [C1] 13 weeks GMV + orders: ${w.weeksRange}
-[C2] 13 weeks by tier: creators, new creators, videos, views, GMV (39 rows)
+[C2] 13 weeks by level (L1–L7): creators, new creators, videos, views, GMV (91 rows)
 [C3] 13 weeks retention rate (13 rows)
 [C4] 13 weeks total videos + views (13 rows)
-[C5] 13 weeks outreach by tier: messages + samples (39 rows)
+[C5] 13 weeks outreach by level (L1–L7): messages + samples (91 rows)
 [D1] 6 months GMV + views: ${w.monthKeys} — for each month return affiliate gmv (creator_store_performance), total account totalGmv (get_dashboard_performance_overview, 0 if unavailable), and views
-[D2] 6 months by tier: creators, new creators, videos, views, GMV (18 rows)
+[D2] 6 months by level (L1–L7): creators, new creators, videos, views, GMV (42 rows)
 [D3] 6 months retention rate (6 rows)
-[D4] 6 months outreach by tier: messages + samples (18 rows)
+[D4] 6 months outreach by level (L1–L7): messages + samples (42 rows)
 
 ═══════════════════════════════════════════════
 PHASE 2 — WRITE ANALYSIS FOR EACH REPORT TAB
@@ -132,34 +132,38 @@ Output ONLY this JSON. No prose before or after.
     "gmvMaxByAge":[{"label":"< 30 days","videos":0,"spend":0,"revenue":0,"roi":0,"pct":0}],
     "msgs":0,"msgsPct":0,"samples":0,"samplesPct":0,
     "tiers":{
-      "g1":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0},
-      "g2":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0},
-      "g3":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0}
+      "l1":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0},
+      "l2":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0},
+      "l3":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0},
+      "l4":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0},
+      "l5":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0},
+      "l6":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0},
+      "l7":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0}
     }
   },
   "weeklyCharts":{
     "labels":${JSON.stringify(w.weekLabels)},
     "gmv":[],"views":[],
-    "crg1":[],"crg2":[],"crg3":[],
-    "ncg1":[],"ncg2":[],"ncg3":[],
-    "vg1":[],"vg2":[],"vg3":[],
-    "gg1":[],"gg2":[],"gg3":[],
-    "vwg1":[],"vwg2":[],"vwg3":[],
+    "crl1":[],"crl2":[],"crl3":[],"crl4":[],"crl5":[],"crl6":[],"crl7":[],
+    "ncl1":[],"ncl2":[],"ncl3":[],"ncl4":[],"ncl5":[],"ncl6":[],"ncl7":[],
+    "vl1":[],"vl2":[],"vl3":[],"vl4":[],"vl5":[],"vl6":[],"vl7":[],
+    "gl1":[],"gl2":[],"gl3":[],"gl4":[],"gl5":[],"gl6":[],"gl7":[],
+    "vwl1":[],"vwl2":[],"vwl3":[],"vwl4":[],"vwl5":[],"vwl6":[],"vwl7":[],
     "ret":[],"vid":[],
-    "mg1":[],"mg2":[],"mg3":[],
-    "sg1":[],"sg2":[],"sg3":[]
+    "ml1":[],"ml2":[],"ml3":[],"ml4":[],"ml5":[],"ml6":[],"ml7":[],
+    "sl1":[],"sl2":[],"sl3":[],"sl4":[],"sl5":[],"sl6":[],"sl7":[]
   },
   "monthlyCharts":{
     "labels":${JSON.stringify(w.monthLabels)},
     "gmv":[],"totalGmv":[],"views":[],
-    "crg1":[],"crg2":[],"crg3":[],
-    "ncg1":[],"ncg2":[],"ncg3":[],
-    "vg1":[],"vg2":[],"vg3":[],
-    "gg1":[],"gg2":[],"gg3":[],
-    "vwg1":[],"vwg2":[],"vwg3":[],
+    "crl1":[],"crl2":[],"crl3":[],"crl4":[],"crl5":[],"crl6":[],"crl7":[],
+    "ncl1":[],"ncl2":[],"ncl3":[],"ncl4":[],"ncl5":[],"ncl6":[],"ncl7":[],
+    "vl1":[],"vl2":[],"vl3":[],"vl4":[],"vl5":[],"vl6":[],"vl7":[],
+    "gl1":[],"gl2":[],"gl3":[],"gl4":[],"gl5":[],"gl6":[],"gl7":[],
+    "vwl1":[],"vwl2":[],"vwl3":[],"vwl4":[],"vwl5":[],"vwl6":[],"vwl7":[],
     "ret":[],
-    "mg1":[],"mg2":[],"mg3":[],
-    "sg1":[],"sg2":[],"sg3":[]
+    "ml1":[],"ml2":[],"ml3":[],"ml4":[],"ml5":[],"ml6":[],"ml7":[],
+    "sl1":[],"sl2":[],"sl3":[],"sl4":[],"sl5":[],"sl6":[],"sl7":[]
   },
   "tables":{
     "topCreators":[{"h":"","flw":0,"sgmv":0,"ggmv":0,"views":0,"v30":0,"vmgmv":0,"vlife":0,"v7":0,"ord":0,"aov":0,"eng":null,"active":true}],

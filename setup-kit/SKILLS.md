@@ -11,9 +11,9 @@ This is a private, branded analytics dashboard for TikTok Shop affiliate program
 ### Live 30-Day Dashboard
 - **Overview KPIs**: Total GMV, Orders, Videos Posted, Total Views — all vs. prior 30 days
 - **Creator KPIs**: Creators Posted, New Creators (first-ever post), Retention Rate
-- **By Creator Tier**: Three tiers (G1 <$25K global GMV, G2 $25K–$100K, G3 >$100K) with full breakdowns
+- **By Creator Level**: Seven Euka levels (L1 <$5K, L2 $5K–$25K, L3 $25K–$60K, L4 $60K–$150K, L5 $150K–$400K, L6 $400K–$1.5M, L7 $1.5M+) with full breakdowns
 - **GMV Max**: Ad Spend, Ad Revenue, ROI — with spend broken down by content age
-- **Recruiting**: Messages Sent and Samples Shipped, broken down by tier
+- **Recruiting**: Messages Sent and Samples Shipped, broken down by level
 - **Top 15 Creators** by Store GMV (with followers, views, videos, orders, AOV, engagement)
 - **Top 15 Videos** by GMV (with product, views, orders, AOV, likes, comments)
 - **Most Active Creators** by Videos Posted
@@ -21,7 +21,7 @@ This is a private, branded analytics dashboard for TikTok Shop affiliate program
 
 ### Weekly Reports (saved snapshots)
 Each saved report includes all of the above PLUS:
-- **Weekly 13-Week Charts**: GMV trend, views, creators by tier, videos by tier, GMV by tier, retention rate, recruiting
+- **Weekly 13-Week Charts**: GMV trend, views, creators by level, videos by level, GMV by level, retention rate, recruiting
 - **Monthly 6-Month Charts**: Same metrics across 6 months
 - **AI Analysis** (4 sections):
   - **Performance**: This week's headlines, MTD/QTD progress vs goals
@@ -75,15 +75,19 @@ The Live 30 Day dashboard has a "Refresh live data" button that runs a faster 11
 
 ---
 
-## Creator Tier System
+## Creator Level System
 
-Creators are automatically classified based on their **global TikTok Shop GMV in the last 30 days** (across all stores, not just yours):
+Creators are automatically classified based on their **global TikTok Shop GMV in the last 30 days** (across all stores, not just yours), using Euka's standard level tiers:
 
-| Tier | Global GMV Range | Typical Profile |
-|------|-----------------|-----------------|
-| G1 | < $25,000 | Micro/nano creators, new to affiliate |
-| G2 | $25,000 – $100,000 | Mid-tier, consistent performers |
-| G3 | > $100,000 | Top creators, high-volume sellers |
+| Level | Global GMV Range | Typical Profile |
+|-------|-----------------|-----------------|
+| L1 | < $5,000 | Brand-new or very low-volume creators |
+| L2 | $5,000 – $25,000 | Micro creators, early affiliate stage |
+| L3 | $25,000 – $60,000 | Growing mid-tier, consistent performers |
+| L4 | $60,000 – $150,000 | Established creators, strong track record |
+| L5 | $150,000 – $400,000 | High-volume performers |
+| L6 | $400,000 – $1,500,000 | Top-tier creators, major volume |
+| L7 | $1,500,000+ | Elite creators, highest GMV sellers |
 
 ---
 
@@ -106,8 +110,8 @@ The dashboard shows **both** Total GMV and Affiliate GMV tiles in the Last 30 Da
 Set any combination of these targets in the Manage page:
 - Monthly GMV target + period label (compared against Total account GMV / shopGmv)
 - Quarterly GMV target
-- Monthly videos (total + by tier G1/G2/G3)
+- Monthly videos (total + by level L1–L7)
 - Monthly samples approved
 - Monthly + quarterly GMV Max spend budget
 - Monthly + quarterly GMV Max ROI target
-- Active creators per tier (30-day)
+- Active creators per level (30-day)

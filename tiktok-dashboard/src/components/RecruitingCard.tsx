@@ -1,11 +1,13 @@
 interface Props {
   label: string; total: number; pct: number
-  g1: number; g1pct: number; g2: number; g2pct: number; g3: number; g3pct: number
+  l1: number; l1pct: number; l2: number; l2pct: number; l3: number; l3pct: number
+  l4: number; l4pct: number; l5: number; l5pct: number; l6: number; l6pct: number
+  l7: number; l7pct: number
 }
 const fK = (n: number) => n >= 1000 ? (n / 1000).toFixed(1) + 'K' : String(n)
 const pctStr = (n: number) => `${n >= 0 ? '↑+' : '↓-'}${Math.abs(n).toFixed(0)}%`
 
-export function RecruitingCard({ label, total, pct, g1, g1pct, g2, g2pct, g3, g3pct }: Props) {
+export function RecruitingCard({ label, total, pct, l1, l1pct, l2, l2pct, l3, l3pct, l4, l4pct, l5, l5pct, l6, l6pct, l7, l7pct }: Props) {
   return (
     <div className="bg-gray-50 rounded-xl p-4">
       <div className="flex justify-between items-start mb-3">
@@ -16,9 +18,13 @@ export function RecruitingCard({ label, total, pct, g1, g1pct, g2, g2pct, g3, g3
         </div>
       </div>
       <div className="flex gap-2 flex-wrap">
-        <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">G1: {fK(g1)} {pctStr(g1pct)}</span>
-        <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full">G2: {fK(g2)} {pctStr(g2pct)}</span>
-        <span className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full">G3: {fK(g3)} {pctStr(g3pct)}</span>
+        <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">L1: {fK(l1)} {pctStr(l1pct)}</span>
+        <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">L2: {fK(l2)} {pctStr(l2pct)}</span>
+        <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full">L3: {fK(l3)} {pctStr(l3pct)}</span>
+        <span className="text-xs bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full">L4: {fK(l4)} {pctStr(l4pct)}</span>
+        <span className="text-xs bg-lime-50 text-lime-700 px-2 py-0.5 rounded-full">L5: {fK(l5)} {pctStr(l5pct)}</span>
+        <span className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full">L6: {fK(l6)} {pctStr(l6pct)}</span>
+        <span className="text-xs bg-orange-50 text-orange-700 px-2 py-0.5 rounded-full">L7: {fK(l7)} {pctStr(l7pct)}</span>
       </div>
     </div>
   )

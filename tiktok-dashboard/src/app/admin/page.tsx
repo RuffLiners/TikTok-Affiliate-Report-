@@ -60,7 +60,7 @@ function buildClaudePrompt(today: Date, goals?: any): string {
   const fLabel = (d: Date) => format(d, 'MMM d')
 
   let goalsSection = ''
-  if (goals && (goals.monthlyGmvTarget || goals.quarterlyGmvTarget || goals.weeklyVideosTarget || goals.activeG3Target)) {
+  if (goals && (goals.monthlyGmvTarget || goals.quarterlyGmvTarget || goals.weeklyVideosTarget || goals.activeL7Target)) {
     goalsSection = `\nGOALS & TARGETS — reference these when writing analysis:\n`
     if (goals.monthlyGmvTarget) {
       goalsSection += `- Monthly GMV goal: $${Math.round(goals.monthlyGmvTarget).toLocaleString('en-US')}${goals.monthlyPeriod ? ` (${goals.monthlyPeriod})` : ''}\n`
@@ -71,8 +71,8 @@ function buildClaudePrompt(today: Date, goals?: any): string {
     if (goals.weeklyVideosTarget) {
       goalsSection += `- Weekly videos target: ${goals.weeklyVideosTarget}/week\n`
     }
-    if (goals.activeG3Target) {
-      goalsSection += `- Active G3 creators target: ${goals.activeG3Target}\n`
+    if (goals.activeL7Target) {
+      goalsSection += `- Active L7 creators target: ${goals.activeL7Target}\n`
     }
     goalsSection += '\n'
   }
@@ -91,35 +91,35 @@ DATE WINDOWS — use these exactly:
 QUERIES TO RUN (read every CSV file Euka returns):
 1. Current 30d totals: (a) GMV, orders, videos posted, views, creators posted, new creators (first-ever post for this store), retention rate vs prior period from creator_store_performance; (b) call get_dashboard_performance_overview for the same window and read fields named exactly "totalShopGMV" → shopGmv and "totalAffiliateGMV" → affiliateGmv. GUARDRAIL: only use totalShopGMV when gmvFiltered === false AND filteredGmvUnavailable === false AND shopGmvError === null; otherwise set shopGmv to 0
 2. Prior 30d: same totals for % change calculations
-3. Current 30d by creator tier (G1 = global gmv_30d <$25K, G2 = $25K–$100K, G3 = >$100K): creators, new creators, videos posted, total views, store GMV — G1+G2+G3 views must sum to the overall 30d total views (do not leave views as 0)
-4. Current 30d outreach by tier: messages sent + samples shipped + samples approved, plus overall totals
-5. Prior 30d outreach: totals + by tier (for % change)
+3. Current 30d by creator level (L1 = global gmv_30d <$5K, L2 = $5K–$25K, L3 = $25K–$60K, L4 = $60K–$150K, L5 = $150K–$400K, L6 = $400K–$1.5M, L7 = $1.5M+): creators, new creators, videos posted, total views, store GMV — L1+…+L7 views must sum to the overall 30d total views (do not leave views as 0)
+4. Current 30d outreach by level: messages sent + samples shipped + samples approved, plus overall totals
+5. Prior 30d outreach: totals + by level (for % change)
 6. GMV Max current 30d: total ad spend, attributed revenue, blended ROI (use 0 if data unavailable before May 14 2026)
 7. Top 15 creators by store GMV — handle, followers, store GMV, global gmv_30d, views, videos L30d, videos w/GMV L30d, lifetime videos, videos L7d, orders, AOV, engagement rate
 8. For the top 15 handles from #7: count of videos that generated any GMV this period, and lifetime total videos for this store
 9. Top 15 videos by store GMV — creator handle, product name, GMV, views, orders, AOV, publish date, likes, comments, product clicks
 10. Top 15 creators by videos posted — handle, followers, GMV from new-period videos only, total store GMV, views, avg views/video, orders
 11. 13 weekly totals: GMV, orders, views, videos (13 rows, one per Sun–Sat week)
-12. 13 weeks by tier: creators posted, new creators, videos, store GMV per week per tier (39 rows)
+12. 13 weeks by level (L1–L7): creators posted, new creators, videos, store GMV per week per level (91 rows)
 13. 13 weeks: retention rate per week (13 rows)
-14. 13 weeks: messages sent + samples shipped by tier per week (39 rows)
+14. 13 weeks: messages sent + samples shipped by level per week (91 rows)
 15. 6 months: for the current partial month use ${f(today).slice(0,7)}-01 through ${f(today)} (do NOT cap at ${f(gmvEnd)}); for prior complete months use full month ranges. For each month: (a) affiliate GMV (gmv) + views from creator_store_performance, (b) call get_dashboard_performance_overview and read the field named exactly "totalShopGMV" → output as shopGmv; also read "totalAffiliateGMV" → output as affiliateGmv. GUARDRAIL: only use totalShopGMV when gmvFiltered === false AND filteredGmvUnavailable === false AND shopGmvError === null; otherwise set shopGmv to 0. Set shopGmv/affiliateGmv to 0 if unavailable. (6 rows)
-16. 6 months by tier: creators, new creators, videos, GMV (18 rows)
+16. 6 months by level (L1–L7): creators, new creators, videos, GMV (42 rows)
 17. 6 months: retention rate per month (6 rows)
-18. 6 months: messages sent + samples shipped + samples approved by tier per month (18 rows; samples approved maps to sag1/sag2/sag3)
+18. 6 months: messages sent + samples shipped + samples approved by level per month (42 rows; samples approved maps to sal1–sal7)
 19. This week's top 10 creators by store GMV (${f(weekSun)}–${f(weekSat)}): handle, global gmv_30d, store GMV this week, views this week, videos posted this week, orders, AOV
 20. Top 10 videos by GMV posted this week (${f(weekSun)}–${f(weekSat)}): creator handle, global gmv_30d, product name, GMV, views, orders, AOV, likes, comments, product clicks, publish date
 21. This week's top 10 most active creators by videos posted (${f(weekSun)}–${f(weekSat)}): handle, global gmv_30d, store GMV this week, views this week, videos posted, orders, AOV
 22. GMV Max spend current 30d (${f(gmvStart)}–${f(gmvEnd)}) broken down by content age. Buckets by video publish date vs ${f(gmvEnd)}: "< 30 days" (posted ${f(gmvStart)}–${f(gmvEnd)}), "1–2 months" (31–60 days before ${f(gmvEnd)}), "2–3 months" (61–90 days), "3–5 months" (91–150 days), "5+ months" (151+ days), "Unknown post date" (publish date missing). For each non-empty bucket: label, videos (count), spend, revenue, roi (revenue/spend, 0 if no spend), pct (spend % of total). Omit empty buckets. Output [] if GMV Max data unavailable.
-23. Outreach & CRM agents created in the last 30 days (${f(gmvStart)}–${f(gmvEnd)}): call list_outreach_agents with agentType="outreach" and agentType="crm", multiple searchQuery values ("", "G1", "G2", "G3", "Video Volume", "GMV Contest", "New Agent", "Tiktoktshopbonus"), limit=25, archived=false. Merge and deduplicate by id, keep only agents with created_time >= ${f(gmvStart)}. Call get_outreach_agent for each to enrich. Map to: id, name, agent_type ("outreach"/"crm"), campaign_type, status (bot_status), date_posted (YYYY-MM-DD from created_time), gmv_filter (target_gmvs joined ", "; "none" if empty), kw_filter (target_categories joined ", "; "none" if empty), other_filters (summary of other non-empty target_* fields; "none" if all empty), list_segment (lists/segments names; "none" if absent), commission_display (unique commission rate; "none" if absent), creators_reached (total_conversations), remaining (remaining_creators), total_invites, accepted_invites, total_replies, samples_requested (total_sample_request), samples_shipped, total_videos, total_revenue, product_count (length of products array), has_followups.
+23. Outreach & CRM agents created in the last 30 days (${f(gmvStart)}–${f(gmvEnd)}): call list_outreach_agents with agentType="outreach" and agentType="crm", multiple searchQuery values ("", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "Video Volume", "GMV Contest", "New Agent", "Tiktoktshopbonus"), limit=25, archived=false. Merge and deduplicate by id, keep only agents with created_time >= ${f(gmvStart)}. Call get_outreach_agent for each to enrich. Map to: id, name, agent_type ("outreach"/"crm"), campaign_type, status (bot_status), date_posted (YYYY-MM-DD from created_time), gmv_filter (target_gmvs joined ", "; "none" if empty), kw_filter (target_categories joined ", "; "none" if empty), other_filters (summary of other non-empty target_* fields; "none" if all empty), list_segment (lists/segments names; "none" if absent), commission_display (unique commission rate; "none" if absent), creators_reached (total_conversations), remaining (remaining_creators), total_invites, accepted_invites, total_replies, samples_requested (total_sample_request), samples_shipped, total_videos, total_revenue, product_count (length of products array), has_followups.
 ${goalsSection}
 ANALYSIS — write 4 focused sections after pulling all data:
 - "performance": 3–4 paragraphs — This week's headline numbers (last complete Sun–Sat week), MTD progress vs monthly goal (state if on/off track and by how much), QTD progress vs quarterly goal, what's driving results. Be specific: name the creators/products/tiers moving the numbers.
-- "creators": 2–3 paragraphs — New creator breakouts: any creator in their first 1–3 weeks already generating meaningful GMV (name them, their numbers, why they're exciting). Top performing content this week (specific video + creator + GMV). Which tier is most active and most productive per creator. G3 activation pace vs target.
-- "recruiting": 2–3 paragraphs — Top reactivation targets: inactive creators with high global GMV who haven't posted recently (name them, their global GMV, last post timing). Current outreach mix analysis (G2 vs G3 balance, is it aligned with where GMV comes from?). Sample allocation recommendations. Concrete next-week recruiting actions.
+- "creators": 2–3 paragraphs — New creator breakouts: any creator in their first 1–3 weeks already generating meaningful GMV (name them, their numbers, why they're exciting). Top performing content this week (specific video + creator + GMV). Which level is most active and most productive per creator. L6/L7 activation pace vs target.
+- "recruiting": 2–3 paragraphs — Top reactivation targets: inactive creators with high global GMV who haven't posted recently (name them, their global GMV, last post timing). Current outreach mix analysis (L3/L4 vs L5+ balance, is it aligned with where GMV comes from?). Sample allocation recommendations. Concrete next-week recruiting actions.
 - "growth": 2–3 paragraphs — 13-week GMV trend direction and momentum. Which tier/product/content format is the primary growth engine right now. 2–3 specific opportunities to pursue this week. 1–2 risks to monitor. 4-week forward outlook with upside and downside scenarios.
 
-OUTPUT — respond with ONLY this JSON object, nothing before or after it. CRITICAL: include EVERY field shown below — never omit a field even if its query returned no data (use empty arrays [] or 0 as defaults). The fields gmvMaxByAge, agents, vwg1/vwg2/vwg3, and tier views are required even if empty:
+OUTPUT — respond with ONLY this JSON object, nothing before or after it. CRITICAL: include EVERY field shown below — never omit a field even if its query returned no data (use empty arrays [] or 0 as defaults). The fields gmvMaxByAge, agents, vwl1–vwl7, and level views are required even if empty:
 
 {
   "meta": {
@@ -137,35 +137,39 @@ OUTPUT — respond with ONLY this JSON object, nothing before or after it. CRITI
     "gmvMaxByAge": [{ "label":"< 30 days","videos":0,"spend":0,"revenue":0,"roi":0,"pct":0 }],
     "msgs": 0, "msgsPct": 0, "samples": 0, "samplesPct": 0,
     "tiers": {
-      "g1": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
-      "g2": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
-      "g3": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 }
+      "l1": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
+      "l2": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
+      "l3": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
+      "l4": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
+      "l5": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
+      "l6": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
+      "l7": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 }
     }
   },
   "weeklyCharts": {
     "labels": ["fill","in","13","week","labels","as","M/D"],
     "gmv":[],"views":[],
-    "crg1":[],"crg2":[],"crg3":[],
-    "ncg1":[],"ncg2":[],"ncg3":[],
-    "vg1":[],"vg2":[],"vg3":[],
-    "gg1":[],"gg2":[],"gg3":[],
-    "vwg1":[],"vwg2":[],"vwg3":[],
+    "crl1":[],"crl2":[],"crl3":[],"crl4":[],"crl5":[],"crl6":[],"crl7":[],
+    "ncl1":[],"ncl2":[],"ncl3":[],"ncl4":[],"ncl5":[],"ncl6":[],"ncl7":[],
+    "vl1":[],"vl2":[],"vl3":[],"vl4":[],"vl5":[],"vl6":[],"vl7":[],
+    "gl1":[],"gl2":[],"gl3":[],"gl4":[],"gl5":[],"gl6":[],"gl7":[],
+    "vwl1":[],"vwl2":[],"vwl3":[],"vwl4":[],"vwl5":[],"vwl6":[],"vwl7":[],
     "ret":[],"vid":[],
-    "mg1":[],"mg2":[],"mg3":[],
-    "sg1":[],"sg2":[],"sg3":[]
+    "ml1":[],"ml2":[],"ml3":[],"ml4":[],"ml5":[],"ml6":[],"ml7":[],
+    "sl1":[],"sl2":[],"sl3":[],"sl4":[],"sl5":[],"sl6":[],"sl7":[]
   },
   "monthlyCharts": {
     "labels": ["fill","in","6","month","labels","e.g. May*"],
     "gmv":[],"shopGmv":[],"affiliateGmv":[],"views":[],
-    "crg1":[],"crg2":[],"crg3":[],
-    "ncg1":[],"ncg2":[],"ncg3":[],
-    "vg1":[],"vg2":[],"vg3":[],
-    "gg1":[],"gg2":[],"gg3":[],
-    "vwg1":[],"vwg2":[],"vwg3":[],
+    "crl1":[],"crl2":[],"crl3":[],"crl4":[],"crl5":[],"crl6":[],"crl7":[],
+    "ncl1":[],"ncl2":[],"ncl3":[],"ncl4":[],"ncl5":[],"ncl6":[],"ncl7":[],
+    "vl1":[],"vl2":[],"vl3":[],"vl4":[],"vl5":[],"vl6":[],"vl7":[],
+    "gl1":[],"gl2":[],"gl3":[],"gl4":[],"gl5":[],"gl6":[],"gl7":[],
+    "vwl1":[],"vwl2":[],"vwl3":[],"vwl4":[],"vwl5":[],"vwl6":[],"vwl7":[],
     "ret":[],
-    "mg1":[],"mg2":[],"mg3":[],
-    "sg1":[],"sg2":[],"sg3":[],
-    "sag1":[],"sag2":[],"sag3":[]
+    "ml1":[],"ml2":[],"ml3":[],"ml4":[],"ml5":[],"ml6":[],"ml7":[],
+    "sl1":[],"sl2":[],"sl3":[],"sl4":[],"sl5":[],"sl6":[],"sl7":[],
+    "sal1":[],"sal2":[],"sal3":[],"sal4":[],"sal5":[],"sal6":[],"sal7":[]
   },
   "tables": {
     "topCreators": [

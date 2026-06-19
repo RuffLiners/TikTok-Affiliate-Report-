@@ -41,11 +41,15 @@ export function D30Content({ report }: Props) {
       </section>
 
       <section>
-        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">By Creator Tier</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <TierCard tier="g1" label="Group 1 · <$25K"      data={d.tiers.g1} color="blue" />
-          <TierCard tier="g2" label="Group 2 · $25K–$100K" data={d.tiers.g2} color="green" />
-          <TierCard tier="g3" label="Group 3 · >$100K"     data={d.tiers.g3} color="amber" />
+        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">By Creator Level</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
+          <TierCard tier="l1" label="L1 · <$5K"         data={d.tiers.l1} color="slate" />
+          <TierCard tier="l2" label="L2 · $5K–$25K"     data={d.tiers.l2} color="blue" />
+          <TierCard tier="l3" label="L3 · $25K–$60K"    data={d.tiers.l3} color="green" />
+          <TierCard tier="l4" label="L4 · $60K–$150K"   data={d.tiers.l4} color="teal" />
+          <TierCard tier="l5" label="L5 · $150K–$400K"  data={d.tiers.l5} color="lime" />
+          <TierCard tier="l6" label="L6 · $400K–$1.5M"  data={d.tiers.l6} color="amber" />
+          <TierCard tier="l7" label="L7 · $1.5M+"       data={d.tiers.l7} color="orange" />
         </div>
       </section>
 
@@ -95,15 +99,23 @@ export function D30Content({ report }: Props) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
           <RecruitingCard
             label="Messages Sent" total={d.msgs} pct={d.msgsPct}
-            g1={d.tiers.g1.msgs} g1pct={d.tiers.g1.msgsPct}
-            g2={d.tiers.g2.msgs} g2pct={d.tiers.g2.msgsPct}
-            g3={d.tiers.g3.msgs} g3pct={d.tiers.g3.msgsPct}
+            l1={d.tiers.l1.msgs} l1pct={d.tiers.l1.msgsPct}
+            l2={d.tiers.l2.msgs} l2pct={d.tiers.l2.msgsPct}
+            l3={d.tiers.l3.msgs} l3pct={d.tiers.l3.msgsPct}
+            l4={d.tiers.l4.msgs} l4pct={d.tiers.l4.msgsPct}
+            l5={d.tiers.l5.msgs} l5pct={d.tiers.l5.msgsPct}
+            l6={d.tiers.l6.msgs} l6pct={d.tiers.l6.msgsPct}
+            l7={d.tiers.l7.msgs} l7pct={d.tiers.l7.msgsPct}
           />
           <RecruitingCard
             label="Samples Shipped" total={d.samples} pct={d.samplesPct}
-            g1={d.tiers.g1.samples} g1pct={d.tiers.g1.samplesPct}
-            g2={d.tiers.g2.samples} g2pct={d.tiers.g2.samplesPct}
-            g3={d.tiers.g3.samples} g3pct={d.tiers.g3.samplesPct}
+            l1={d.tiers.l1.samples} l1pct={d.tiers.l1.samplesPct}
+            l2={d.tiers.l2.samples} l2pct={d.tiers.l2.samplesPct}
+            l3={d.tiers.l3.samples} l3pct={d.tiers.l3.samplesPct}
+            l4={d.tiers.l4.samples} l4pct={d.tiers.l4.samplesPct}
+            l5={d.tiers.l5.samples} l5pct={d.tiers.l5.samplesPct}
+            l6={d.tiers.l6.samples} l6pct={d.tiers.l6.samplesPct}
+            l7={d.tiers.l7.samples} l7pct={d.tiers.l7.samplesPct}
           />
         </div>
         <AgentsSection reportDate={report.report_date} initialAgents={report.agents} />

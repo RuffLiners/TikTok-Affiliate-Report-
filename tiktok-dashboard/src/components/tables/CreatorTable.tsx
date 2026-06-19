@@ -1,9 +1,13 @@
 import { Creator } from '@/lib/types'
 
 const tierBadge = (ggmv: number) => {
-  if (ggmv >= 100000) return { label: 'G3', cls: 'bg-amber-100 text-amber-700' }
-  if (ggmv >= 25000)  return { label: 'G2', cls: 'bg-green-100 text-green-700' }
-  return { label: 'G1', cls: 'bg-blue-100 text-blue-700' }
+  if (ggmv >= 1500000) return { label: 'L7', cls: 'bg-orange-100 text-orange-700' }
+  if (ggmv >= 400000)  return { label: 'L6', cls: 'bg-amber-100 text-amber-700' }
+  if (ggmv >= 150000)  return { label: 'L5', cls: 'bg-lime-100 text-lime-700' }
+  if (ggmv >= 60000)   return { label: 'L4', cls: 'bg-teal-100 text-teal-700' }
+  if (ggmv >= 25000)   return { label: 'L3', cls: 'bg-green-100 text-green-700' }
+  if (ggmv >= 5000)    return { label: 'L2', cls: 'bg-blue-100 text-blue-700' }
+  return { label: 'L1', cls: 'bg-slate-100 text-slate-600' }
 }
 
 const f$ = (n: number) => '$' + Math.round(n).toLocaleString('en-US')

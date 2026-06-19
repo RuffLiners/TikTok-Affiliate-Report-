@@ -88,22 +88,22 @@ const PHASES: Record<number, { label: string; prompt: (w: ReturnType<typeof buil
   3: {
     label: 'Pulling creator tier breakdown…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Current 30d (${w.d30.start}–${w.d30.end}) by creator tier — pull every creator from creator_store_performance who posted in this window, classify each by their global gmv_30d (G1 <$25K, G2 $25K–$100K, G3 >$100K), then sum: creators who posted, new creators, videos posted, total views, and STORE GMV (the same gmv field from creator_store_performance, NOT global GMV). G1+G2+G3 store GMV must sum to the overall 30d total. G1+G2+G3 total views must also sum to approximately the overall 30d total views — do not leave views as 0. Once you have the data, output ONLY the JSON — no analysis, no explanation.\nReturn ONLY: {"A3":{"g1":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0},"g2":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0},"g3":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}}}`
+    prompt: w => BASE(w) + `\n\nQuery: Current 30d (${w.d30.start}–${w.d30.end}) by creator level — pull every creator from creator_store_performance who posted in this window, classify each by their global gmv_30d (L1 <$5K, L2 $5K–$25K, L3 $25K–$60K, L4 $60K–$150K, L5 $150K–$400K, L6 $400K–$1.5M, L7 $1.5M+), then sum: creators who posted, new creators, videos posted, total views, and STORE GMV (the same gmv field from creator_store_performance, NOT global GMV). L1+…+L7 store GMV must sum to the overall 30d total. Total views must also sum to approximately the overall 30d total views — do not leave views as 0. Once you have the data, output ONLY the JSON — no analysis, no explanation.\nReturn ONLY: {"A3":{"l1":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0},"l2":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0},"l3":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0},"l4":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0},"l5":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0},"l6":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0},"l7":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}}}`
   },
   4: {
     label: 'Pulling current outreach data…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Current 30d (${w.d30.start}–${w.d30.end}) outreach totals + by tier (G1/G2/G3): messages sent, samples shipped.\nOutput: {"A4":{"total":{"msgs":0,"samples":0},"g1":{"msgs":0,"samples":0},"g2":{"msgs":0,"samples":0},"g3":{"msgs":0,"samples":0}}}`
+    prompt: w => BASE(w) + `\n\nQuery: Current 30d (${w.d30.start}–${w.d30.end}) outreach totals + by creator level (L1–L7, same thresholds as A3): messages sent, samples shipped.\nOutput: {"A4":{"total":{"msgs":0,"samples":0},"l1":{"msgs":0,"samples":0},"l2":{"msgs":0,"samples":0},"l3":{"msgs":0,"samples":0},"l4":{"msgs":0,"samples":0},"l5":{"msgs":0,"samples":0},"l6":{"msgs":0,"samples":0},"l7":{"msgs":0,"samples":0}}}`
   },
   5: {
     label: 'Pulling prior outreach data…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Prior 30d (${w.prior.start}–${w.prior.end}) outreach totals + by tier (G1/G2/G3): messages sent, samples shipped.\nOutput: {"A5":{"total":{"msgs":0,"samples":0},"g1":{"msgs":0,"samples":0},"g2":{"msgs":0,"samples":0},"g3":{"msgs":0,"samples":0}}}`
+    prompt: w => BASE(w) + `\n\nQuery: Prior 30d (${w.prior.start}–${w.prior.end}) outreach totals + by creator level (L1–L7, same thresholds as A3): messages sent, samples shipped.\nOutput: {"A5":{"total":{"msgs":0,"samples":0},"l1":{"msgs":0,"samples":0},"l2":{"msgs":0,"samples":0},"l3":{"msgs":0,"samples":0},"l4":{"msgs":0,"samples":0},"l5":{"msgs":0,"samples":0},"l6":{"msgs":0,"samples":0},"l7":{"msgs":0,"samples":0}}}`
   },
   6: {
     label: 'Pulling GMV Max data…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: GMV Max current 30d (${w.d30.start}–${w.d30.end}): (1) TOTAL account-level ad spend, attributed revenue, blended ROI — use get_dashboard_ads_overview which includes ALL content types (affiliate videos, product cards, in-house content), NOT just affiliate videos; (2) ad spend and ROI broken down by creator tier for affiliate videos only (classify each video's creator by global gmv_30d: G1 <$25K, G2 $25K–$100K, G3 >$100K). Use 0 for all if data unavailable before May 14 2026.\nOutput: {"A6":{"spend":0,"revenue":0,"roi":0,"g1":{"spend":0,"roi":0},"g2":{"spend":0,"roi":0},"g3":{"spend":0,"roi":0}}}`
+    prompt: w => BASE(w) + `\n\nQuery: GMV Max current 30d (${w.d30.start}–${w.d30.end}): (1) TOTAL account-level ad spend, attributed revenue, blended ROI — use get_dashboard_ads_overview which includes ALL content types (affiliate videos, product cards, in-house content), NOT just affiliate videos; (2) ad spend and ROI broken down by creator level for affiliate videos only (classify each video's creator by global gmv_30d: L1 <$5K, L2 $5K–$25K, L3 $25K–$60K, L4 $60K–$150K, L5 $150K–$400K, L6 $400K–$1.5M, L7 $1.5M+). Use 0 for all if data unavailable before May 14 2026.\nOutput: {"A6":{"spend":0,"revenue":0,"roi":0,"l1":{"spend":0,"roi":0},"l2":{"spend":0,"roi":0},"l3":{"spend":0,"roi":0},"l4":{"spend":0,"roi":0},"l5":{"spend":0,"roi":0},"l6":{"spend":0,"roi":0},"l7":{"spend":0,"roi":0}}}`
   },
   7: {
     label: 'Pulling GMV Max content age…',
@@ -129,8 +129,8 @@ STEP 1 — Enumerate
 list_outreach_agents caps at limit=25 per call. On every call pass: botStatus=["running","stopped","error"], limit=25, archived=false, storeId=${process.env.EUKA_STORE_ID}.
 
 Run these searches:
-OUTREACH (agentType="outreach"), searchQuery = "", "G1", "G2", "G3", "Video Volume", "GMV Contest", "New Agent"
-CRM (agentType="crm"), searchQuery = "", "G1", "G2", "G3", "New Agent", "Video Volume", "GMV Contest", "Tiktoktshopbonus"
+OUTREACH (agentType="outreach"), searchQuery = "", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "Video Volume", "GMV Contest", "New Agent"
+CRM (agentType="crm"), searchQuery = "", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "New Agent", "Video Volume", "GMV Contest", "Tiktoktshopbonus"
 
 Merge all results → deduplicate by id → drop any agent with created_time older than ${startDate}.
 
@@ -158,8 +158,8 @@ GOAL: Return a JSON array of every outreach AND CRM agent created in the last 30
 list_outreach_agents caps at limit=25 per call and has no pagination. On every call pass: botStatus=["running","stopped","error"], limit=25, archived=false, storeId=${process.env.EUKA_STORE_ID}.
 
 Run these searches:
-OUTREACH (agentType="outreach"), searchQuery = "", "G1", "G2", "G3", "Video Volume", "GMV Contest", "New Agent"
-CRM (agentType="crm"), searchQuery = "", "G1", "G2", "G3", "New Agent", "Video Volume", "GMV Contest", "Tiktoktshopbonus"
+OUTREACH (agentType="outreach"), searchQuery = "", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "Video Volume", "GMV Contest", "New Agent"
+CRM (agentType="crm"), searchQuery = "", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "New Agent", "Video Volume", "GMV Contest", "Tiktoktshopbonus"
 
 Merge all results → deduplicate by id → drop any agent with created_time older than ${startDate}.
 
@@ -200,7 +200,7 @@ Respond with ONLY the JSON array. No prose, no markdown fences.
   13: {
     label: 'Pulling 13-week creator trends…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Weekly creators, new creators, videos posted, views, store GMV by tier (G1/G2/G3) for all 13 weeks in ${w.weeksRange}. Return 13 rows per tier. Views must be populated — each week's G1+G2+G3 views should sum to approximately the week's total views (do not leave views as 0 if total views exist).\nOutput (exactly 13 items per array): {"C2":{"g1":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"g2":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"g3":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}]}}`
+    prompt: w => BASE(w) + `\n\nQuery: Weekly creators, new creators, videos posted, views, store GMV by creator level (L1 <$5K, L2 $5K–$25K, L3 $25K–$60K, L4 $60K–$150K, L5 $150K–$400K, L6 $400K–$1.5M, L7 $1.5M+) for all 13 weeks in ${w.weeksRange}. Return 13 rows per level. Views must be populated — each week's L1+…+L7 views should sum to approximately the week's total views (do not leave views as 0 if total views exist).\nOutput (exactly 13 items per array): {"C2":{"l1":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"l2":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"l3":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"l4":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"l5":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"l6":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"l7":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}]}}`
   },
   14: {
     label: 'Pulling 13-week retention & video trends…',
@@ -210,7 +210,7 @@ Respond with ONLY the JSON array. No prose, no markdown fences.
   15: {
     label: 'Pulling 13-week outreach trends…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Weekly messages sent + samples shipped by tier (G1/G2/G3) for all 13 weeks in ${w.weeksRange}.\nOutput (exactly 13 items per array): {"C5":{"g1":[{"msgs":0,"samples":0}],"g2":[{"msgs":0,"samples":0}],"g3":[{"msgs":0,"samples":0}]}}`
+    prompt: w => BASE(w) + `\n\nQuery: Weekly messages sent + samples shipped by creator level (L1–L7, same thresholds as A3) for all 13 weeks in ${w.weeksRange}.\nOutput (exactly 13 items per array): {"C5":{"l1":[{"msgs":0,"samples":0}],"l2":[{"msgs":0,"samples":0}],"l3":[{"msgs":0,"samples":0}],"l4":[{"msgs":0,"samples":0}],"l5":[{"msgs":0,"samples":0}],"l6":[{"msgs":0,"samples":0}],"l7":[{"msgs":0,"samples":0}]}}`
   },
   16: {
     label: 'Pulling 6-month GMV trends…',
@@ -220,12 +220,12 @@ Respond with ONLY the JSON array. No prose, no markdown fences.
   17: {
     label: 'Pulling 6-month creator trends…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Monthly creators, new creators, videos, views, store GMV by tier (G1/G2/G3) for months ${w.monthKeys}. Return 6 rows per tier.\nOutput (exactly 6 items per array): {"D2":{"g1":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"g2":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"g3":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}]}}`
+    prompt: w => BASE(w) + `\n\nQuery: Monthly creators, new creators, videos, views, store GMV by creator level (L1–L7, same thresholds as A3) for months ${w.monthKeys}. Return 6 rows per level.\nOutput (exactly 6 items per array): {"D2":{"l1":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"l2":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"l3":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"l4":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"l5":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"l6":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"l7":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}]}}`
   },
   18: {
     label: 'Pulling 6-month retention & outreach…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Monthly retention rate + outreach (messages sent + samples shipped by tier G1/G2/G3) for months ${w.monthKeys}.\nOutput (exactly 6 items per array): {"D3":[0],"D4":{"g1":[{"msgs":0,"samples":0}],"g2":[{"msgs":0,"samples":0}],"g3":[{"msgs":0,"samples":0}]}}`
+    prompt: w => BASE(w) + `\n\nQuery: Monthly retention rate + outreach (messages sent + samples shipped by creator level L1–L7, same thresholds as A3) for months ${w.monthKeys}.\nOutput (exactly 6 items per array): {"D3":[0],"D4":{"l1":[{"msgs":0,"samples":0}],"l2":[{"msgs":0,"samples":0}],"l3":[{"msgs":0,"samples":0}],"l4":[{"msgs":0,"samples":0}],"l5":[{"msgs":0,"samples":0}],"l6":[{"msgs":0,"samples":0}],"l7":[{"msgs":0,"samples":0}]}}`
   },
   19: {
     label: 'Writing analysis…',
@@ -257,11 +257,18 @@ const LIVE_SAVE_AFTER = 11  // live_refresh saves after phase 11 (KPIs + agents 
 const TOTAL_PHASES = 20
 
 function assemble(w: ReturnType<typeof buildWindows>, pd: any, analysis: any) {
-  const a1=pd.A1||{}, a2=pd.A2||{}, a3=pd.A3||{g1:{},g2:{},g3:{}}, a4=pd.A4||{total:{},g1:{},g2:{},g3:{}}, a5=pd.A5||{total:{},g1:{},g2:{},g3:{}}, a6=pd.A6||{}
+  const a1=pd.A1||{}, a2=pd.A2||{}, a3=pd.A3||{}, a4=pd.A4||{total:{}}, a5=pd.A5||{total:{}}, a6=pd.A6||{}
   const pct=(c:number,p:number)=>p?Math.round(((c-p)/p)*100):0
   const delta=(c:number,p:number)=>Math.round((c-p)*10)/10
-  const c1=pd.C1||[], c2=pd.C2||{g1:[],g2:[],g3:[]}, c3=pd.C3||[], c4=pd.C4||[], c5=pd.C5||{g1:[],g2:[],g3:[]}
-  const d1=pd.D1||[], d2=pd.D2||{g1:[],g2:[],g3:[]}, d3=pd.D3||[], d4=pd.D4||{g1:[],g2:[],g3:[]}
+  const LVLS=['l1','l2','l3','l4','l5','l6','l7'] as const
+  const c1=pd.C1||[], c2=pd.C2||{}, c3=pd.C3||[], c4=pd.C4||[], c5=pd.C5||{}
+  const d1=pd.D1||[], d2=pd.D2||{}, d3=pd.D3||[], d4=pd.D4||{}
+  const mkTier=(lk:string)=>({
+    creators:a3[lk]?.creators||0,newCreators:a3[lk]?.newCreators||0,videos:a3[lk]?.videos||0,views:a3[lk]?.views||0,gmv:a3[lk]?.gmv||0,
+    gmvMaxSpend:a6[lk]?.spend||undefined,gmvMaxRoi:a6[lk]?.roi||undefined,
+    msgs:a4[lk]?.msgs||0,msgsPct:pct(a4[lk]?.msgs||0,a5[lk]?.msgs||0),
+    samples:a4[lk]?.samples||0,samplesPct:pct(a4[lk]?.samples||0,a5[lk]?.samples||0)
+  })
   return {
     report_date:w.reportDate, label:w.label, data_window:w.dataWindow,
     d30:{
@@ -275,33 +282,29 @@ function assemble(w: ReturnType<typeof buildWindows>, pd: any, analysis: any) {
       gmvMaxByAge:(pd.A7&&pd.A7.length>0)?pd.A7:undefined,
       msgs:a4.total?.msgs||0, msgsPct:pct(a4.total?.msgs||0,a5.total?.msgs||0),
       samples:a4.total?.samples||0, samplesPct:pct(a4.total?.samples||0,a5.total?.samples||0),
-      tiers:{
-        g1:{creators:a3.g1?.creators||0,newCreators:a3.g1?.newCreators||0,videos:a3.g1?.videos||0,views:a3.g1?.views||0,gmv:a3.g1?.gmv||0,gmvMaxSpend:a6.g1?.spend||undefined,gmvMaxRoi:a6.g1?.roi||undefined,msgs:a4.g1?.msgs||0,msgsPct:pct(a4.g1?.msgs||0,a5.g1?.msgs||0),samples:a4.g1?.samples||0,samplesPct:pct(a4.g1?.samples||0,a5.g1?.samples||0)},
-        g2:{creators:a3.g2?.creators||0,newCreators:a3.g2?.newCreators||0,videos:a3.g2?.videos||0,views:a3.g2?.views||0,gmv:a3.g2?.gmv||0,gmvMaxSpend:a6.g2?.spend||undefined,gmvMaxRoi:a6.g2?.roi||undefined,msgs:a4.g2?.msgs||0,msgsPct:pct(a4.g2?.msgs||0,a5.g2?.msgs||0),samples:a4.g2?.samples||0,samplesPct:pct(a4.g2?.samples||0,a5.g2?.samples||0)},
-        g3:{creators:a3.g3?.creators||0,newCreators:a3.g3?.newCreators||0,videos:a3.g3?.videos||0,views:a3.g3?.views||0,gmv:a3.g3?.gmv||0,gmvMaxSpend:a6.g3?.spend||undefined,gmvMaxRoi:a6.g3?.roi||undefined,msgs:a4.g3?.msgs||0,msgsPct:pct(a4.g3?.msgs||0,a5.g3?.msgs||0),samples:a4.g3?.samples||0,samplesPct:pct(a4.g3?.samples||0,a5.g3?.samples||0)}
-      }
+      tiers:Object.fromEntries(LVLS.map(lk=>[lk,mkTier(lk)])) as any
     },
     weekly_charts:{
       labels:w.weekLabels, gmv:c1.map((r:any)=>r.gmv||0), views:c4.map((r:any)=>r.views||0),
-      crg1:c2.g1?.map((r:any)=>r.creators||0)||[], crg2:c2.g2?.map((r:any)=>r.creators||0)||[], crg3:c2.g3?.map((r:any)=>r.creators||0)||[],
-      ncg1:c2.g1?.map((r:any)=>r.newCreators||0)||[], ncg2:c2.g2?.map((r:any)=>r.newCreators||0)||[], ncg3:c2.g3?.map((r:any)=>r.newCreators||0)||[],
-      vg1:c2.g1?.map((r:any)=>r.videos||0)||[], vg2:c2.g2?.map((r:any)=>r.videos||0)||[], vg3:c2.g3?.map((r:any)=>r.videos||0)||[],
-      gg1:c2.g1?.map((r:any)=>r.gmv||0)||[], gg2:c2.g2?.map((r:any)=>r.gmv||0)||[], gg3:c2.g3?.map((r:any)=>r.gmv||0)||[],
-      vwg1:c2.g1?.map((r:any)=>r.views||0)||[], vwg2:c2.g2?.map((r:any)=>r.views||0)||[], vwg3:c2.g3?.map((r:any)=>r.views||0)||[],
+      ...Object.fromEntries(LVLS.map(lk=>[`crl${lk[1]}`,c2[lk]?.map((r:any)=>r.creators||0)||[]])),
+      ...Object.fromEntries(LVLS.map(lk=>[`ncl${lk[1]}`,c2[lk]?.map((r:any)=>r.newCreators||0)||[]])),
+      ...Object.fromEntries(LVLS.map(lk=>[`vl${lk[1]}`,c2[lk]?.map((r:any)=>r.videos||0)||[]])),
+      ...Object.fromEntries(LVLS.map(lk=>[`gl${lk[1]}`,c2[lk]?.map((r:any)=>r.gmv||0)||[]])),
+      ...Object.fromEntries(LVLS.map(lk=>[`vwl${lk[1]}`,c2[lk]?.map((r:any)=>r.views||0)||[]])),
       ret:c3.map((r:any)=>typeof r==='number'?r:0), vid:c4.map((r:any)=>r.videos||0),
-      mg1:c5.g1?.map((r:any)=>r.msgs||0)||[], mg2:c5.g2?.map((r:any)=>r.msgs||0)||[], mg3:c5.g3?.map((r:any)=>r.msgs||0)||[],
-      sg1:c5.g1?.map((r:any)=>r.samples||0)||[], sg2:c5.g2?.map((r:any)=>r.samples||0)||[], sg3:c5.g3?.map((r:any)=>r.samples||0)||[]
+      ...Object.fromEntries(LVLS.map(lk=>[`ml${lk[1]}`,c5[lk]?.map((r:any)=>r.msgs||0)||[]])),
+      ...Object.fromEntries(LVLS.map(lk=>[`sl${lk[1]}`,c5[lk]?.map((r:any)=>r.samples||0)||[]]))
     },
     monthly_charts:{
       labels:w.monthLabels, gmv:d1.map((r:any)=>r.gmv||0), totalGmv:d1.every((r:any)=>!r.shopGmv)?undefined:d1.map((r:any)=>r.shopGmv||0), views:d1.map((r:any)=>r.views||0),
-      crg1:d2.g1?.map((r:any)=>r.creators||0)||[], crg2:d2.g2?.map((r:any)=>r.creators||0)||[], crg3:d2.g3?.map((r:any)=>r.creators||0)||[],
-      ncg1:d2.g1?.map((r:any)=>r.newCreators||0)||[], ncg2:d2.g2?.map((r:any)=>r.newCreators||0)||[], ncg3:d2.g3?.map((r:any)=>r.newCreators||0)||[],
-      vg1:d2.g1?.map((r:any)=>r.videos||0)||[], vg2:d2.g2?.map((r:any)=>r.videos||0)||[], vg3:d2.g3?.map((r:any)=>r.videos||0)||[],
-      gg1:d2.g1?.map((r:any)=>r.gmv||0)||[], gg2:d2.g2?.map((r:any)=>r.gmv||0)||[], gg3:d2.g3?.map((r:any)=>r.gmv||0)||[],
-      vwg1:d2.g1?.map((r:any)=>r.views||0)||[], vwg2:d2.g2?.map((r:any)=>r.views||0)||[], vwg3:d2.g3?.map((r:any)=>r.views||0)||[],
+      ...Object.fromEntries(LVLS.map(lk=>[`crl${lk[1]}`,d2[lk]?.map((r:any)=>r.creators||0)||[]])),
+      ...Object.fromEntries(LVLS.map(lk=>[`ncl${lk[1]}`,d2[lk]?.map((r:any)=>r.newCreators||0)||[]])),
+      ...Object.fromEntries(LVLS.map(lk=>[`vl${lk[1]}`,d2[lk]?.map((r:any)=>r.videos||0)||[]])),
+      ...Object.fromEntries(LVLS.map(lk=>[`gl${lk[1]}`,d2[lk]?.map((r:any)=>r.gmv||0)||[]])),
+      ...Object.fromEntries(LVLS.map(lk=>[`vwl${lk[1]}`,d2[lk]?.map((r:any)=>r.views||0)||[]])),
       ret:d3.map((r:any)=>typeof r==='number'?r:0),
-      mg1:d4.g1?.map((r:any)=>r.msgs||0)||[], mg2:d4.g2?.map((r:any)=>r.msgs||0)||[], mg3:d4.g3?.map((r:any)=>r.msgs||0)||[],
-      sg1:d4.g1?.map((r:any)=>r.samples||0)||[], sg2:d4.g2?.map((r:any)=>r.samples||0)||[], sg3:d4.g3?.map((r:any)=>r.samples||0)||[]
+      ...Object.fromEntries(LVLS.map(lk=>[`ml${lk[1]}`,d4[lk]?.map((r:any)=>r.msgs||0)||[]])),
+      ...Object.fromEntries(LVLS.map(lk=>[`sl${lk[1]}`,d4[lk]?.map((r:any)=>r.samples||0)||[]]))
     },
     tables:{topCreators:pd.topCreators||[], topVideos:pd.topVideos||[], activeCreators:pd.activeCreators||[]},
     agents:pd.agents||[],

@@ -1,12 +1,16 @@
 import { TierData } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
-interface Props { tier: string; label: string; data: TierData; color: 'blue' | 'green' | 'amber' }
+interface Props { tier: string; label: string; data: TierData; color: 'slate' | 'blue' | 'green' | 'teal' | 'lime' | 'amber' | 'orange' }
 
 const colors = {
-  blue:  { bg: 'bg-blue-50',   label: 'text-blue-600',  value: 'text-blue-900' },
-  green: { bg: 'bg-green-50',  label: 'text-green-600', value: 'text-green-900' },
-  amber: { bg: 'bg-amber-50',  label: 'text-amber-600', value: 'text-amber-900' },
+  slate:  { bg: 'bg-slate-50',   label: 'text-slate-500',  value: 'text-slate-900' },
+  blue:   { bg: 'bg-blue-50',    label: 'text-blue-600',   value: 'text-blue-900' },
+  green:  { bg: 'bg-green-50',   label: 'text-green-600',  value: 'text-green-900' },
+  teal:   { bg: 'bg-teal-50',    label: 'text-teal-600',   value: 'text-teal-900' },
+  lime:   { bg: 'bg-lime-50',    label: 'text-lime-600',   value: 'text-lime-900' },
+  amber:  { bg: 'bg-amber-50',   label: 'text-amber-600',  value: 'text-amber-900' },
+  orange: { bg: 'bg-orange-50',  label: 'text-orange-600', value: 'text-orange-900' },
 }
 
 const f$ = (n: number) => '$' + Math.round(n).toLocaleString('en-US')

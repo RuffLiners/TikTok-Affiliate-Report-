@@ -60,32 +60,32 @@ export async function POST(req: NextRequest) {
 
   if (isNewFormat) {
     // New format: Claude outputs assembled d30 directly (same as weekly report)
-    // Merge gmvMaxByTier into tier objects if present at top level
-    const byTier = phaseData.d30?.gmvMaxByTier
-    const mergeTier = (tier: any, key: 'g1'|'g2'|'g3') =>
-      byTier?.[key]?.spend > 0 ? { ...tier, gmvMaxSpend: byTier[key].spend, gmvMaxRoi: byTier[key].roi } : tier
+    // Merge gmvMaxByLevel into tier objects if present at top level
+    const byLevel = phaseData.d30?.gmvMaxByLevel
+    const mergeTier = (tier: any, key: string) =>
+      byLevel?.[key]?.spend > 0 ? { ...tier, gmvMaxSpend: byLevel[key].spend, gmvMaxRoi: byLevel[key].roi } : tier
+    const LVLS = ['l1','l2','l3','l4','l5','l6','l7']
     d30 = {
       ...phaseData.d30,
       gmvMaxByAge: (Array.isArray(phaseData.d30?.gmvMaxByAge) && phaseData.d30.gmvMaxByAge.length > 0)
         ? phaseData.d30.gmvMaxByAge
         : undefined,
-      tiers: phaseData.d30?.tiers ? {
-        g1: mergeTier(phaseData.d30.tiers.g1, 'g1'),
-        g2: mergeTier(phaseData.d30.tiers.g2, 'g2'),
-        g3: mergeTier(phaseData.d30.tiers.g3, 'g3'),
-      } : phaseData.d30?.tiers,
+      tiers: phaseData.d30?.tiers
+        ? Object.fromEntries(LVLS.map(k => [k, mergeTier(phaseData.d30.tiers[k] ?? {}, k)]))
+        : phaseData.d30?.tiers,
     }
     tables = phaseData.tables || { topCreators: [], topVideos: [], activeCreators: [] }
     agents = Array.isArray(phaseData.agents) ? phaseData.agents : []
   } else {
     // Legacy A1-A6 format
     const a1 = phaseData.A1 || {}, a2 = phaseData.A2 || {}
-    const a3 = phaseData.A3 || { g1: {}, g2: {}, g3: {} }
-    const a4 = phaseData.A4 || { total: {}, g1: {}, g2: {}, g3: {} }
-    const a5 = phaseData.A5 || { total: {}, g1: {}, g2: {}, g3: {} }
+    const a3 = phaseData.A3 || {}
+    const a4 = phaseData.A4 || { total: {} }
+    const a5 = phaseData.A5 || { total: {} }
     const a6 = phaseData.A6 || {}
     const pct = (c: number, p: number) => p ? Math.round(((c - p) / p) * 100) : 0
     const delta = (c: number, p: number) => Math.round((c - p) * 10) / 10
+    const LVLS2 = ['l1','l2','l3','l4','l5','l6','l7']
     d30 = {
       gmv: a1.gmv||0, gmvPct: pct(a1.gmv||0, a2.gmv||0),
       orders: a1.orders||0, ordersPct: pct(a1.orders||0, a2.orders||0),
@@ -97,11 +97,12 @@ export async function POST(req: NextRequest) {
       gmvMax: { spend: a6.spend||0, revenue: a6.revenue||0, roi: a6.roi||0 },
       msgs: a4.total?.msgs||0, msgsPct: pct(a4.total?.msgs||0, a5.total?.msgs||0),
       samples: a4.total?.samples||0, samplesPct: pct(a4.total?.samples||0, a5.total?.samples||0),
-      tiers: {
-        g1: { creators: a3.g1?.creators||0, newCreators: a3.g1?.newCreators||0, videos: a3.g1?.videos||0, gmv: a3.g1?.gmv||0, gmvMaxSpend: a6.g1?.spend||undefined, gmvMaxRoi: a6.g1?.roi||undefined, msgs: a4.g1?.msgs||0, msgsPct: pct(a4.g1?.msgs||0,a5.g1?.msgs||0), samples: a4.g1?.samples||0, samplesPct: pct(a4.g1?.samples||0,a5.g1?.samples||0) },
-        g2: { creators: a3.g2?.creators||0, newCreators: a3.g2?.newCreators||0, videos: a3.g2?.videos||0, gmv: a3.g2?.gmv||0, gmvMaxSpend: a6.g2?.spend||undefined, gmvMaxRoi: a6.g2?.roi||undefined, msgs: a4.g2?.msgs||0, msgsPct: pct(a4.g2?.msgs||0,a5.g2?.msgs||0), samples: a4.g2?.samples||0, samplesPct: pct(a4.g2?.samples||0,a5.g2?.samples||0) },
-        g3: { creators: a3.g3?.creators||0, newCreators: a3.g3?.newCreators||0, videos: a3.g3?.videos||0, gmv: a3.g3?.gmv||0, gmvMaxSpend: a6.g3?.spend||undefined, gmvMaxRoi: a6.g3?.roi||undefined, msgs: a4.g3?.msgs||0, msgsPct: pct(a4.g3?.msgs||0,a5.g3?.msgs||0), samples: a4.g3?.samples||0, samplesPct: pct(a4.g3?.samples||0,a5.g3?.samples||0) },
-      }
+      tiers: Object.fromEntries(LVLS2.map(k => [k, {
+        creators: a3[k]?.creators||0, newCreators: a3[k]?.newCreators||0, videos: a3[k]?.videos||0, views: a3[k]?.views||0, gmv: a3[k]?.gmv||0,
+        gmvMaxSpend: a6[k]?.spend||undefined, gmvMaxRoi: a6[k]?.roi||undefined,
+        msgs: a4[k]?.msgs||0, msgsPct: pct(a4[k]?.msgs||0, a5[k]?.msgs||0),
+        samples: a4[k]?.samples||0, samplesPct: pct(a4[k]?.samples||0, a5[k]?.samples||0)
+      }]))
     }
     tables = { topCreators: phaseData.topCreators||[], topVideos: phaseData.topVideos||[], activeCreators: phaseData.activeCreators||[] }
     agents = Array.isArray(phaseData.agents) ? phaseData.agents : []
@@ -151,10 +152,10 @@ RULES: Always specify year 2026 in queries. Read every CSV with read_sandbox_fil
 PART A — KPI & TABLE QUERIES:
 1. Current 30d totals: GMV, orders, videos posted, views, creators posted, new creators, retention rate
 2. Prior 30d: same totals for % change calculations
-3. Current 30d by creator tier (G1 = global gmv_30d <$25K, G2 = $25K–$100K, G3 = >$100K): creators, new creators, videos, views, store GMV
-4. Current 30d outreach by tier: messages sent + samples shipped + overall totals
-5. Prior 30d outreach: totals + by tier
-6. GMV Max current 30d: total ad spend, attributed revenue, blended ROI; also break down ad spend + ROI by creator tier (G1 <$25K, G2 $25K–$100K, G3 >$100K global gmv_30d). Use 0 for all if before May 14 2026. Also break down spend by content age — buckets based on video publish date vs ${w.d30.end}: "< 30 days" (posted ${w.d30.start}–${w.d30.end}), "1–2 months" (31–60 days before ${w.d30.end}), "2–3 months" (61–90 days), "3–5 months" (91–150 days), "5+ months" (151+ days), "Unknown post date" (publish date missing or unavailable). For each non-empty bucket include: label, videos (count), spend, revenue, roi (revenue/spend, 0 if no spend), pct (spend as % of total spend).
+3. Current 30d by creator level (L1 = global gmv_30d <$5K, L2 = $5K–$25K, L3 = $25K–$60K, L4 = $60K–$150K, L5 = $150K–$400K, L6 = $400K–$1.5M, L7 = $1.5M+): creators, new creators, videos, views, store GMV
+4. Current 30d outreach by level: messages sent + samples shipped + overall totals
+5. Prior 30d outreach: totals + by level
+6. GMV Max current 30d: total ad spend, attributed revenue, blended ROI; also break down ad spend + ROI by creator level (L1–L7 global gmv_30d thresholds). Use 0 for all if before May 14 2026. Also break down spend by content age — buckets based on video publish date vs ${w.d30.end}: "< 30 days" (posted ${w.d30.start}–${w.d30.end}), "1–2 months" (31–60 days before ${w.d30.end}), "2–3 months" (61–90 days), "3–5 months" (91–150 days), "5+ months" (151+ days), "Unknown post date" (publish date missing or unavailable). For each non-empty bucket include: label, videos (count), spend, revenue, roi (revenue/spend, 0 if no spend), pct (spend as % of total spend).
 7. Top 15 creators by store GMV — handle, followers, store GMV, global gmv_30d, views, videos L30d, videos w/GMV L30d, lifetime videos, videos L7d, orders, AOV, engagement rate
 8. Top 15 videos by store GMV — creator handle, product name, GMV, views, orders, AOV, publish date, likes, comments, product clicks
 9. Top 15 creators by videos posted — handle, followers, GMV from new-period videos only, total store GMV, views, avg views/video, orders
@@ -164,8 +165,8 @@ Product name shortening: "Hard Bottom Backseat Extenders for Dogs with Door Prot
 PART B — OUTREACH & CRM AGENTS:
 List all outreach and CRM agents created since ${w.d30.start}.
 - Call list_outreach_agents with botStatus=["running","stopped","error"], limit=25, archived=false, storeId=${storeId}
-- Run for agentType="outreach" with searchQuery: "", "G1", "G2", "G3", "Video Volume", "GMV Contest", "New Agent"
-- Run for agentType="crm" with searchQuery: "", "G1", "G2", "G3", "New Agent", "Video Volume", "GMV Contest", "Tiktoktshopbonus"
+- Run for agentType="outreach" with searchQuery: "", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "Video Volume", "GMV Contest", "New Agent"
+- Run for agentType="crm" with searchQuery: "", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "New Agent", "Video Volume", "GMV Contest", "Tiktoktshopbonus"
 - Deduplicate by id, keep only agents with created_time >= ${w.d30.start}
 - Completeness guard: if any bucket hits 25 results AND total > 25, add narrower date-string queries until no bucket overflows
 - For EVERY in-window agent call get_outreach_agent(campaignId=id, storeId=${storeId}) to get filter/commission details
@@ -179,13 +180,17 @@ OUTPUT — respond with ONLY this JSON object, nothing before or after:
     "creators": 0, "creatorsPct": 0, "newCreators": 0, "newCreatorsPct": 0,
     "retention": 0, "retentionDelta": 0,
     "gmvMax": { "spend": 0, "revenue": 0, "roi": 0 },
-    "gmvMaxByTier": { "g1": { "spend": 0, "roi": 0 }, "g2": { "spend": 0, "roi": 0 }, "g3": { "spend": 0, "roi": 0 } },
+    "gmvMaxByLevel": { "l1":{"spend":0,"roi":0},"l2":{"spend":0,"roi":0},"l3":{"spend":0,"roi":0},"l4":{"spend":0,"roi":0},"l5":{"spend":0,"roi":0},"l6":{"spend":0,"roi":0},"l7":{"spend":0,"roi":0} },
     "gmvMaxByAge": [{ "label":"< 30 days","videos":0,"spend":0,"revenue":0,"roi":0,"pct":0 }],
     "msgs": 0, "msgsPct": 0, "samples": 0, "samplesPct": 0,
     "tiers": {
-      "g1": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
-      "g2": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
-      "g3": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 }
+      "l1": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
+      "l2": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
+      "l3": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
+      "l4": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
+      "l5": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
+      "l6": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
+      "l7": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 }
     }
   },
   "tables": {

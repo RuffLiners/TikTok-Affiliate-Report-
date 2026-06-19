@@ -37,39 +37,39 @@ export interface D30Data {
   msgsPct: number
   samples: number
   samplesPct: number
-  tiers: { g1: TierData; g2: TierData; g3: TierData }
+  tiers: { l1: TierData; l2: TierData; l3: TierData; l4: TierData; l5: TierData; l6: TierData; l7: TierData }
 }
 
 export interface WeeklyCharts {
   labels: string[]
   gmv: number[]
   views: number[]
-  crg1: number[]; crg2: number[]; crg3: number[]
-  ncg1: number[]; ncg2: number[]; ncg3: number[]
-  vg1: number[];  vg2: number[];  vg3: number[]
-  gg1: number[];  gg2: number[];  gg3: number[]
-  vwg1: number[]; vwg2: number[]; vwg3: number[]
+  crl1: number[]; crl2: number[]; crl3: number[]; crl4: number[]; crl5: number[]; crl6: number[]; crl7: number[]
+  ncl1: number[]; ncl2: number[]; ncl3: number[]; ncl4: number[]; ncl5: number[]; ncl6: number[]; ncl7: number[]
+  vl1: number[];  vl2: number[];  vl3: number[];  vl4: number[];  vl5: number[];  vl6: number[];  vl7: number[]
+  gl1: number[];  gl2: number[];  gl3: number[];  gl4: number[];  gl5: number[];  gl6: number[];  gl7: number[]
+  vwl1: number[]; vwl2: number[]; vwl3: number[]; vwl4: number[]; vwl5: number[]; vwl6: number[]; vwl7: number[]
   ret: number[]
   vid: number[]
-  mg1: number[]; mg2: number[]; mg3: number[]
-  sg1: number[]; sg2: number[]; sg3: number[]
-  sag1?: number[]; sag2?: number[]; sag3?: number[]  // samples approved per tier per week
+  ml1: number[]; ml2: number[]; ml3: number[]; ml4: number[]; ml5: number[]; ml6: number[]; ml7: number[]
+  sl1: number[]; sl2: number[]; sl3: number[]; sl4: number[]; sl5: number[]; sl6: number[]; sl7: number[]
+  sal1?: number[]; sal2?: number[]; sal3?: number[]; sal4?: number[]; sal5?: number[]; sal6?: number[]; sal7?: number[]
 }
 
 export interface MonthlyCharts {
   labels: string[]
   gmv: number[]
-  totalGmv?: number[]  // total account GMV per month (affiliate + product cards + in-house)
+  totalGmv?: number[]
   views: number[]
-  crg1: number[]; crg2: number[]; crg3: number[]
-  ncg1: number[]; ncg2: number[]; ncg3: number[]
-  vg1: number[];  vg2: number[];  vg3: number[]
-  gg1: number[];  gg2: number[];  gg3: number[]
-  vwg1: number[]; vwg2: number[]; vwg3: number[]
+  crl1: number[]; crl2: number[]; crl3: number[]; crl4: number[]; crl5: number[]; crl6: number[]; crl7: number[]
+  ncl1: number[]; ncl2: number[]; ncl3: number[]; ncl4: number[]; ncl5: number[]; ncl6: number[]; ncl7: number[]
+  vl1: number[];  vl2: number[];  vl3: number[];  vl4: number[];  vl5: number[];  vl6: number[];  vl7: number[]
+  gl1: number[];  gl2: number[];  gl3: number[];  gl4: number[];  gl5: number[];  gl6: number[];  gl7: number[]
+  vwl1: number[]; vwl2: number[]; vwl3: number[]; vwl4: number[]; vwl5: number[]; vwl6: number[]; vwl7: number[]
   ret: number[]
-  mg1: number[]; mg2: number[]; mg3: number[]
-  sg1: number[]; sg2: number[]; sg3: number[]
-  sag1?: number[]; sag2?: number[]; sag3?: number[]  // samples approved per tier per month
+  ml1: number[]; ml2: number[]; ml3: number[]; ml4: number[]; ml5: number[]; ml6: number[]; ml7: number[]
+  sl1: number[]; sl2: number[]; sl3: number[]; sl4: number[]; sl5: number[]; sl6: number[]; sl7: number[]
+  sal1?: number[]; sal2?: number[]; sal3?: number[]; sal4?: number[]; sal5?: number[]; sal6?: number[]; sal7?: number[]
 }
 
 export interface Creator {
@@ -109,7 +109,7 @@ export interface Goals {
   quarterlyGmvTarget?: number;  quarterlyPeriod?: string
   // Videos per month
   monthlyVideosTarget?: number;   monthlyVideosPeriod?: string
-  monthlyVideosG1Target?: number; monthlyVideosG2Target?: number; monthlyVideosG3Target?: number
+  monthlyVideosL1Target?: number; monthlyVideosL2Target?: number; monthlyVideosL3Target?: number; monthlyVideosL4Target?: number; monthlyVideosL5Target?: number; monthlyVideosL6Target?: number; monthlyVideosL7Target?: number
   // Samples per month
   monthlySamplesTarget?: number;  monthlySamplesPeriod?: string
   // GMV Max Spend
@@ -119,10 +119,10 @@ export interface Goals {
   monthlyGmvMaxRoiTarget?: number;    monthlyGmvMaxRoiPeriod?: string
   quarterlyGmvMaxRoiTarget?: number;  quarterlyGmvMaxRoiPeriod?: string
   // Active creators (30-day) per tier
-  activeG1Target?: number; activeG2Target?: number; activeG3Target?: number
+  activeL1Target?: number; activeL2Target?: number; activeL3Target?: number; activeL4Target?: number; activeL5Target?: number; activeL6Target?: number; activeL7Target?: number
   // Legacy fields (kept for backward compat)
   weeklyVideosTarget?: number
-  weeklyVideosG1Target?: number; weeklyVideosG2Target?: number; weeklyVideosG3Target?: number
+  weeklyVideosL1Target?: number; weeklyVideosL2Target?: number; weeklyVideosL3Target?: number; weeklyVideosL4Target?: number; weeklyVideosL5Target?: number; weeklyVideosL6Target?: number; weeklyVideosL7Target?: number
 }
 
 export interface WeeklyReport {
