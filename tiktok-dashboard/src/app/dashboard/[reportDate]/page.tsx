@@ -135,9 +135,9 @@ export default async function ReportPage({ params }: Props) {
   const wc = report.weekly_charts
   const lastWeekGmv   = wc.gmv.at(-1) ?? 0
   const lastWeekVid   = wc.vid.at(-1) ?? 0
-  const lastWeekVidG1 = wc.vg1.at(-1) ?? 0
-  const lastWeekVidG2 = wc.vg2.at(-1) ?? 0
-  const lastWeekVidG3 = wc.vg3.at(-1) ?? 0
+  const lastWeekVidG1 = (wc.vl1?.at(-1) ?? wc.vg1?.at(-1) ?? 0)
+  const lastWeekVidG2 = (wc.vl2?.at(-1) ?? wc.vg2?.at(-1) ?? 0)
+  const lastWeekVidG3 = (wc.vl3?.at(-1) ?? wc.vg3?.at(-1) ?? 0)
   const lastWeekLabel = wc.labels.at(-1) ?? ''
   const mc = report.monthly_charts
   const currentMonthGmv   = mc.gmv.at(-1) ?? 0
@@ -152,14 +152,19 @@ export default async function ReportPage({ params }: Props) {
   const qtdTotalGmv = mc.totalGmv && mc.totalGmv.some((v: number) => v > 0)
     ? mc.totalGmv.slice(-3).reduce((a: number, b: number) => a + b, 0)
     : qtdGmv
-  const mtdVidG1  = mc.vg1.at(-1) ?? 0
-  const mtdVidG2  = mc.vg2.at(-1) ?? 0
-  const mtdVidG3  = mc.vg3.at(-1) ?? 0
-  const mtdVideos = mtdVidG1 + mtdVidG2 + mtdVidG3
-  const mtdSamplesShipped  = (mc.sg1.at(-1) ?? 0) + (mc.sg2.at(-1) ?? 0) + (mc.sg3.at(-1) ?? 0)
-  const mtdSamplesApproved = mc.sag1 && mc.sag2 && mc.sag3
-    ? (mc.sag1.at(-1) ?? 0) + (mc.sag2.at(-1) ?? 0) + (mc.sag3.at(-1) ?? 0)
-    : mtdSamplesShipped
+  const mtdVidG1  = (mc.vl1?.at(-1) ?? mc.vg1?.at(-1) ?? 0)
+  const mtdVidG2  = (mc.vl2?.at(-1) ?? mc.vg2?.at(-1) ?? 0)
+  const mtdVidG3  = (mc.vl3?.at(-1) ?? mc.vg3?.at(-1) ?? 0)
+  const mtdVidG4  = mc.vl4?.at(-1) ?? 0
+  const mtdVidG5  = mc.vl5?.at(-1) ?? 0
+  const mtdVidG6  = mc.vl6?.at(-1) ?? 0
+  const mtdVidG7  = mc.vl7?.at(-1) ?? 0
+  const mtdVideos = mtdVidG1 + mtdVidG2 + mtdVidG3 + mtdVidG4 + mtdVidG5 + mtdVidG6 + mtdVidG7
+  const sl = (k: string) => (mc as any)[k]?.at(-1) ?? 0
+  const mtdSamplesShipped  = sl('sl1') + sl('sl2') + sl('sl3') + sl('sl4') + sl('sl5') + sl('sl6') + sl('sl7')
+    || (mc as any).sg1?.at(-1) ?? 0 + ((mc as any).sg2?.at(-1) ?? 0) + ((mc as any).sg3?.at(-1) ?? 0)
+  const salSum = sl('sal1') + sl('sal2') + sl('sal3') + sl('sal4') + sl('sal5') + sl('sal6') + sl('sal7')
+  const mtdSamplesApproved = salSum > 0 ? salSum : mtdSamplesShipped
   const mtdSamples = mtdSamplesApproved
   const safe = (v: number) => monthPct > 0 ? v / monthPct : v
   const projGmv     = safe(mtdGmv)
@@ -167,12 +172,24 @@ export default async function ReportPage({ params }: Props) {
   const projVidG1   = safe(mtdVidG1)
   const projVidG2   = safe(mtdVidG2)
   const projVidG3   = safe(mtdVidG3)
+  const projVidG4   = safe(mtdVidG4)
+  const projVidG5   = safe(mtdVidG5)
+  const projVidG6   = safe(mtdVidG6)
+  const projVidG7   = safe(mtdVidG7)
   const projSamples = safe(mtdSamples)
 
   // Trends from last 4 weeks
   const gmvTrend = calcTrend(wc.gmv)
   const vidTrend = calcTrend(wc.vid)
-  const weeklyTotalSamples = (wc.sag1 ?? wc.sg1).map((v: number, i: number) => v + ((wc.sag2 ?? wc.sg2)[i] ?? 0) + ((wc.sag3 ?? wc.sg3)[i] ?? 0))
+  const wsl = (k: string) => (wc as any)[k] ?? []
+  const weeklyTotalSamples = (wsl('sal1').length ? wsl('sal1') : wsl('sl1')).map((v: number, i: number) =>
+    v + (wsl('sal2')[i] ?? wsl('sl2')[i] ?? 0)
+      + (wsl('sal3')[i] ?? wsl('sl3')[i] ?? 0)
+      + (wsl('sal4')[i] ?? wsl('sl4')[i] ?? 0)
+      + (wsl('sal5')[i] ?? wsl('sl5')[i] ?? 0)
+      + (wsl('sal6')[i] ?? wsl('sl6')[i] ?? 0)
+      + (wsl('sal7')[i] ?? wsl('sl7')[i] ?? 0)
+  )
   const sampTrend = calcTrend(weeklyTotalSamples)
 
   // 30d totals used as monthly proxies
@@ -296,7 +313,7 @@ export default async function ReportPage({ params }: Props) {
                   )}
 
                   {/* Videos per month */}
-                  {(goals.monthlyVideosTarget || goals.monthlyVideosG1Target || goals.monthlyVideosG2Target || goals.monthlyVideosG3Target) && (
+                  {(goals.monthlyVideosTarget || goals.monthlyVideosL1Target || goals.monthlyVideosL2Target || goals.monthlyVideosL3Target || goals.monthlyVideosL4Target || goals.monthlyVideosL5Target || goals.monthlyVideosL6Target || goals.monthlyVideosL7Target) && (
                     <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
                         Videos · {goals.monthlyVideosPeriod ?? currentMonthLabel}
@@ -304,14 +321,26 @@ export default async function ReportPage({ params }: Props) {
                       {goals.monthlyVideosTarget && (
                         <MonthlyTargetRow label="Total" mtd={mtdVideos} projected={projVideos} target={goals.monthlyVideosTarget} trend={vidTrend} monthPct={monthPct} />
                       )}
-                      {goals.monthlyVideosG1Target && (
-                        <MonthlyTargetRow label="G1" mtd={mtdVidG1} projected={projVidG1} target={goals.monthlyVideosG1Target} monthPct={monthPct} />
+                      {goals.monthlyVideosL1Target && (
+                        <MonthlyTargetRow label="L1" mtd={mtdVidG1} projected={projVidG1} target={goals.monthlyVideosL1Target} monthPct={monthPct} />
                       )}
-                      {goals.monthlyVideosG2Target && (
-                        <MonthlyTargetRow label="G2" mtd={mtdVidG2} projected={projVidG2} target={goals.monthlyVideosG2Target} monthPct={monthPct} />
+                      {goals.monthlyVideosL2Target && (
+                        <MonthlyTargetRow label="L2" mtd={mtdVidG2} projected={projVidG2} target={goals.monthlyVideosL2Target} monthPct={monthPct} />
                       )}
-                      {goals.monthlyVideosG3Target && (
-                        <MonthlyTargetRow label="G3" mtd={mtdVidG3} projected={projVidG3} target={goals.monthlyVideosG3Target} monthPct={monthPct} />
+                      {goals.monthlyVideosL3Target && (
+                        <MonthlyTargetRow label="L3" mtd={mtdVidG3} projected={projVidG3} target={goals.monthlyVideosL3Target} monthPct={monthPct} />
+                      )}
+                      {goals.monthlyVideosL4Target && (
+                        <MonthlyTargetRow label="L4" mtd={mtdVidG4} projected={projVidG4} target={goals.monthlyVideosL4Target} monthPct={monthPct} />
+                      )}
+                      {goals.monthlyVideosL5Target && (
+                        <MonthlyTargetRow label="L5" mtd={mtdVidG5} projected={projVidG5} target={goals.monthlyVideosL5Target} monthPct={monthPct} />
+                      )}
+                      {goals.monthlyVideosL6Target && (
+                        <MonthlyTargetRow label="L6" mtd={mtdVidG6} projected={projVidG6} target={goals.monthlyVideosL6Target} monthPct={monthPct} />
+                      )}
+                      {goals.monthlyVideosL7Target && (
+                        <MonthlyTargetRow label="L7" mtd={mtdVidG7} projected={projVidG7} target={goals.monthlyVideosL7Target} monthPct={monthPct} />
                       )}
                     </div>
                   )}
@@ -371,17 +400,29 @@ export default async function ReportPage({ params }: Props) {
                   )}
 
                   {/* Active Creators */}
-                  {(goals.activeG1Target || goals.activeG2Target || goals.activeG3Target) && (
+                  {(goals.activeL1Target || goals.activeL2Target || goals.activeL3Target || goals.activeL4Target || goals.activeL5Target || goals.activeL6Target || goals.activeL7Target) && (
                     <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Active Creators · 30-Day</p>
-                      {goals.activeG1Target && (
-                        <TargetRow label="G1" actual={d.tiers.g1.creators} target={goals.activeG1Target} />
+                      {goals.activeL1Target && (
+                        <TargetRow label="L1" actual={d.tiers.l1?.creators ?? 0} target={goals.activeL1Target} />
                       )}
-                      {goals.activeG2Target && (
-                        <TargetRow label="G2" actual={d.tiers.g2.creators} target={goals.activeG2Target} />
+                      {goals.activeL2Target && (
+                        <TargetRow label="L2" actual={d.tiers.l2?.creators ?? 0} target={goals.activeL2Target} />
                       )}
-                      {goals.activeG3Target && (
-                        <TargetRow label="G3" actual={d.tiers.g3.creators} target={goals.activeG3Target} />
+                      {goals.activeL3Target && (
+                        <TargetRow label="L3" actual={d.tiers.l3?.creators ?? 0} target={goals.activeL3Target} />
+                      )}
+                      {goals.activeL4Target && (
+                        <TargetRow label="L4" actual={d.tiers.l4?.creators ?? 0} target={goals.activeL4Target} />
+                      )}
+                      {goals.activeL5Target && (
+                        <TargetRow label="L5" actual={d.tiers.l5?.creators ?? 0} target={goals.activeL5Target} />
+                      )}
+                      {goals.activeL6Target && (
+                        <TargetRow label="L6" actual={d.tiers.l6?.creators ?? 0} target={goals.activeL6Target} />
+                      )}
+                      {goals.activeL7Target && (
+                        <TargetRow label="L7" actual={d.tiers.l7?.creators ?? 0} target={goals.activeL7Target} />
                       )}
                     </div>
                   )}

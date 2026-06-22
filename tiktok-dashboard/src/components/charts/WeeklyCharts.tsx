@@ -173,9 +173,13 @@ export function WeeklyCharts({ data }: Props) {
               <ResponsiveContainer width="100%" height={ht}>
                 <BarChart data={vwRows} barCategoryGap="25%">
                   {axis}{yaxis(fmtK)}{tip}
-                  <Bar dataKey="g1" stackId="a" fill={G1} />
-                  <Bar dataKey="g2" stackId="a" fill={G2} />
-                  <Bar dataKey="g3" stackId="a" fill={G3} radius={[3,3,0,0]} />
+                  <Bar dataKey="l1" stackId="a" fill={L1} />
+                  <Bar dataKey="l2" stackId="a" fill={L2} />
+                  <Bar dataKey="l3" stackId="a" fill={L3} />
+                  <Bar dataKey="l4" stackId="a" fill={L4} />
+                  <Bar dataKey="l5" stackId="a" fill={L5} />
+                  <Bar dataKey="l6" stackId="a" fill={L6} />
+                  <Bar dataKey="l7" stackId="a" fill={L7} radius={[3,3,0,0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (

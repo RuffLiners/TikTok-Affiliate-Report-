@@ -38,14 +38,14 @@ list_outreach_agents caps at limit=25 per call and has no pagination. On every c
 Run these searches:
 
 OUTREACH (agentType="outreach"), searchQuery =
-"", "G1", "G2", "G3", "Video Volume", "GMV Contest", "New Agent"
+"", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "Video Volume", "GMV Contest", "New Agent"
 
 CRM (agentType="crm"), searchQuery =
-"", "G1", "G2", "G3", "New Agent", "Video Volume", "GMV Contest", "Tiktoktshopbonus"
+"", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "New Agent", "Video Volume", "GMV Contest", "Tiktoktshopbonus"
 
 Merge all results → deduplicate by id → drop any agent with created_time older than ${startDate}.
 
-Completeness guard. Each response includes a total. If, for any single searchQuery, your in-window count for that bucket hits the 25-row cap AND that call's total > 25, the bucket overflowed — add narrower date-string queries for it (e.g. "G2 - 5/2", "G2 - 5/1", "G2 - 4/3") and repeat until no in-window bucket is truncated. If you cannot confirm full in-window coverage, stop and report the gap — never return a partial array.
+Completeness guard. Each response includes a total. If, for any single searchQuery, your in-window count for that bucket hits the 25-row cap AND that call's total > 25, the bucket overflowed — add narrower date-string queries for it (e.g. "L2 - 5/2", "L2 - 5/1", "L2 - 4/3") and repeat until no in-window bucket is truncated. If you cannot confirm full in-window coverage, stop and report the gap — never return a partial array.
 
 ## STEP 2 — Enrich
 

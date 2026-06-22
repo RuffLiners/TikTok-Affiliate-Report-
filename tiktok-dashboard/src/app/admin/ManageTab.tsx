@@ -88,13 +88,15 @@ export function ManageTab() {
     monthlyGmvTarget?: number;    monthlyPeriod?: string
     quarterlyGmvTarget?: number;  quarterlyPeriod?: string
     monthlyVideosTarget?: number; monthlyVideosPeriod?: string
-    monthlyVideosG1Target?: number; monthlyVideosG2Target?: number; monthlyVideosG3Target?: number
+    monthlyVideosL1Target?: number; monthlyVideosL2Target?: number; monthlyVideosL3Target?: number
+    monthlyVideosL4Target?: number; monthlyVideosL5Target?: number; monthlyVideosL6Target?: number; monthlyVideosL7Target?: number
     monthlySamplesTarget?: number;  monthlySamplesPeriod?: string
     monthlyGmvMaxSpendTarget?: number;   monthlyGmvMaxSpendPeriod?: string
     quarterlyGmvMaxSpendTarget?: number; quarterlyGmvMaxSpendPeriod?: string
     monthlyGmvMaxRoiTarget?: number;     monthlyGmvMaxRoiPeriod?: string
     quarterlyGmvMaxRoiTarget?: number;   quarterlyGmvMaxRoiPeriod?: string
-    activeG1Target?: number; activeG2Target?: number; activeG3Target?: number
+    activeL1Target?: number; activeL2Target?: number; activeL3Target?: number
+    activeL4Target?: number; activeL5Target?: number; activeL6Target?: number; activeL7Target?: number
   }>({})
   const [goalsStatus, setGoalsStatus] = useState<'idle'|'saving'|'success'|'error'>('idle')
   const [goalsError, setGoalsError] = useState('')
@@ -570,9 +572,13 @@ export function ManageTab() {
             <div className="grid grid-cols-4 gap-3">
               {([
                 { key: 'monthlyVideosTarget',    label: 'Total' },
-                { key: 'monthlyVideosG1Target',  label: 'G1' },
-                { key: 'monthlyVideosG2Target',  label: 'G2' },
-                { key: 'monthlyVideosG3Target',  label: 'G3' },
+                { key: 'monthlyVideosL1Target',  label: 'L1' },
+                { key: 'monthlyVideosL2Target',  label: 'L2' },
+                { key: 'monthlyVideosL3Target',  label: 'L3' },
+                { key: 'monthlyVideosL4Target',  label: 'L4' },
+                { key: 'monthlyVideosL5Target',  label: 'L5' },
+                { key: 'monthlyVideosL6Target',  label: 'L6' },
+                { key: 'monthlyVideosL7Target',  label: 'L7' },
               ] as const).map(({ key, label }) => (
                 <div key={key}>
                   <label className="text-xs font-medium text-gray-600 block mb-1">{label}</label>
@@ -684,11 +690,15 @@ export function ManageTab() {
           {/* Active Creators */}
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Active Creators (30-day)</p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-4 gap-3">
               {([
-                { key: 'activeG1Target', label: 'G1' },
-                { key: 'activeG2Target', label: 'G2' },
-                { key: 'activeG3Target', label: 'G3' },
+                { key: 'activeL1Target', label: 'L1' },
+                { key: 'activeL2Target', label: 'L2' },
+                { key: 'activeL3Target', label: 'L3' },
+                { key: 'activeL4Target', label: 'L4' },
+                { key: 'activeL5Target', label: 'L5' },
+                { key: 'activeL6Target', label: 'L6' },
+                { key: 'activeL7Target', label: 'L7' },
               ] as const).map(({ key, label }) => (
                 <div key={key}>
                   <label className="text-xs font-medium text-gray-600 block mb-1">{label}</label>
