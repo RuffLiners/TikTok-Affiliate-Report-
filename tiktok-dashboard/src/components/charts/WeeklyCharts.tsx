@@ -1,47 +1,25 @@
 'use client'
+import { useState } from 'react'
 import { WeeklyCharts as WC } from '@/lib/types'
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell
 } from 'recharts'
+import { TierFilter, TIERS, TierKey, ALL_TIERS } from './TierFilter'
 
-const L1 = '#94a3b8'
-const L2 = '#3b82f6'
-const L3 = '#22c55e'
-const L4 = '#14b8a6'
-const L5 = '#84cc16'
-const L6 = '#f59e0b'
-const L7 = '#f97316'
-
-const Legend = ({ items }: { items: { color: string; label: string }[] }) => (
-  <div className="flex gap-3 mb-1 flex-wrap">
-    {items.map(it => (
-      <span key={it.label} className="flex items-center gap-1 text-xs text-gray-500">
-        <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: it.color }} />
-        {it.label}
-      </span>
-    ))}
-  </div>
-)
-
-const tierLegend = [
-  { color: L1, label: 'L1' }, { color: L2, label: 'L2' }, { color: L3, label: 'L3' },
-  { color: L4, label: 'L4' }, { color: L5, label: 'L5' }, { color: L6, label: 'L6' }, { color: L7, label: 'L7' }
-]
+const TIER_COLOR = Object.fromEntries(TIERS.map(t => [t.key, t.color])) as Record<TierKey, string>
 
 const fmtK = (v: number) => v >= 1000000 ? (v / 1000000).toFixed(1) + 'M' : v >= 1000 ? (v / 1000).toFixed(0) + 'K' : String(v)
 const fmtDollar = (v: number) => '$' + fmtK(v)
 
 interface ChartCardProps {
   title: string
-  legend?: { color: string; label: string }[]
   children: React.ReactNode
 }
 
-function ChartCard({ title, legend, children }: ChartCardProps) {
+function ChartCard({ title, children }: ChartCardProps) {
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-4">
       <p className="text-xs font-semibold text-gray-500 mb-2">{title}</p>
-      {legend && <Legend items={legend} />}
       {children}
     </div>
   )
@@ -85,6 +63,11 @@ export function WeeklyCharts({ data }: Props) {
   const tip$ = <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any, n: any) => ['$' + fmtFull(v), tierName(n)]} />
   const tipPct = <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any) => Number(v).toFixed(1) + '%'} />
 
+  const [activeTiers, setActiveTiers] = useState<TierKey[]>(ALL_TIERS)
+  const shownTiers = activeTiers.length ? activeTiers : ALL_TIERS
+  const tierBars = () => shownTiers.map((k, i) =>
+    <Bar key={k} dataKey={k} stackId="a" fill={TIER_COLOR[k]} radius={i === shownTiers.length - 1 ? [3,3,0,0] : undefined} />)
+
   return (
     <div className="space-y-6">
       {/* Top-line */}
@@ -111,79 +94,50 @@ export function WeeklyCharts({ data }: Props) {
       {/* Creator metrics by tier */}
       <div>
         <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Creator Metrics · by Tier</h3>
+        <TierFilter active={activeTiers} onChange={setActiveTiers} />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <ChartCard title="Creators Posted" legend={tierLegend}>
+          <ChartCard title="Creators Posted">
             <ResponsiveContainer width="100%" height={ht}>
               <BarChart data={crRows} barCategoryGap="25%">
                 {axis}{yaxis(String)}{tip}
-                <Bar dataKey="l1" stackId="a" fill={L1} />
-                <Bar dataKey="l2" stackId="a" fill={L2} />
-                <Bar dataKey="l3" stackId="a" fill={L3} />
-                <Bar dataKey="l4" stackId="a" fill={L4} />
-                <Bar dataKey="l5" stackId="a" fill={L5} />
-                <Bar dataKey="l6" stackId="a" fill={L6} />
-                <Bar dataKey="l7" stackId="a" fill={L7} radius={[3,3,0,0]} />
+                {tierBars()}
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
 
-          <ChartCard title="New Creators" legend={tierLegend}>
+          <ChartCard title="New Creators">
             <ResponsiveContainer width="100%" height={ht}>
               <BarChart data={ncRows} barCategoryGap="25%">
                 {axis}{yaxis(String)}{tip}
-                <Bar dataKey="l1" stackId="a" fill={L1} />
-                <Bar dataKey="l2" stackId="a" fill={L2} />
-                <Bar dataKey="l3" stackId="a" fill={L3} />
-                <Bar dataKey="l4" stackId="a" fill={L4} />
-                <Bar dataKey="l5" stackId="a" fill={L5} />
-                <Bar dataKey="l6" stackId="a" fill={L6} />
-                <Bar dataKey="l7" stackId="a" fill={L7} radius={[3,3,0,0]} />
+                {tierBars()}
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
 
-          <ChartCard title="Videos Posted" legend={tierLegend}>
+          <ChartCard title="Videos Posted">
             <ResponsiveContainer width="100%" height={ht}>
               <BarChart data={vRows} barCategoryGap="25%">
                 {axis}{yaxis(String)}{tip}
-                <Bar dataKey="l1" stackId="a" fill={L1} />
-                <Bar dataKey="l2" stackId="a" fill={L2} />
-                <Bar dataKey="l3" stackId="a" fill={L3} />
-                <Bar dataKey="l4" stackId="a" fill={L4} />
-                <Bar dataKey="l5" stackId="a" fill={L5} />
-                <Bar dataKey="l6" stackId="a" fill={L6} />
-                <Bar dataKey="l7" stackId="a" fill={L7} radius={[3,3,0,0]} />
+                {tierBars()}
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
 
-          <ChartCard title="GMV by Tier" legend={tierLegend}>
+          <ChartCard title="GMV by Tier">
             <ResponsiveContainer width="100%" height={ht}>
               <BarChart data={ggRows} barCategoryGap="25%">
                 {axis}{yaxis(fmtDollar)}{tip$}
-                <Bar dataKey="l1" stackId="a" fill={L1} />
-                <Bar dataKey="l2" stackId="a" fill={L2} />
-                <Bar dataKey="l3" stackId="a" fill={L3} />
-                <Bar dataKey="l4" stackId="a" fill={L4} />
-                <Bar dataKey="l5" stackId="a" fill={L5} />
-                <Bar dataKey="l6" stackId="a" fill={L6} />
-                <Bar dataKey="l7" stackId="a" fill={L7} radius={[3,3,0,0]} />
+                {tierBars()}
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
 
-          <ChartCard title="Views by Tier" legend={tierLegend}>
+          <ChartCard title="Views by Tier">
             {hasVwData ? (
               <ResponsiveContainer width="100%" height={ht}>
                 <BarChart data={vwRows} barCategoryGap="25%">
                   {axis}{yaxis(fmtK)}{tip}
-                  <Bar dataKey="l1" stackId="a" fill={L1} />
-                  <Bar dataKey="l2" stackId="a" fill={L2} />
-                  <Bar dataKey="l3" stackId="a" fill={L3} />
-                  <Bar dataKey="l4" stackId="a" fill={L4} />
-                  <Bar dataKey="l5" stackId="a" fill={L5} />
-                  <Bar dataKey="l6" stackId="a" fill={L6} />
-                  <Bar dataKey="l7" stackId="a" fill={L7} radius={[3,3,0,0]} />
+                  {tierBars()}
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -222,33 +176,22 @@ export function WeeklyCharts({ data }: Props) {
       {/* Recruiting */}
       <div>
         <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Recruiting · by Tier</h3>
+        <TierFilter active={activeTiers} onChange={setActiveTiers} />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <ChartCard title="Messages Sent" legend={tierLegend}>
+          <ChartCard title="Messages Sent">
             <ResponsiveContainer width="100%" height={ht}>
               <BarChart data={mgRows} barCategoryGap="25%">
                 {axis}{yaxis(fmtK)}{tip}
-                <Bar dataKey="l1" stackId="a" fill={L1} />
-                <Bar dataKey="l2" stackId="a" fill={L2} />
-                <Bar dataKey="l3" stackId="a" fill={L3} />
-                <Bar dataKey="l4" stackId="a" fill={L4} />
-                <Bar dataKey="l5" stackId="a" fill={L5} />
-                <Bar dataKey="l6" stackId="a" fill={L6} />
-                <Bar dataKey="l7" stackId="a" fill={L7} radius={[3,3,0,0]} />
+                {tierBars()}
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
 
-          <ChartCard title="Samples Shipped" legend={tierLegend}>
+          <ChartCard title="Samples Shipped">
             <ResponsiveContainer width="100%" height={ht}>
               <BarChart data={sgRows} barCategoryGap="25%">
                 {axis}{yaxis(String)}{tip}
-                <Bar dataKey="l1" stackId="a" fill={L1} />
-                <Bar dataKey="l2" stackId="a" fill={L2} />
-                <Bar dataKey="l3" stackId="a" fill={L3} />
-                <Bar dataKey="l4" stackId="a" fill={L4} />
-                <Bar dataKey="l5" stackId="a" fill={L5} />
-                <Bar dataKey="l6" stackId="a" fill={L6} />
-                <Bar dataKey="l7" stackId="a" fill={L7} radius={[3,3,0,0]} />
+                {tierBars()}
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>

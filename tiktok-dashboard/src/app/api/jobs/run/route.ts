@@ -253,8 +253,6 @@ Output ONLY: {"d30":"para1\\n\\npara2\\n\\npara3\\n\\npara4\\n\\npara5","weekly"
   }
 }
 
-const LIVE_SAVE_AFTER = 11  // live_refresh saves after phase 11 (KPIs + agents + all 3 tables complete)
-const TOTAL_PHASES = 20
 
 function assemble(w: ReturnType<typeof buildWindows>, pd: any, analysis: any) {
   const a1=pd.A1||{}, a2=pd.A2||{}, a3=pd.A3||{}, a4=pd.A4||{total:{}}, a5=pd.A5||{total:{}}, a6=pd.A6||{}
@@ -420,16 +418,87 @@ function extractJson(text: string): any {
   }
 }
 
-// A phase's label gains this suffix when it finishes; the bare phase label
-// means it is still running (or its runner died before completing it)
-const PHASE_ENDED_RE = /done|unavailable|complete|✓/i
-// Label set when a phase failed transiently (timeout, overloaded API) and
-// should be re-run by the next kick without waiting for the in-flight window
-const PHASE_RETRY_RE = /retrying/i
+// ── Parallel phase orchestration ────────────────────────────────────────────
+// Per-phase state lives in phase_data._ph: { [phase]: { s, t, a } } where
+// s = 'run' | 'done' | 'retry', t = start epoch ms, a = attempts so far.
+// Data phases (1-18 weekly, 1-11 live) are independent Euka pulls and run
+// concurrently; analysis (19) needs all data; save (20) needs analysis.
 const MAX_PHASE_ATTEMPTS = 3
-// A kick within this window of a still-running phase is a no-op, so browser
-// retries and multiple tabs can't double-run a phase
+// A run-marked phase younger than this is treated as still executing; older
+// means its runner died (deploy, crash, platform kill) and it may be re-claimed
 const IN_FLIGHT_MS = 10 * 60 * 1000
+
+const dataPhasesFor = (isLive: boolean) =>
+  Array.from({ length: isLive ? 11 : 18 }, (_, i) => i + 1)
+
+// Jobs created before parallel orchestration tracked progress via the phase
+// counter + label suffixes; derive _ph from that so they resume seamlessly.
+function seedPhaseState(job: any): any {
+  const existing = job.phase_data?._ph
+  if (existing) return existing
+  const ph: any = {}
+  const started = job.phase || 0
+  const ended = /done|unavailable|complete|✓/i.test(job.phase_label || '')
+  for (let p = 1; p < started; p++) ph[p] = { s: 'done' }
+  if (started > 0) ph[started] = ended
+    ? { s: 'done' }
+    : { s: 'run', t: new Date(job.updated_at).getTime(), a: 1 }
+  return ph
+}
+
+// Optimistic-concurrency update: concurrent phases finish at overlapping times
+// and each writes the whole phase_data blob, so merge against the fresh row
+// and retry when another writer got in between (updated_at acts as version).
+async function casUpdate(supabase: any, jobId: string, mutate: (row: any) => any | null): Promise<any> {
+  for (let i = 0; i < 8; i++) {
+    const { data: row } = await supabase.from('report_jobs').select('*').eq('id', jobId).single()
+    if (!row) throw new Error('Job not found during update')
+    const fields = mutate(row)
+    if (!fields) return row
+    const { data: won } = await supabase.from('report_jobs')
+      .update({ ...fields, updated_at: new Date().toISOString() })
+      .eq('id', jobId).eq('updated_at', row.updated_at)
+      .select('id')
+    if (won && won.length) return { ...row, ...fields }
+    await new Promise(r => setTimeout(r, 200 + Math.floor(Math.random() * 400)))
+  }
+  throw new Error('Job update conflict — too many concurrent writers')
+}
+
+async function finalizeLive(supabase: any, jobId: string, pd: any, w: ReturnType<typeof buildWindows>) {
+  const fullReport = assemble(w, pd, { d30: '', weekly: '', monthly: '' })
+  const liveData = {
+    report_date: fullReport.report_date,
+    label: fullReport.label,
+    data_window: fullReport.data_window,
+    d30: fullReport.d30,
+    tables: fullReport.tables,
+    agents: fullReport.agents,
+    analysis: { d30: '' },
+  }
+  await supabase.from('app_config').upsert({ key: 'live_report', value: JSON.stringify(liveData) }, { onConflict: 'key' })
+  await supabase.from('report_jobs').update({ status: 'done', phase_label: 'Done ✓', updated_at: new Date().toISOString() }).eq('id', jobId)
+}
+
+// Merge a finished phase's data into the row and advance the progress counter.
+// Returns the merged row so live jobs can detect "all data phases landed".
+async function finishPhase(supabase: any, jobId: string, target: number, delta: any, isLive: boolean) {
+  const dataPhases = dataPhasesFor(isLive)
+  const totalSteps = isLive ? dataPhases.length : dataPhases.length + 2
+  return casUpdate(supabase, jobId, (row: any) => {
+    const curPd = row.phase_data || {}
+    const curPh = curPd._ph || {}
+    const newPh = { ...curPh, [target]: { ...(curPh[target] || {}), s: 'done' } }
+    const doneSteps = dataPhases.filter(p => newPh[p]?.s === 'done').length
+      + (!isLive && newPh[19]?.s === 'done' ? 1 : 0)
+      + (!isLive && newPh[20]?.s === 'done' ? 1 : 0)
+    return {
+      phase_data: { ...curPd, ...delta, _ph: newPh },
+      phase: doneSteps,
+      phase_label: `${doneSteps}/${totalSteps} done`
+    }
+  })
+}
 
 export async function POST(req: NextRequest) {
   const token = req.cookies.get('rl-auth')?.value
@@ -454,48 +523,76 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'API key not configured' }, { status: 503 })
   }
 
-  // Resume semantics: job.phase is set when a phase STARTS; its label only
-  // matches PHASE_ENDED_RE once it finishes (or PHASE_RETRY_RE when it timed
-  // out and should run again). An ended phase advances to the next one; an
-  // unfinished phase (dead runner or retryable failure) is re-run, not skipped.
-  const started = job.phase || 0
-  const lastEnded = started === 0 || PHASE_ENDED_RE.test(job.phase_label || '')
-  const needsRetry = !lastEnded && PHASE_RETRY_RE.test(job.phase_label || '')
-  const nextPhase = lastEnded ? started + 1 : started
-  const ageMs = Date.now() - new Date(job.updated_at).getTime()
-  if (!lastEnded && !needsRetry && ageMs < IN_FLIGHT_MS) {
-    return NextResponse.json({ ok: true, running: true, phase: started })
-  }
-
   const params = job.params || {}
   const today = params.today ? new Date(params.today) : new Date()
   const w = buildWindows(today)
   const isLive = job.job_type === 'live_refresh'
-  const pd = { ...(job.phase_data||{}) }
+  const dataPhases = dataPhasesFor(isLive)
 
-  const upd = async (phase: number, label: string, extra?: any) =>
-    supabase.from('report_jobs').update({ phase, phase_label:label, phase_data:pd, updated_at:new Date().toISOString(), ...extra }).eq('id',jobId)
-
-  const phaseConfig = PHASES[nextPhase]
-  if (!phaseConfig) {
-    // past last phase — mark done
-    await supabase.from('report_jobs').update({ status:'done', phase_label:'Complete ✓', updated_at:new Date().toISOString() }).eq('id',jobId)
-    return NextResponse.json({ ok: true, done: true })
+  // Terminal-step recovery: everything pulled but the final write never landed
+  const snap = seedPhaseState(job)
+  if (dataPhases.every(p => snap[p]?.s === 'done')) {
+    if (isLive) {
+      await finalizeLive(supabase, jobId, job.phase_data || {}, w)
+      return NextResponse.json({ ok: true, done: true })
+    }
+    if (snap[20]?.s === 'done') {
+      await supabase.from('report_jobs').update({ status:'done', phase_label:'Complete ✓', updated_at:new Date().toISOString() }).eq('id',jobId)
+      return NextResponse.json({ ok: true, done: true })
+    }
   }
 
-  // Mark the phase started before responding so pollers (and the in-flight
-  // guard) see it immediately
-  await upd(nextPhase, phaseConfig.label)
+  // Claim the next ready phase. The pick happens inside the CAS mutate on the
+  // fresh row, so concurrent kicks claim different phases instead of racing.
+  let target = 0
+  let attempts = 1
+  await casUpdate(supabase, jobId, (row: any) => {
+    const curPd = row.phase_data || {}
+    const curPh = curPd._ph || seedPhaseState(row)
+    const now = Date.now()
+    const done = (p: number) => curPh[p]?.s === 'done'
+    const fresh = (p: number) => curPh[p]?.s === 'run' && now - (curPh[p]?.t || 0) < IN_FLIGHT_MS
+    const ready = dataPhases.filter(p => !done(p) && !fresh(p))
+    if (!isLive && dataPhases.every(done)) {
+      if (!done(19) && !fresh(19)) ready.push(19)
+      else if (done(19) && !done(20) && !fresh(20)) ready.push(20)
+    }
+    if (!ready.length) { target = 0; return null }
+    target = ready[0]
+    attempts = (curPh[target]?.a || 0) + 1
+    return {
+      status: 'running',
+      phase_data: { ...curPd, _ph: { ...curPh, [target]: { s: 'run', t: now, a: attempts } } },
+      phase_label: PHASES[target].label
+    }
+  })
 
-  // MCP phases run 5-12 minutes — far longer than browsers keep a request
-  // open — so the phase executes detached from this response (after() runs to
-  // the route's maxDuration) and clients poll the job row for progress.
+  if (!target) {
+    // every remaining phase is already being executed by another runner
+    return NextResponse.json({ ok: true, running: true })
+  }
+
+  const phaseConfig = PHASES[target]
+
+  // The phase itself can run 5-12 minutes — far longer than browsers keep a
+  // request open — so it executes detached from this response (after() runs
+  // to the route's maxDuration) and clients poll the job row for progress.
   after(async () => {
   try {
-    if (nextPhase === 20) {
-      // Save phase — phase 19 stores analysis keys at top level of pd
-      const analysis = { d30: pd.d30||'', weekly: pd.weekly||'', monthly: pd.monthly||'' }
+    if (target === 19 || target === 20) {
+      // These need the full accumulated data — read it fresh, all data
+      // phases have landed by the time they are claimable
+      const { data: row } = await supabase.from('report_jobs').select('phase_data').eq('id', jobId).single()
+      const pd = { ...(row?.phase_data || {}) }
 
+      if (target === 19) {
+        const text = await callClaude(phaseConfig.prompt(w, pd), apiKey, false)
+        await finishPhase(supabase, jobId, 19, extractJson(text), isLive)
+        return
+      }
+
+      // Phase 20 — assemble and save
+      const analysis = { d30: pd.d30||'', weekly: pd.weekly||'', monthly: pd.monthly||'' }
       // Fallback: if agents weren't fetched in Phase 8, pull from most recent live_report
       if (!pd.agents || pd.agents.length === 0) {
         try {
@@ -506,7 +603,6 @@ export async function POST(req: NextRequest) {
           }
         } catch { /* ignore — report saves without agents */ }
       }
-
       const report = assemble(w, pd, analysis)
       await supabase.from('weekly_reports').upsert(report, { onConflict:'report_date' })
       // Keep the Live 30 Day page in sync — its d30 window matches the weekly report's
@@ -524,86 +620,70 @@ export async function POST(req: NextRequest) {
       return
     }
 
-    let text: string
+    // Data phase — independent Euka pull, needs no prior phase data
+    let delta: any
     const activePrompt = phaseConfig.promptLive
-      ? phaseConfig.promptLive(w, pd)
-      : phaseConfig.prompt(w, pd)
+      ? phaseConfig.promptLive(w, {})
+      : phaseConfig.prompt(w, {})
     try {
-      text = await callClaude(activePrompt, apiKey, phaseConfig.mcp, phaseConfig.maxTokens)
+      const text = await callClaude(activePrompt, apiKey, phaseConfig.mcp, phaseConfig.maxTokens)
+      if (phaseConfig.isAgents) {
+        // Agents response is a JSON array; extract it directly
+        const start = text.indexOf('['), end = text.lastIndexOf(']')
+        let agents: any[] = []
+        if (start !== -1 && end !== -1) {
+          try { agents = JSON.parse(text.slice(start, end + 1)) } catch { agents = [] }
+        }
+        delta = { agents }
+      } else {
+        try {
+          delta = extractJson(text)
+        } catch {
+          const preview = text.slice(0, 600)
+          console.error(`Phase ${target} non-JSON response:`, preview)
+          throw new Error(`No JSON in Claude response (phase ${target}). Claude said: ${preview}`)
+        }
+      }
     } catch (e: any) {
       if (!phaseConfig.optional) throw e
-      // Optional phase failed — log error into phase_data so it's visible, set defaults, continue
+      // Optional phase failed — record the error, continue with defaults
       const errMsg = e?.message?.slice(0,400) || 'unknown error'
-      console.warn(`Optional phase ${nextPhase} skipped: ${errMsg}`)
-      pd[`_phase${nextPhase}Error`] = errMsg
-      if (phaseConfig.isAgents) pd.agents = []
-      // Still do live save if this was the final live phase
-      if (isLive && nextPhase === LIVE_SAVE_AFTER) {
-        const fullReport = assemble(w, pd, { d30:'', weekly:'', monthly:'' })
-        const liveData = { report_date: fullReport.report_date, label: fullReport.label, data_window: fullReport.data_window, d30: fullReport.d30, tables: fullReport.tables, agents: fullReport.agents, analysis: { d30:'' } }
-        await supabase.from('app_config').upsert({ key:'live_report', value: JSON.stringify(liveData) }, { onConflict:'key' })
-        await supabase.from('report_jobs').update({ status:'done', phase:nextPhase, phase_label:'Done ✓', updated_at:new Date().toISOString() }).eq('id',jobId)
-        return
-      }
-      await upd(nextPhase, `Phase ${nextPhase} unavailable`)
-      return
+      console.warn(`Optional phase ${target} skipped: ${errMsg}`)
+      delta = { [`_phase${target}Error`]: errMsg }
+      if (phaseConfig.isAgents) delta.agents = []
     }
 
-    if (phaseConfig.isAgents) {
-      // Agents response is a JSON array; extract it directly
-      const start = text.indexOf('['), end = text.lastIndexOf(']')
-      if (start !== -1 && end !== -1) {
-        try { pd.agents = JSON.parse(text.slice(start, end + 1)) } catch { pd.agents = [] }
-      } else {
-        pd.agents = []
-      }
-    } else {
-      let parsed: any
-      try {
-        parsed = extractJson(text)
-      } catch {
-        const preview = text.slice(0, 600)
-        console.error(`Phase ${nextPhase} non-JSON response:`, preview)
-        throw new Error(`No JSON in Claude response (phase ${nextPhase}). Claude said: ${preview}`)
-      }
-      Object.assign(pd, parsed)
-    }
+    const merged = await finishPhase(supabase, jobId, target, delta, isLive)
 
-    // live_refresh: save after final live phase (KPIs + agents + tables)
-    // Writes to app_config key 'live_report' — never touches weekly_reports
-    if (isLive && nextPhase === LIVE_SAVE_AFTER) {
-      const fullReport = assemble(w, pd, { d30:'', weekly:'', monthly:'' })
-      const liveData = {
-        report_date: fullReport.report_date,
-        label: fullReport.label,
-        data_window: fullReport.data_window,
-        d30: fullReport.d30,
-        tables: fullReport.tables,
-        agents: fullReport.agents,
-        analysis: { d30:'' },
+    // live_refresh: when the last data phase lands, write the live snapshot.
+    // Writes to app_config key 'live_report' — never touches weekly_reports.
+    if (isLive) {
+      const phNow = merged.phase_data?._ph || {}
+      if (dataPhases.every(p => phNow[p]?.s === 'done')) {
+        await finalizeLive(supabase, jobId, merged.phase_data, w)
       }
-      await supabase.from('app_config').upsert({ key:'live_report', value: JSON.stringify(liveData) }, { onConflict:'key' })
-      await supabase.from('report_jobs').update({ status:'done', phase:nextPhase, phase_label:'Done ✓', updated_at:new Date().toISOString() }).eq('id',jobId)
-      return
     }
-
-    await upd(nextPhase, `Phase ${nextPhase} done`)
 
   } catch (err: any) {
     const msg = err?.message||'Unknown error'
-    console.error(`Job ${jobId} phase ${nextPhase}:`, msg)
+    console.error(`Job ${jobId} phase ${target}:`, msg)
     // Transient failures (slow MCP pull timing out, Anthropic overloaded)
     // get the phase re-run by the next kick instead of killing the job
     const transient = /timeout|unreachable|overloaded|Claude API 5\d\d|mcp_tool_result/i.test(msg)
-    const attempts = (Number(pd[`_attempts${nextPhase}`]) || 1) + 1
-    if (transient && attempts <= MAX_PHASE_ATTEMPTS) {
-      pd[`_attempts${nextPhase}`] = attempts
-      await upd(nextPhase, `${phaseConfig.label.replace(/…$/,'')} — retrying (attempt ${attempts} of ${MAX_PHASE_ATTEMPTS})`)
+    if (transient && attempts < MAX_PHASE_ATTEMPTS) {
+      await casUpdate(supabase, jobId, (row: any) => {
+        const curPd = row.phase_data || {}
+        const curPh = curPd._ph || {}
+        return {
+          phase_data: { ...curPd, _ph: { ...curPh, [target]: { ...(curPh[target] || {}), s: 'retry' } } },
+          phase_label: `${phaseConfig.label.replace(/…$/,'')} — retrying (attempt ${attempts + 1} of ${MAX_PHASE_ATTEMPTS})`
+        }
+      }).catch(() => {})
       return
     }
     await supabase.from('report_jobs').update({ status:'error', error:msg.slice(0,500), updated_at:new Date().toISOString() }).eq('id',jobId)
   }
   })
 
-  return NextResponse.json({ ok: true, running: true, phase: nextPhase })
+  return NextResponse.json({ ok: true, started: target })
 }

@@ -1,8 +1,8 @@
 // Drives a chunked report job (report_jobs) to completion from the browser.
-// POST /api/jobs/run kicks a phase and returns immediately — the phase itself
-// executes detached on the server (it can run 5-12 minutes, far longer than
-// browsers keep a request open). We poll the job row until the phase ends,
-// then kick the next one, until the job is done or errors.
+// POST /api/jobs/run claims one ready phase and returns immediately — the
+// phase executes detached on the server (5-12 minutes, far longer than
+// browsers keep a request open). Data phases are independent, so we keep
+// several running concurrently and poll the job row for progress.
 
 export class JobFailedError extends Error {}
 
@@ -12,17 +12,13 @@ interface JobRow {
   phase_label: string | null
   error: string | null
   updated_at: string
+  phases?: { total: number; done: number; running: number }
 }
 
-const PHASE_ENDED = /done|unavailable|complete|✓/i
-// Server marks transient phase failures (timeouts, overloaded API) with this
-// label — the next kick re-runs the phase immediately
-const PHASE_RETRY = /retrying/i
+// How many phases to keep in flight. Each is a separate Claude+Euka call, so
+// this bounds concurrent load on both APIs while cutting wall time ~3x.
+const CONCURRENCY = 3
 const POLL_MS = 5000
-// If the job row hasn't moved for this long, the phase runner died (deploy,
-// crash, platform timeout) — kick again; the server re-runs the unfinished
-// phase. Must exceed the server's in-flight guard window (10 min).
-const STALE_MS = 12 * 60 * 1000
 const MAX_POLL_MISSES = 24
 
 async function fetchJob(jobId: string): Promise<JobRow | null> {
@@ -36,42 +32,44 @@ async function fetchJob(jobId: string): Promise<JobRow | null> {
 }
 
 export async function driveJob(jobId: string): Promise<void> {
+  let misses = 0
   while (true) {
-    try {
-      const res = await fetch('/api/jobs/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobId })
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        const job = await fetchJob(jobId)
-        throw new JobFailedError(String(job?.error ?? data?.error ?? `Phase failed (HTTP ${res.status})`))
+    const job = await fetchJob(jobId)
+    if (!job) {
+      if (++misses >= MAX_POLL_MISSES) {
+        throw new JobFailedError('Network error — check your connection and try again.')
+      }
+      await new Promise(r => setTimeout(r, POLL_MS))
+      continue
+    }
+    misses = 0
+    if (job.status === 'done') return
+    if (job.status === 'error') throw new JobFailedError(job.error || 'Job failed')
+
+    // Top up to CONCURRENCY running phases; the server picks which phase each
+    // kick claims (or reports nothing ready / job finished)
+    const running = job.phases?.running ?? 0
+    for (let slot = running; slot < CONCURRENCY; slot++) {
+      let data: any
+      try {
+        const res = await fetch('/api/jobs/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jobId })
+        })
+        data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          const fresh = await fetchJob(jobId)
+          throw new JobFailedError(String(fresh?.error ?? data?.error ?? `Phase failed (HTTP ${res.status})`))
+        }
+      } catch (e) {
+        if (e instanceof JobFailedError) throw e
+        break // transient network error on the kick — next poll retries
       }
       if (data.done) return
-    } catch (e) {
-      if (e instanceof JobFailedError) throw e
-      // Transient network error on the kick — the poll loop below recovers:
-      // its stale check re-kicks if the phase never actually started.
+      if (!data.started) break // nothing ready right now
     }
 
-    let misses = 0
-    while (true) {
-      await new Promise(r => setTimeout(r, POLL_MS))
-      const job = await fetchJob(jobId)
-      if (!job) {
-        if (++misses >= MAX_POLL_MISSES) {
-          throw new JobFailedError('Network error — check your connection and try again.')
-        }
-        continue
-      }
-      misses = 0
-      if (job.status === 'done') return
-      if (job.status === 'error') throw new JobFailedError(job.error || 'Job failed')
-      const phaseEnded = PHASE_ENDED.test(job.phase_label || '')
-      const needsRetry = PHASE_RETRY.test(job.phase_label || '')
-      const stale = Date.now() - new Date(job.updated_at).getTime() > STALE_MS
-      if (phaseEnded || needsRetry || stale) break
-    }
+    await new Promise(r => setTimeout(r, POLL_MS))
   }
 }
