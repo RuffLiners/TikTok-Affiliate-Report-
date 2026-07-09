@@ -15,6 +15,9 @@ interface JobRow {
 }
 
 const PHASE_ENDED = /done|unavailable|complete|✓/i
+// Server marks transient phase failures (timeouts, overloaded API) with this
+// label — the next kick re-runs the phase immediately
+const PHASE_RETRY = /retrying/i
 const POLL_MS = 5000
 // If the job row hasn't moved for this long, the phase runner died (deploy,
 // crash, platform timeout) — kick again; the server re-runs the unfinished
@@ -66,8 +69,9 @@ export async function driveJob(jobId: string): Promise<void> {
       if (job.status === 'done') return
       if (job.status === 'error') throw new JobFailedError(job.error || 'Job failed')
       const phaseEnded = PHASE_ENDED.test(job.phase_label || '')
+      const needsRetry = PHASE_RETRY.test(job.phase_label || '')
       const stale = Date.now() - new Date(job.updated_at).getTime() > STALE_MS
-      if (phaseEnded || stale) break
+      if (phaseEnded || needsRetry || stale) break
     }
   }
 }

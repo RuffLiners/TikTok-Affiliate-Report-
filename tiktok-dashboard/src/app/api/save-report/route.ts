@@ -59,6 +59,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Database save failed: ' + dbErr.message }, { status: 500 })
   }
 
+  // Keep the Live 30 Day page in sync — its d30 window matches the weekly report's
+  const liveData = {
+    report_date: report.meta.reportDate,
+    label:       report.meta.label,
+    data_window: report.meta.dataWindow,
+    d30:         report.d30,
+    tables:      report.tables,
+    agents:      report.agents || [],
+    analysis:    { d30: report.analysis?.d30 || report.analysis?.performance || '' }
+  }
+  const { error: liveErr } = await supabase
+    .from('app_config')
+    .upsert({ key: 'live_report', value: JSON.stringify(liveData) }, { onConflict: 'key' })
+  if (liveErr) console.error('Live snapshot update failed (report still saved):', liveErr)
+
   revalidatePath('/dashboard')
   return NextResponse.json({
     ok: true,

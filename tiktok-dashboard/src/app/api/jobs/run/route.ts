@@ -420,6 +420,10 @@ function extractJson(text: string): any {
 // A phase's label gains this suffix when it finishes; the bare phase label
 // means it is still running (or its runner died before completing it)
 const PHASE_ENDED_RE = /done|unavailable|complete|✓/i
+// Label set when a phase failed transiently (timeout, overloaded API) and
+// should be re-run by the next kick without waiting for the in-flight window
+const PHASE_RETRY_RE = /retrying/i
+const MAX_PHASE_ATTEMPTS = 3
 // A kick within this window of a still-running phase is a no-op, so browser
 // retries and multiple tabs can't double-run a phase
 const IN_FLIGHT_MS = 10 * 60 * 1000
@@ -448,13 +452,15 @@ export async function POST(req: NextRequest) {
   }
 
   // Resume semantics: job.phase is set when a phase STARTS; its label only
-  // matches PHASE_ENDED_RE once it finishes. An ended phase advances to the
-  // next one; an unfinished phase (dead runner) is re-run, not skipped.
+  // matches PHASE_ENDED_RE once it finishes (or PHASE_RETRY_RE when it timed
+  // out and should run again). An ended phase advances to the next one; an
+  // unfinished phase (dead runner or retryable failure) is re-run, not skipped.
   const started = job.phase || 0
   const lastEnded = started === 0 || PHASE_ENDED_RE.test(job.phase_label || '')
+  const needsRetry = !lastEnded && PHASE_RETRY_RE.test(job.phase_label || '')
   const nextPhase = lastEnded ? started + 1 : started
   const ageMs = Date.now() - new Date(job.updated_at).getTime()
-  if (!lastEnded && ageMs < IN_FLIGHT_MS) {
+  if (!lastEnded && !needsRetry && ageMs < IN_FLIGHT_MS) {
     return NextResponse.json({ ok: true, running: true, phase: started })
   }
 
@@ -500,6 +506,17 @@ export async function POST(req: NextRequest) {
 
       const report = assemble(w, pd, analysis)
       await supabase.from('weekly_reports').upsert(report, { onConflict:'report_date' })
+      // Keep the Live 30 Day page in sync — its d30 window matches the weekly report's
+      const liveData = {
+        report_date: report.report_date,
+        label: report.label,
+        data_window: report.data_window,
+        d30: report.d30,
+        tables: report.tables,
+        agents: report.agents,
+        analysis: { d30: report.analysis?.d30 || '' },
+      }
+      await supabase.from('app_config').upsert({ key:'live_report', value: JSON.stringify(liveData) }, { onConflict:'key' })
       await supabase.from('report_jobs').update({ status:'done', phase:20, phase_label:'Complete ✓', updated_at:new Date().toISOString() }).eq('id',jobId)
       return
     }
@@ -572,6 +589,15 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     const msg = err?.message||'Unknown error'
     console.error(`Job ${jobId} phase ${nextPhase}:`, msg)
+    // Transient failures (slow MCP pull timing out, Anthropic overloaded)
+    // get the phase re-run by the next kick instead of killing the job
+    const transient = /timeout|unreachable|overloaded|Claude API 5\d\d/i.test(msg)
+    const attempts = (Number(pd[`_attempts${nextPhase}`]) || 1) + 1
+    if (transient && attempts <= MAX_PHASE_ATTEMPTS) {
+      pd[`_attempts${nextPhase}`] = attempts
+      await upd(nextPhase, `${phaseConfig.label.replace(/…$/,'')} — retrying (attempt ${attempts} of ${MAX_PHASE_ATTEMPTS})`)
+      return
+    }
     await supabase.from('report_jobs').update({ status:'error', error:msg.slice(0,500), updated_at:new Date().toISOString() }).eq('id',jobId)
   }
   })

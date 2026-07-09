@@ -78,7 +78,11 @@ export function MonthlyCharts({ data }: Props) {
   const axis = <XAxis dataKey="label" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
   const yaxis = (fmt: (v: number) => string) =>
     <YAxis tickFormatter={fmt} tick={{ fontSize: 9 }} tickLine={false} axisLine={false} width={38} />
-  const tip = <Tooltip contentStyle={{ fontSize: 11 }} />
+  const fmtFull = (v: any) => Math.round(Number(v)).toLocaleString('en-US')
+  const tierName = (n: any) => /^l[1-7]$/.test(String(n)) ? String(n).toUpperCase() : n
+  const tip = <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any, n: any) => [fmtFull(v), tierName(n)]} />
+  const tip$ = <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any, n: any) => ['$' + fmtFull(v), tierName(n)]} />
+  const tipPct = <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any) => Number(v).toFixed(1) + '%'} />
 
   return (
     <div className="space-y-6">
@@ -87,7 +91,7 @@ export function MonthlyCharts({ data }: Props) {
         <ChartCard title="Total GMV">
           <ResponsiveContainer width="100%" height={ht}>
             <BarChart data={gmvRows} barCategoryGap="30%">
-              {axis}{yaxis(fmtDollar)}{tip}
+              {axis}{yaxis(fmtDollar)}{tip$}
               <Bar dataKey="gmv" fill="#22c55e" radius={[3,3,0,0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -155,7 +159,7 @@ export function MonthlyCharts({ data }: Props) {
           <ChartCard title="GMV by Tier" legend={tierLegend}>
             <ResponsiveContainer width="100%" height={ht}>
               <BarChart data={ggRows} barCategoryGap="25%">
-                {axis}{yaxis(fmtDollar)}{tip}
+                {axis}{yaxis(fmtDollar)}{tip$}
                 <Bar dataKey="l1" stackId="a" fill={L1} />
                 <Bar dataKey="l2" stackId="a" fill={L2} />
                 <Bar dataKey="l3" stackId="a" fill={L3} />
@@ -191,7 +195,7 @@ export function MonthlyCharts({ data }: Props) {
           <ChartCard title="Retention Rate">
             <ResponsiveContainer width="100%" height={ht}>
               <BarChart data={retRows} barCategoryGap="30%">
-                {axis}{yaxis(v => v + '%')}{tip}
+                {axis}{yaxis(v => v + '%')}{tipPct}
                 <Bar dataKey="ret" radius={[3,3,0,0]}>
                   {retRows.map((row, i) => {
                     const v = Number(row.ret)
