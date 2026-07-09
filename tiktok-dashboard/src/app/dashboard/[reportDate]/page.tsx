@@ -135,9 +135,9 @@ export default async function ReportPage({ params }: Props) {
   const wc = report.weekly_charts
   const lastWeekGmv   = wc.gmv.at(-1) ?? 0
   const lastWeekVid   = wc.vid.at(-1) ?? 0
-  const lastWeekVidG1 = (wc.vl1?.at(-1) ?? wc.vg1?.at(-1) ?? 0)
-  const lastWeekVidG2 = (wc.vl2?.at(-1) ?? wc.vg2?.at(-1) ?? 0)
-  const lastWeekVidG3 = (wc.vl3?.at(-1) ?? wc.vg3?.at(-1) ?? 0)
+  const lastWeekVidG1 = (wc.vl1?.at(-1) ?? (wc as any).vg1?.at(-1) ?? 0)
+  const lastWeekVidG2 = (wc.vl2?.at(-1) ?? (wc as any).vg2?.at(-1) ?? 0)
+  const lastWeekVidG3 = (wc.vl3?.at(-1) ?? (wc as any).vg3?.at(-1) ?? 0)
   const lastWeekLabel = wc.labels.at(-1) ?? ''
   const mc = report.monthly_charts
   const currentMonthGmv   = mc.gmv.at(-1) ?? 0
@@ -152,17 +152,18 @@ export default async function ReportPage({ params }: Props) {
   const qtdTotalGmv = mc.totalGmv && mc.totalGmv.some((v: number) => v > 0)
     ? mc.totalGmv.slice(-3).reduce((a: number, b: number) => a + b, 0)
     : qtdGmv
-  const mtdVidG1  = (mc.vl1?.at(-1) ?? mc.vg1?.at(-1) ?? 0)
-  const mtdVidG2  = (mc.vl2?.at(-1) ?? mc.vg2?.at(-1) ?? 0)
-  const mtdVidG3  = (mc.vl3?.at(-1) ?? mc.vg3?.at(-1) ?? 0)
+  const mtdVidG1  = (mc.vl1?.at(-1) ?? (mc as any).vg1?.at(-1) ?? 0)
+  const mtdVidG2  = (mc.vl2?.at(-1) ?? (mc as any).vg2?.at(-1) ?? 0)
+  const mtdVidG3  = (mc.vl3?.at(-1) ?? (mc as any).vg3?.at(-1) ?? 0)
   const mtdVidG4  = mc.vl4?.at(-1) ?? 0
   const mtdVidG5  = mc.vl5?.at(-1) ?? 0
   const mtdVidG6  = mc.vl6?.at(-1) ?? 0
   const mtdVidG7  = mc.vl7?.at(-1) ?? 0
   const mtdVideos = mtdVidG1 + mtdVidG2 + mtdVidG3 + mtdVidG4 + mtdVidG5 + mtdVidG6 + mtdVidG7
   const sl = (k: string) => (mc as any)[k]?.at(-1) ?? 0
-  const mtdSamplesShipped  = sl('sl1') + sl('sl2') + sl('sl3') + sl('sl4') + sl('sl5') + sl('sl6') + sl('sl7')
-    || (mc as any).sg1?.at(-1) ?? 0 + ((mc as any).sg2?.at(-1) ?? 0) + ((mc as any).sg3?.at(-1) ?? 0)
+  const slSum = sl('sl1') + sl('sl2') + sl('sl3') + sl('sl4') + sl('sl5') + sl('sl6') + sl('sl7')
+  const legacySgSum = ((mc as any).sg1?.at(-1) ?? 0) + ((mc as any).sg2?.at(-1) ?? 0) + ((mc as any).sg3?.at(-1) ?? 0)
+  const mtdSamplesShipped = slSum > 0 ? slSum : legacySgSum
   const salSum = sl('sal1') + sl('sal2') + sl('sal3') + sl('sal4') + sl('sal5') + sl('sal6') + sl('sal7')
   const mtdSamplesApproved = salSum > 0 ? salSum : mtdSamplesShipped
   const mtdSamples = mtdSamplesApproved
