@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { format, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { request as httpsRequest } from 'https'
@@ -417,6 +417,13 @@ function extractJson(text: string): any {
   }
 }
 
+// A phase's label gains this suffix when it finishes; the bare phase label
+// means it is still running (or its runner died before completing it)
+const PHASE_ENDED_RE = /done|unavailable|complete|✓/i
+// A kick within this window of a still-running phase is a no-op, so browser
+// retries and multiple tabs can't double-run a phase
+const IN_FLIGHT_MS = 10 * 60 * 1000
+
 export async function POST(req: NextRequest) {
   const token = req.cookies.get('rl-auth')?.value
   if (!token) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
@@ -431,7 +438,7 @@ export async function POST(req: NextRequest) {
 
   const { data: job } = await supabase.from('report_jobs').select('*').eq('id', jobId).single()
   if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 })
-  if (job.status === 'done') return NextResponse.json({ ok: true, nextPhase: null })
+  if (job.status === 'done') return NextResponse.json({ ok: true, done: true })
   if (job.status === 'error') return NextResponse.json({ ok: false, error: job.error }, { status: 500 })
 
   const apiKey = await getAnthropicKey()
@@ -440,26 +447,42 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'API key not configured' }, { status: 503 })
   }
 
+  // Resume semantics: job.phase is set when a phase STARTS; its label only
+  // matches PHASE_ENDED_RE once it finishes. An ended phase advances to the
+  // next one; an unfinished phase (dead runner) is re-run, not skipped.
+  const started = job.phase || 0
+  const lastEnded = started === 0 || PHASE_ENDED_RE.test(job.phase_label || '')
+  const nextPhase = lastEnded ? started + 1 : started
+  const ageMs = Date.now() - new Date(job.updated_at).getTime()
+  if (!lastEnded && ageMs < IN_FLIGHT_MS) {
+    return NextResponse.json({ ok: true, running: true, phase: started })
+  }
+
   const params = job.params || {}
   const today = params.today ? new Date(params.today) : new Date()
   const w = buildWindows(today)
   const isLive = job.job_type === 'live_refresh'
   const pd = { ...(job.phase_data||{}) }
-  const nextPhase = (job.phase||0) + 1
 
   const upd = async (phase: number, label: string, extra?: any) =>
     supabase.from('report_jobs').update({ phase, phase_label:label, phase_data:pd, updated_at:new Date().toISOString(), ...extra }).eq('id',jobId)
 
+  const phaseConfig = PHASES[nextPhase]
+  if (!phaseConfig) {
+    // past last phase — mark done
+    await supabase.from('report_jobs').update({ status:'done', phase_label:'Complete ✓', updated_at:new Date().toISOString() }).eq('id',jobId)
+    return NextResponse.json({ ok: true, done: true })
+  }
+
+  // Mark the phase started before responding so pollers (and the in-flight
+  // guard) see it immediately
+  await upd(nextPhase, phaseConfig.label)
+
+  // MCP phases run 5-12 minutes — far longer than browsers keep a request
+  // open — so the phase executes detached from this response (after() runs to
+  // the route's maxDuration) and clients poll the job row for progress.
+  after(async () => {
   try {
-    const phaseConfig = PHASES[nextPhase]
-    if (!phaseConfig) {
-      // past last phase — mark done
-      await supabase.from('report_jobs').update({ status:'done', phase_label:'Complete ✓', updated_at:new Date().toISOString() }).eq('id',jobId)
-      return NextResponse.json({ ok:true, nextPhase:null })
-    }
-
-    await upd(nextPhase, phaseConfig.label)
-
     if (nextPhase === 20) {
       // Save phase — phase 19 stores analysis keys at top level of pd
       const analysis = { d30: pd.d30||'', weekly: pd.weekly||'', monthly: pd.monthly||'' }
@@ -478,7 +501,7 @@ export async function POST(req: NextRequest) {
       const report = assemble(w, pd, analysis)
       await supabase.from('weekly_reports').upsert(report, { onConflict:'report_date' })
       await supabase.from('report_jobs').update({ status:'done', phase:20, phase_label:'Complete ✓', updated_at:new Date().toISOString() }).eq('id',jobId)
-      return NextResponse.json({ ok:true, nextPhase:null })
+      return
     }
 
     let text: string
@@ -494,17 +517,16 @@ export async function POST(req: NextRequest) {
       console.warn(`Optional phase ${nextPhase} skipped: ${errMsg}`)
       pd[`_phase${nextPhase}Error`] = errMsg
       if (phaseConfig.isAgents) pd.agents = []
-      await upd(nextPhase, `Phase ${nextPhase} unavailable`)
       // Still do live save if this was the final live phase
       if (isLive && nextPhase === LIVE_SAVE_AFTER) {
         const fullReport = assemble(w, pd, { d30:'', weekly:'', monthly:'' })
         const liveData = { report_date: fullReport.report_date, label: fullReport.label, data_window: fullReport.data_window, d30: fullReport.d30, tables: fullReport.tables, agents: fullReport.agents, analysis: { d30:'' } }
         await supabase.from('app_config').upsert({ key:'live_report', value: JSON.stringify(liveData) }, { onConflict:'key' })
         await supabase.from('report_jobs').update({ status:'done', phase:nextPhase, phase_label:'Done ✓', updated_at:new Date().toISOString() }).eq('id',jobId)
-        return NextResponse.json({ ok:true, nextPhase:null })
+        return
       }
-      const next = nextPhase + 1
-      return NextResponse.json({ ok:true, nextPhase: next > TOTAL_PHASES ? null : next })
+      await upd(nextPhase, `Phase ${nextPhase} unavailable`)
+      return
     }
 
     if (phaseConfig.isAgents) {
@@ -515,7 +537,6 @@ export async function POST(req: NextRequest) {
       } else {
         pd.agents = []
       }
-      await upd(nextPhase, `Phase ${nextPhase} done`)
     } else {
       let parsed: any
       try {
@@ -526,10 +547,9 @@ export async function POST(req: NextRequest) {
         throw new Error(`No JSON in Claude response (phase ${nextPhase}). Claude said: ${preview}`)
       }
       Object.assign(pd, parsed)
-      await upd(nextPhase, `Phase ${nextPhase} done`)
     }
 
-    // live_refresh: save after collecting A1-A7 + agents (phases 1-8)
+    // live_refresh: save after final live phase (KPIs + agents + tables)
     // Writes to app_config key 'live_report' — never touches weekly_reports
     if (isLive && nextPhase === LIVE_SAVE_AFTER) {
       const fullReport = assemble(w, pd, { d30:'', weekly:'', monthly:'' })
@@ -544,16 +564,17 @@ export async function POST(req: NextRequest) {
       }
       await supabase.from('app_config').upsert({ key:'live_report', value: JSON.stringify(liveData) }, { onConflict:'key' })
       await supabase.from('report_jobs').update({ status:'done', phase:nextPhase, phase_label:'Done ✓', updated_at:new Date().toISOString() }).eq('id',jobId)
-      return NextResponse.json({ ok:true, nextPhase:null })
+      return
     }
 
-    const next = nextPhase + 1
-    return NextResponse.json({ ok:true, nextPhase: next > TOTAL_PHASES ? null : next })
+    await upd(nextPhase, `Phase ${nextPhase} done`)
 
   } catch (err: any) {
     const msg = err?.message||'Unknown error'
     console.error(`Job ${jobId} phase ${nextPhase}:`, msg)
     await supabase.from('report_jobs').update({ status:'error', error:msg.slice(0,500), updated_at:new Date().toISOString() }).eq('id',jobId)
-    return NextResponse.json({ error: msg }, { status: 500 })
   }
+  })
+
+  return NextResponse.json({ ok: true, running: true, phase: nextPhase })
 }

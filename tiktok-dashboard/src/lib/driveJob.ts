@@ -1,9 +1,8 @@
 // Drives a chunked report job (report_jobs) to completion from the browser.
-// Each phase is one POST /api/jobs/run call that can run for several minutes
-// server-side — longer than browsers keep a request open (Chrome ~300s,
-// Safari ~60s). When the browser kills the request, the Vercel function keeps
-// running, so instead of failing we poll the job row until the phase lands,
-// then kick the next one.
+// POST /api/jobs/run kicks a phase and returns immediately — the phase itself
+// executes detached on the server (it can run 5-12 minutes, far longer than
+// browsers keep a request open). We poll the job row until the phase ends,
+// then kick the next one, until the job is done or errors.
 
 export class JobFailedError extends Error {}
 
@@ -17,8 +16,9 @@ interface JobRow {
 
 const PHASE_ENDED = /done|unavailable|complete|✓/i
 const POLL_MS = 5000
-// If the job row hasn't moved for this long, the runner function died
-// (deploy, crash, platform timeout) — safe to kick the same phase again.
+// If the job row hasn't moved for this long, the phase runner died (deploy,
+// crash, platform timeout) — kick again; the server re-runs the unfinished
+// phase. Must exceed the server's in-flight guard window (10 min).
 const STALE_MS = 12 * 60 * 1000
 const MAX_POLL_MISSES = 24
 
@@ -45,12 +45,11 @@ export async function driveJob(jobId: string): Promise<void> {
         const job = await fetchJob(jobId)
         throw new JobFailedError(String(job?.error ?? data?.error ?? `Phase failed (HTTP ${res.status})`))
       }
-      if (data.nextPhase == null) return
-      continue
+      if (data.done) return
     } catch (e) {
       if (e instanceof JobFailedError) throw e
-      // Request was killed by the browser or a transient network error —
-      // the server phase is likely still running. Fall through to polling.
+      // Transient network error on the kick — the poll loop below recovers:
+      // its stale check re-kicks if the phase never actually started.
     }
 
     let misses = 0
