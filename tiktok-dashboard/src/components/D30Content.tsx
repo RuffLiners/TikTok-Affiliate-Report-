@@ -13,8 +13,12 @@ interface Props {
   report: WeeklyReport
 }
 
+const EMPTY_TIER = { creators: 0, newCreators: 0, videos: 0, views: 0, gmv: 0, msgs: 0, msgsPct: 0, samples: 0, samplesPct: 0 }
+
 export function D30Content({ report }: Props) {
   const d = report.d30
+  // Reports/live snapshots saved before the L1-L7 refactor only carry g1-g3 tiers
+  const t = (k: string) => ((d.tiers as any)?.[k] ?? EMPTY_TIER)
 
   return (
     <div className="space-y-6">
@@ -43,13 +47,13 @@ export function D30Content({ report }: Props) {
       <section>
         <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">By Creator Level</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
-          <TierCard tier="l1" label="L1 · <$5K"         data={d.tiers.l1} color="slate" />
-          <TierCard tier="l2" label="L2 · $5K–$25K"     data={d.tiers.l2} color="blue" />
-          <TierCard tier="l3" label="L3 · $25K–$60K"    data={d.tiers.l3} color="green" />
-          <TierCard tier="l4" label="L4 · $60K–$150K"   data={d.tiers.l4} color="teal" />
-          <TierCard tier="l5" label="L5 · $150K–$400K"  data={d.tiers.l5} color="lime" />
-          <TierCard tier="l6" label="L6 · $400K–$1.5M"  data={d.tiers.l6} color="amber" />
-          <TierCard tier="l7" label="L7 · $1.5M+"       data={d.tiers.l7} color="orange" />
+          <TierCard tier="l1" label="L1 · <$5K"         data={t('l1')} color="slate" />
+          <TierCard tier="l2" label="L2 · $5K–$25K"     data={t('l2')} color="blue" />
+          <TierCard tier="l3" label="L3 · $25K–$60K"    data={t('l3')} color="green" />
+          <TierCard tier="l4" label="L4 · $60K–$150K"   data={t('l4')} color="teal" />
+          <TierCard tier="l5" label="L5 · $150K–$400K"  data={t('l5')} color="lime" />
+          <TierCard tier="l6" label="L6 · $400K–$1.5M"  data={t('l6')} color="amber" />
+          <TierCard tier="l7" label="L7 · $1.5M+"       data={t('l7')} color="orange" />
         </div>
       </section>
 
@@ -99,23 +103,23 @@ export function D30Content({ report }: Props) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
           <RecruitingCard
             label="Messages Sent" total={d.msgs} pct={d.msgsPct}
-            l1={d.tiers.l1.msgs} l1pct={d.tiers.l1.msgsPct}
-            l2={d.tiers.l2.msgs} l2pct={d.tiers.l2.msgsPct}
-            l3={d.tiers.l3.msgs} l3pct={d.tiers.l3.msgsPct}
-            l4={d.tiers.l4.msgs} l4pct={d.tiers.l4.msgsPct}
-            l5={d.tiers.l5.msgs} l5pct={d.tiers.l5.msgsPct}
-            l6={d.tiers.l6.msgs} l6pct={d.tiers.l6.msgsPct}
-            l7={d.tiers.l7.msgs} l7pct={d.tiers.l7.msgsPct}
+            l1={t('l1').msgs} l1pct={t('l1').msgsPct}
+            l2={t('l2').msgs} l2pct={t('l2').msgsPct}
+            l3={t('l3').msgs} l3pct={t('l3').msgsPct}
+            l4={t('l4').msgs} l4pct={t('l4').msgsPct}
+            l5={t('l5').msgs} l5pct={t('l5').msgsPct}
+            l6={t('l6').msgs} l6pct={t('l6').msgsPct}
+            l7={t('l7').msgs} l7pct={t('l7').msgsPct}
           />
           <RecruitingCard
             label="Samples Shipped" total={d.samples} pct={d.samplesPct}
-            l1={d.tiers.l1.samples} l1pct={d.tiers.l1.samplesPct}
-            l2={d.tiers.l2.samples} l2pct={d.tiers.l2.samplesPct}
-            l3={d.tiers.l3.samples} l3pct={d.tiers.l3.samplesPct}
-            l4={d.tiers.l4.samples} l4pct={d.tiers.l4.samplesPct}
-            l5={d.tiers.l5.samples} l5pct={d.tiers.l5.samplesPct}
-            l6={d.tiers.l6.samples} l6pct={d.tiers.l6.samplesPct}
-            l7={d.tiers.l7.samples} l7pct={d.tiers.l7.samplesPct}
+            l1={t('l1').samples} l1pct={t('l1').samplesPct}
+            l2={t('l2').samples} l2pct={t('l2').samplesPct}
+            l3={t('l3').samples} l3pct={t('l3').samplesPct}
+            l4={t('l4').samples} l4pct={t('l4').samplesPct}
+            l5={t('l5').samples} l5pct={t('l5').samplesPct}
+            l6={t('l6').samples} l6pct={t('l6').samplesPct}
+            l7={t('l7').samples} l7pct={t('l7').samplesPct}
           />
         </div>
         <AgentsSection reportDate={report.report_date} initialAgents={report.agents} />
