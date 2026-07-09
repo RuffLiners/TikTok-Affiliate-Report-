@@ -345,7 +345,7 @@ async function callClaudeRaw(body: any, apiKey: string, timeoutMs = 680_000): Pr
   return JSON.parse(await res.text())
 }
 
-async function callClaude(prompt: string, apiKey: string, withMcp: boolean, maxTokens = 4000): Promise<string> {
+async function callClaude(prompt: string, apiKey: string, withMcp: boolean, maxTokens = 8000): Promise<string> {
   const body: any = { model: 'claude-sonnet-4-6', max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] }
   if (withMcp) {
     const raw = (process.env.EUKA_BEARER_TOKEN||'').trim()
@@ -380,16 +380,19 @@ async function callClaude(prompt: string, apiKey: string, withMcp: boolean, maxT
   if (lastErr) throw lastErr
   const text = extractTextBlocks(data)
 
-  // If no JSON in the response, send a follow-up turn (no MCP needed, 90s is plenty)
+  // If no JSON in the response, send a follow-up turn (no MCP needed, 90s is plenty).
+  // Replay only text blocks — a truncated response can end in an mcp_tool_use
+  // without its mcp_tool_result, which the API rejects as an invalid transcript.
   if (text.indexOf('{') === -1) {
     console.warn('No JSON in first response, sending JSON-coerce follow-up turn')
+    const textBlocks = (data.content || []).filter((b: any) => b.type === 'text')
     const followUpBody: any = {
       model: 'claude-sonnet-4-6',
       max_tokens: 2000,
       messages: [
         { role: 'user', content: prompt },
-        { role: 'assistant', content: data.content || [] },
-        { role: 'user', content: 'Now output ONLY the JSON object with the exact structure I specified. Start your response with { and end with }. Nothing else.' }
+        { role: 'assistant', content: textBlocks.length ? textBlocks : [{ type: 'text', text: '(tool activity elided)' }] },
+        { role: 'user', content: 'Now output ONLY the JSON object with the exact structure I specified. Start your response with { and end with }. Nothing else. Use the data you already pulled; use 0 for anything you could not retrieve.' }
       ]
     }
     const followUpData = await callClaudeRaw(followUpBody, apiKey, 90_000)
@@ -591,7 +594,7 @@ export async function POST(req: NextRequest) {
     console.error(`Job ${jobId} phase ${nextPhase}:`, msg)
     // Transient failures (slow MCP pull timing out, Anthropic overloaded)
     // get the phase re-run by the next kick instead of killing the job
-    const transient = /timeout|unreachable|overloaded|Claude API 5\d\d/i.test(msg)
+    const transient = /timeout|unreachable|overloaded|Claude API 5\d\d|mcp_tool_result/i.test(msg)
     const attempts = (Number(pd[`_attempts${nextPhase}`]) || 1) + 1
     if (transient && attempts <= MAX_PHASE_ATTEMPTS) {
       pd[`_attempts${nextPhase}`] = attempts
