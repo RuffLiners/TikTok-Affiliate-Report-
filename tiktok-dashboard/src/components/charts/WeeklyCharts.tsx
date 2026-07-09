@@ -66,11 +66,14 @@ export function WeeklyCharts({ data }: Props) {
   const tipPct = <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any) => Number(v).toFixed(1) + '%'} />
 
   const [activeTiers, setActiveTiers] = useState<TierKey[]>(ALL_TIERS)
-  // Always stack in canonical order regardless of chip click sequence:
-  // first Bar renders at the bottom, so L1 sits at the bottom and L7 on top
+  // Always stack in canonical order (L1 bottom, L7 top). Bars are never
+  // unmounted — recharts stacks by series registration order, so a re-added
+  // Bar would otherwise remount last and jump to the top of the stack.
+  // Deselected tiers are hidden instead, which also rescales the axes.
   const shownTiers = ALL_TIERS.filter(k => (activeTiers.length ? activeTiers : ALL_TIERS).includes(k))
-  const tierBars = () => shownTiers.map((k, i) =>
-    <Bar key={k} dataKey={k} stackId="a" fill={TIER_COLOR[k]} radius={i === shownTiers.length - 1 ? [3,3,0,0] : undefined} />)
+  const topTier = shownTiers[shownTiers.length - 1]
+  const tierBars = () => ALL_TIERS.map(k =>
+    <Bar key={k} dataKey={k} stackId="a" fill={TIER_COLOR[k]} hide={!shownTiers.includes(k)} radius={k === topTier ? [3,3,0,0] : undefined} />)
 
   return (
     <div className="space-y-6">
