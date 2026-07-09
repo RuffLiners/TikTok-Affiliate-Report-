@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { WeeklyReport, Goals } from '@/lib/types'
+import { driveJob } from '@/lib/driveJob'
 import { ManualEntryPanel } from './ManualEntryPanel'
 import { D30Content } from './D30Content'
 
@@ -33,22 +34,6 @@ export default function LiveDashboard({ report, goals: _goals }: Props) {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
   }
 
-  async function runNextPhase(jobId: string) {
-    const res = await fetch('/api/jobs/run', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jobId })
-    })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      // also fetch job row to get the stored error message
-      const jobRes = await fetch(`/api/jobs/${jobId}`).then(r => r.json()).catch(() => ({}))
-      const errMsg = String(jobRes?.error ?? data?.error ?? `Phase failed (HTTP ${res.status})`)
-      throw new Error(errMsg)
-    }
-    return data.nextPhase
-  }
-
   async function refresh() {
     setRefreshing(true)
     setError(null)
@@ -75,11 +60,8 @@ export default function LiveDashboard({ report, goals: _goals }: Props) {
         } catch { /* ignore poll errors — while loop is the source of truth */ }
       }, 3000)
 
-      // run phases sequentially until done
-      let nextPhase: number | null = 1
-      while (nextPhase !== null) {
-        nextPhase = await runNextPhase(jobId)
-      }
+      // run phases sequentially until done — survives browser request timeouts
+      await driveJob(jobId)
 
       // phases complete — stop poll, refresh data
       stopPoll()

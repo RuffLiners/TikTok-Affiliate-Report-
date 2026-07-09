@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { format, subDays } from 'date-fns'
+import { driveJob } from '@/lib/driveJob'
 import { ManageTab } from './ManageTab'
 
 function getReportMonday(from: Date = new Date()): Date {
@@ -334,21 +335,8 @@ export default function AdminPage() {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
   }
 
-  const TOTAL_PHASES = 18
-
-  async function runPhase(jobId: string): Promise<number | null> {
-    const res = await fetch('/api/jobs/run', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jobId })
-    })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      const jobRes = await fetch(`/api/jobs/${jobId}`).then(r => r.json()).catch(() => ({}))
-      throw new Error(String(jobRes.error || data.error || `Phase failed (HTTP ${res.status})`))
-    }
-    return data.nextPhase ?? null
-  }
+  // Server-side pipeline has 20 phases; the progress list shows GENERATE_STEPS
+  const TOTAL_PHASES = 20
 
   async function generate() {
     setGen('running')
@@ -372,33 +360,31 @@ export default function AdminPage() {
 
       // poll for status label updates
       pollRef.current = setInterval(async () => {
-        const statusRes = await fetch(`/api/jobs/${jobId}`)
-        const job = await statusRes.json()
-        if (job.phase_label) setPhaseLabel(job.phase_label)
-        if (job.phase) setGenStep(job.phase)
+        try {
+          const statusRes = await fetch(`/api/jobs/${jobId}`)
+          const job = await statusRes.json().catch(() => null)
+          if (!job) return
+          if (job.phase_label) setPhaseLabel(job.phase_label)
+          // map server phase (1-20) onto the shorter progress list
+          if (job.phase) setGenStep(Math.min(Math.floor(job.phase * GENERATE_STEPS.length / TOTAL_PHASES), GENERATE_STEPS.length - 1))
+        } catch { /* ignore poll errors */ }
       }, 3000)
 
-      // run phases sequentially, each is one Vercel function call
-      let nextPhase: number | null = 1
-      while (nextPhase !== null) {
-        nextPhase = await runPhase(jobId)
-      }
+      // run phases sequentially until done — survives browser request timeouts
+      await driveJob(jobId)
 
       stopPoll()
 
-      // fetch final job state for result
-      const finalRes = await fetch(`/api/jobs/${jobId}`)
-      const finalJob = await finalRes.json()
-
-      if (finalJob.status === 'error') {
-        setGen('error')
-        setGenErr(finalJob.error || 'Generation failed.')
-      } else {
-        setGenStep(TOTAL_PHASES)
-        setPhaseLabel('Complete ✓')
-        setGen('success')
-        setGenRes({ label: format(selectedDate, 'MMMM d, yyyy'), gmv: 0, reportDate: format(selectedDate, 'yyyy-MM-dd') })
-      }
+      const reportDate = format(selectedDate, 'yyyy-MM-dd')
+      const report = await fetch(`/api/report?date=${reportDate}`).then(r => r.ok ? r.json() : null).catch(() => null)
+      setGenStep(GENERATE_STEPS.length)
+      setPhaseLabel('Complete ✓')
+      setGen('success')
+      setGenRes({
+        label: report?.label ?? format(selectedDate, 'MMMM d, yyyy'),
+        gmv: report?.d30?.gmv ?? 0,
+        reportDate
+      })
     } catch (e: any) {
       stopPoll()
       setGen('error')
