@@ -395,7 +395,7 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 px-6 py-4 sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
+        <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-base font-semibold text-gray-900">Weekly Report Admin</h1>
             <p className="text-xs text-gray-400 mt-0.5">Ruff Liners · TikTok Shop</p>
@@ -404,7 +404,7 @@ export default function AdminPage() {
         </div>
       </header>
 
-      <main className="max-w-2xl mx-auto px-6 py-8 space-y-6">
+      <main className="max-w-3xl mx-auto px-6 py-8 space-y-6">
 
         {/* Tab switcher */}
         <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">

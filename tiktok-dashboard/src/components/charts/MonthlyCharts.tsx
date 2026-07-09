@@ -94,7 +94,7 @@ export function MonthlyCharts({ data }: Props) {
       <div>
         <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Creator Metrics · by Tier</h3>
         <TierFilter active={activeTiers} onChange={setActiveTiers} />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           <ChartCard title="Creators Posted">
             <ResponsiveContainer width="100%" height={ht}>
               <BarChart data={crRows} barCategoryGap="25%">

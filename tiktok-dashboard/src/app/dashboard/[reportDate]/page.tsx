@@ -199,7 +199,7 @@ export default async function ReportPage({ params }: Props) {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 px-6 py-4 sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
+        <div className="max-w-screen-2xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/dashboard" className="text-gray-400 hover:text-gray-600 transition-colors">
               <ChevronLeft size={18} />
@@ -215,7 +215,7 @@ export default async function ReportPage({ params }: Props) {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-6">
+      <main className="max-w-screen-2xl mx-auto px-6 lg:px-10 py-6">
         <Tabs defaultValue="30d">
           <TabsList className="mb-6">
             <TabsTrigger value="30d">Last 30 Days</TabsTrigger>
