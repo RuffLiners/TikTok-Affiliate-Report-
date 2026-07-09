@@ -58,12 +58,16 @@ export function MonthlyCharts({ data }: Props) {
     <YAxis tickFormatter={fmt} tick={{ fontSize: 9 }} tickLine={false} axisLine={false} width={38} />
   const fmtFull = (v: any) => Math.round(Number(v)).toLocaleString('en-US')
   const tierName = (n: any) => /^l[1-7]$/.test(String(n)) ? String(n).toUpperCase() : n
-  const tip = <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any, n: any) => [fmtFull(v), tierName(n)]} />
-  const tip$ = <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any, n: any) => ['$' + fmtFull(v), tierName(n)]} />
+  // List L7 first in the tooltip so it reads top-to-bottom like the stack
+  const tierSort = (item: any) => -Number(String(item.dataKey ?? item.name).replace(/\D/g, '') || 0)
+  const tip = <Tooltip contentStyle={{ fontSize: 11 }} itemSorter={tierSort} formatter={(v: any, n: any) => [fmtFull(v), tierName(n)]} />
+  const tip$ = <Tooltip contentStyle={{ fontSize: 11 }} itemSorter={tierSort} formatter={(v: any, n: any) => ['$' + fmtFull(v), tierName(n)]} />
   const tipPct = <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any) => Number(v).toFixed(1) + '%'} />
 
   const [activeTiers, setActiveTiers] = useState<TierKey[]>(ALL_TIERS)
-  const shownTiers = activeTiers.length ? activeTiers : ALL_TIERS
+  // Always stack in canonical order regardless of chip click sequence:
+  // first Bar renders at the bottom, so L1 sits at the bottom and L7 on top
+  const shownTiers = ALL_TIERS.filter(k => (activeTiers.length ? activeTiers : ALL_TIERS).includes(k))
   const tierBars = () => shownTiers.map((k, i) =>
     <Bar key={k} dataKey={k} stackId="a" fill={TIER_COLOR[k]} radius={i === shownTiers.length - 1 ? [3,3,0,0] : undefined} />)
 
