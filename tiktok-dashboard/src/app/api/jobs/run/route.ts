@@ -539,6 +539,10 @@ async function casUpdate(supabase: any, jobId: string, mutate: (row: any) => any
 
 async function finalizeLive(supabase: any, jobId: string, pd: any, w: ReturnType<typeof buildWindows>) {
   const fullReport = assemble(w, pd, { d30: '', weekly: '', monthly: '' })
+  // Live snapshots flag inconsistencies rather than re-pulling — the user can
+  // simply refresh again, and the banner makes the state visible meanwhile
+  const reconWarnings = reconcileD30(fullReport.d30)
+  if (reconWarnings.length) (fullReport.d30 as any).reconciliation = reconWarnings
   const liveData = {
     report_date: fullReport.report_date,
     label: fullReport.label,
@@ -691,8 +695,38 @@ export async function POST(req: NextRequest) {
         } catch { /* ignore — report saves without agents */ }
       }
       const report = assemble(w, pd, analysis)
+
+      // Auto-reconcile before saving: if level breakdowns don't match the
+      // headline totals, re-pull the phases those numbers came from (and
+      // re-write the analysis) instead of saving inconsistent data. One
+      // repair round; a persistent mismatch saves with a visible warning.
       const reconWarnings = reconcileD30(report.d30)
-      if (reconWarnings.length) (report.d30 as any).reconciliation = reconWarnings
+      if (reconWarnings.length) {
+        const retried = Number(pd._reconRetries || 0)
+        const redo = new Set<number>()
+        for (const wng of reconWarnings) {
+          if (wng.startsWith('GMV:') || wng.startsWith('Views:')) { redo.add(1); redo.add(3) }
+          if (wng.startsWith('Messages:') || wng.startsWith('Samples:')) redo.add(4)
+          if (wng.startsWith('GMV Max spend:')) redo.add(7)
+        }
+        if (retried < 1 && redo.size) {
+          console.warn(`Job ${jobId}: reconciliation failed, re-pulling phases ${[...redo].join(',')}:`, reconWarnings)
+          await casUpdate(supabase, jobId, (row: any) => {
+            const curPd = row.phase_data || {}
+            const newPh = { ...(curPd._ph || {}) }
+            for (const p of redo) newPh[p] = { s: 'retry', a: 0 }
+            newPh[19] = { s: 'retry', a: 0 } // analysis quotes the numbers — rewrite it
+            newPh[20] = { s: 'retry', a: 0 } // this save attempt; re-claimable once data lands
+            return {
+              phase_data: { ...curPd, _reconRetries: retried + 1, _ph: newPh },
+              phase_label: 'Numbers did not reconcile — re-pulling data…'
+            }
+          })
+          return
+        }
+        ;(report.d30 as any).reconciliation = reconWarnings
+      }
+
       if (isMonthly) {
         ;(report.d30 as any).reportType = 'monthly'
         ;(report.d30 as any).monthProgress = w.monthProgress
