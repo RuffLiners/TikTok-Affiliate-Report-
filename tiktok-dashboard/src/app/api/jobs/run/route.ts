@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse, after } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import { reconcileD30 } from '@/lib/reconcile'
 import { format, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { request as httpsRequest } from 'https'
 
@@ -690,6 +691,8 @@ export async function POST(req: NextRequest) {
         } catch { /* ignore — report saves without agents */ }
       }
       const report = assemble(w, pd, analysis)
+      const reconWarnings = reconcileD30(report.d30)
+      if (reconWarnings.length) (report.d30 as any).reconciliation = reconWarnings
       if (isMonthly) {
         ;(report.d30 as any).reportType = 'monthly'
         ;(report.d30 as any).monthProgress = w.monthProgress

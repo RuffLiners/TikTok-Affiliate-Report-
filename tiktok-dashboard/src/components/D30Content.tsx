@@ -23,8 +23,18 @@ export function D30Content({ report }: Props) {
   // Monthly report keys ('YYYY-MM-M') aren't parseable dates — use the window end
   const dateRef = isMonthlyReport ? ((d as any).windowEnd ?? '') : report.report_date
 
+  const reconciliation: string[] = (d as any).reconciliation ?? []
+
   return (
     <div className="space-y-6">
+      {reconciliation.length > 0 && (
+        <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
+          <p className="text-xs font-semibold text-amber-700 mb-1">Data reconciliation warnings</p>
+          {reconciliation.map((warning, i) => (
+            <p key={i} className="text-xs text-amber-700">{warning}</p>
+          ))}
+        </div>
+      )}
       <AnalysisCard text={report.analysis?.d30 ?? ''} title={isMonthlyReport ? 'Monthly Analysis' : '30-Day Analysis'} />
 
       <section>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { supabaseAdmin } from '@/lib/supabase'
+import { reconcileD30 } from '@/lib/reconcile'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +29,9 @@ export async function POST(req: NextRequest) {
   if (!report.analysis) report.analysis = { d30: '', weekly: '', monthly: '' }
 
   const supabase = supabaseAdmin()
+
+  const reconWarnings = reconcileD30(report.d30)
+  if (reconWarnings.length) report.d30.reconciliation = reconWarnings
 
   // Snapshot the goals in effect this month into the report so past reports
   // keep showing the targets (and results) of their own month
