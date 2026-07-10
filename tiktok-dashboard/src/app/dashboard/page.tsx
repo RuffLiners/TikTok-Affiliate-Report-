@@ -36,7 +36,13 @@ export default async function DashboardPage() {
               href="/dashboard/reports"
               className="text-xs text-gray-600 border border-gray-200 px-3 py-1.5 rounded-full font-medium hover:bg-gray-50 transition-colors"
             >
-              Weekly Reports Page
+              Weekly Reports
+            </Link>
+            <Link
+              href="/dashboard/reports/monthly"
+              className="text-xs text-gray-600 border border-gray-200 px-3 py-1.5 rounded-full font-medium hover:bg-gray-50 transition-colors"
+            >
+              Monthly Reports
             </Link>
             {!isViewOnly && (
               <>

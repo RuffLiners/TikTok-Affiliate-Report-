@@ -75,7 +75,13 @@ export default async function ReportsPage() {
               href="/dashboard/reports"
               className="text-xs bg-gray-900 text-white px-3 py-1.5 rounded-full font-medium"
             >
-              Weekly Reports Page
+              Weekly Reports
+            </Link>
+            <Link
+              href="/dashboard/reports/monthly"
+              className="text-xs text-gray-600 border border-gray-200 px-3 py-1.5 rounded-full font-medium hover:bg-gray-50 transition-colors"
+            >
+              Monthly Reports
             </Link>
             {!isViewOnly && (
               <>
@@ -97,14 +103,14 @@ export default async function ReportsPage() {
       <main className="max-w-screen-2xl mx-auto px-6 lg:px-10 py-8">
         <div className="mb-6">
           <h2 className="text-base font-semibold text-gray-900">Weekly Reports</h2>
-          <p className="text-sm text-gray-400 mt-0.5">{reports?.length ?? 0} reports saved</p>
+          <p className="text-sm text-gray-400 mt-0.5">{reports?.filter(r => (r.d30 as any)?.reportType !== 'monthly').length ?? 0} reports saved</p>
         </div>
 
         {!reports?.length ? (
           <p className="text-center text-gray-400 py-16">No reports saved yet.</p>
         ) : (
           <div className="space-y-3">
-            {reports.map(r => {
+            {reports.filter(r => (r.d30 as any)?.reportType !== 'monthly').map(r => {
               const d30 = r.d30 as { gmv?: number; gmvPct?: number; videos?: number; videosPct?: number }
               const gmv = d30?.gmv ?? 0
               const pct = d30?.gmvPct ?? 0
@@ -141,11 +147,7 @@ export default async function ReportsPage() {
                     <div>
                       <div className="flex items-center gap-3">
                         <span className="font-medium text-gray-900">{r.label}</span>
-                        {isMonthlyRow ? (
-                          <span className="text-[10px] font-semibold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full uppercase tracking-wide">Monthly</span>
-                        ) : (
-                          weekStr && <span className="text-xs text-gray-400">{weekStr}</span>
-                        )}
+                        {weekStr && <span className="text-xs text-gray-400">{weekStr}</span>}
                       </div>
                       <p className="text-sm text-gray-400 mt-0.5">
                         Saved {format(new Date(r.created_at), 'MMM d, yyyy h:mm a')}
