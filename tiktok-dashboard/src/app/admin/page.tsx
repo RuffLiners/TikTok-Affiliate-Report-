@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import { format, subDays } from 'date-fns'
+import { format, subDays, subMonths } from 'date-fns'
 import { driveJob } from '@/lib/driveJob'
 import { ManageTab } from './ManageTab'
 
@@ -224,6 +224,9 @@ export default function AdminPage() {
   const [tab, setTab]           = useState<'paste' | 'auto' | 'manage'>('paste')
   const [selectedDate, setSelectedDate] = useState<Date>(() => getReportMonday())
   const mondays = getRecentMondays(5)
+  const [reportKind, setReportKind] = useState<'weekly' | 'monthly'>('weekly')
+  const recentMonths = Array.from({ length: 4 }, (_, i) => format(subMonths(new Date(), i), 'yyyy-MM'))
+  const [selectedMonth, setSelectedMonth] = useState<string>(recentMonths[0])
   const [json, setJson]         = useState('')
   const [saveStatus, setSave]   = useState<SaveStatus>('idle')
   const [saveError, setSaveErr] = useState('')
@@ -345,14 +348,14 @@ export default function AdminPage() {
     setGenStep(0)
     setPhaseLabel('Creating job…')
 
+    const isMonthly = reportKind === 'monthly'
     try {
       const createRes = await fetch('/api/jobs/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jobType: 'weekly_report',
-          params: { today: format(selectedDate, 'yyyy-MM-dd') }
-        })
+        body: JSON.stringify(isMonthly
+          ? { jobType: 'monthly_report', params: { month: selectedMonth } }
+          : { jobType: 'weekly_report', params: { today: format(selectedDate, 'yyyy-MM-dd') } })
       })
       const createData = await createRes.json().catch(() => ({}))
       if (!createRes.ok || !createData.jobId) throw new Error(createData.error || 'Failed to create job')
@@ -375,13 +378,15 @@ export default function AdminPage() {
 
       stopPoll()
 
-      const reportDate = format(selectedDate, 'yyyy-MM-dd')
+      const reportDate = isMonthly ? `${selectedMonth}-M` : format(selectedDate, 'yyyy-MM-dd')
       const report = await fetch(`/api/report?date=${reportDate}`).then(r => r.ok ? r.json() : null).catch(() => null)
       setGenStep(GENERATE_STEPS.length)
       setPhaseLabel('Complete ✓')
       setGen('success')
       setGenRes({
-        label: report?.label ?? format(selectedDate, 'MMMM d, yyyy'),
+        label: report?.label ?? (isMonthly
+          ? format(new Date(selectedMonth + '-01T00:00:00'), 'MMMM yyyy') + ' · Monthly'
+          : format(selectedDate, 'MMMM d, yyyy')),
         gmv: report?.d30?.gmv ?? 0,
         reportDate
       })
@@ -434,36 +439,80 @@ export default function AdminPage() {
           </button>
         </div>
 
-        {/* ── Report date selector (shown on paste + auto tabs) ── */}
+        {/* ── Report period selector (shown on paste + auto tabs) ── */}
         {tab !== 'manage' && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
             <div className="flex items-start justify-between mb-3">
               <div>
-                <p className="text-sm font-semibold text-gray-900">Week covered</p>
-                <p className="text-xs text-gray-400 mt-0.5">Select the Sun–Sat week. Defaults to the most recently completed week.</p>
+                <p className="text-sm font-semibold text-gray-900">
+                  {reportKind === 'monthly' && tab === 'auto' ? 'Month covered' : 'Week covered'}
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {reportKind === 'monthly' && tab === 'auto'
+                    ? 'Select the calendar month. The current month runs through the latest available data.'
+                    : 'Select the Sun–Sat week. Defaults to the most recently completed week.'}
+                </p>
               </div>
-              <span className="text-xs text-gray-400 bg-gray-50 border border-gray-100 px-2.5 py-1 rounded-full">
-                Data: {dataWindow}
-              </span>
+              {(reportKind === 'weekly' || tab !== 'auto') && (
+                <span className="text-xs text-gray-400 bg-gray-50 border border-gray-100 px-2.5 py-1 rounded-full">
+                  Data: {dataWindow}
+                </span>
+              )}
             </div>
-            <div className="flex flex-wrap gap-2">
-              {mondays.map((m, i) => {
-                const isSelected = format(m, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd')
-                return (
+            {tab === 'auto' && (
+              <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-3">
+                {(['weekly', 'monthly'] as const).map(k => (
                   <button
-                    key={i}
-                    onClick={() => setSelectedDate(m)}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
-                      isSelected
-                        ? 'bg-gray-900 text-white border-gray-900'
-                        : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                    key={k}
+                    onClick={() => setReportKind(k)}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                      reportKind === k ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    {weekLabel(m)}{i === 0 ? ' ←' : ''}
+                    {k === 'weekly' ? 'Weekly report' : 'Monthly report'}
                   </button>
-                )
-              })}
-            </div>
+                ))}
+              </div>
+            )}
+            {reportKind === 'monthly' && tab === 'auto' ? (
+              <div className="flex flex-wrap gap-2">
+                {recentMonths.map((m, i) => {
+                  const isSelected = m === selectedMonth
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => setSelectedMonth(m)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                        isSelected
+                          ? 'bg-gray-900 text-white border-gray-900'
+                          : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                      }`}
+                    >
+                      {format(new Date(m + '-01T00:00:00'), 'MMMM yyyy')}{i === 0 ? ' ←' : ''}
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {mondays.map((m, i) => {
+                  const isSelected = format(m, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd')
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => setSelectedDate(m)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                        isSelected
+                          ? 'bg-gray-900 text-white border-gray-900'
+                          : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                      }`}
+                    >
+                      {weekLabel(m)}{i === 0 ? ' ←' : ''}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -755,19 +804,27 @@ export default function AdminPage() {
             {(genStatus === 'idle' || genStatus === 'error') && genStatus !== 'error' && (
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
                 <div className="flex items-start justify-between mb-2">
-                  <h2 className="font-semibold text-gray-900">Generate {format(selectedDate, 'MMMM d, yyyy')}</h2>
-                  <span className="text-xs bg-gray-50 text-gray-400 border border-gray-100 px-2.5 py-1 rounded-full">
-                    {dataWindow}
-                  </span>
+                  <h2 className="font-semibold text-gray-900">
+                    Generate {reportKind === 'monthly'
+                      ? `${format(new Date(selectedMonth + '-01T00:00:00'), 'MMMM yyyy')} · Monthly`
+                      : format(selectedDate, 'MMMM d, yyyy')}
+                  </h2>
+                  {reportKind === 'weekly' && (
+                    <span className="text-xs bg-gray-50 text-gray-400 border border-gray-100 px-2.5 py-1 rounded-full">
+                      {dataWindow}
+                    </span>
+                  )}
                 </div>
                 <p className="text-sm text-gray-400 mb-5">
-                  Pulls all TikTok Shop data from Euka automatically and writes analysis for all 4 report sections. Takes ~5 minutes.
+                  {reportKind === 'monthly'
+                    ? 'Pulls the full month from Euka, compares it to the prior month, and writes a month-over-month analysis with a plan for next month. Takes ~15-25 minutes.'
+                    : 'Pulls all TikTok Shop data from Euka automatically and writes analysis for all 4 report sections. Takes ~15-25 minutes.'}
                 </p>
                 <button
                   onClick={generate}
                   className="w-full bg-gray-900 text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-gray-800 transition-colors"
                 >
-                  Generate This Week&apos;s Report
+                  {reportKind === 'monthly' ? 'Generate Monthly Report' : 'Generate This Week’s Report'}
                 </button>
               </div>
             )}

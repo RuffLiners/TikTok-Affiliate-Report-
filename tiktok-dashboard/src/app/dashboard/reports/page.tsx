@@ -121,7 +121,10 @@ export default async function ReportsPage() {
               const weekStr = weekRange(weekLabel, r.report_date)
               const mc = r.monthly_charts as { gmv?: number[] } | null
               const mtdGmv = mc?.gmv?.at(-1) ?? 0
-              const { pct: monthPct } = getMonthProgress(r.report_date)
+              const isMonthlyRow = (d30 as any)?.reportType === 'monthly'
+              const { pct: monthPct } = isMonthlyRow
+                ? { pct: (d30 as any)?.monthProgress || 1 }
+                : getMonthProgress(r.report_date)
               const projGmv = monthPct > 0 ? mtdGmv / monthPct : mtdGmv
               // Each report tracks against the goals saved with it; live goals
               // only apply to reports from the current month
@@ -138,7 +141,11 @@ export default async function ReportsPage() {
                     <div>
                       <div className="flex items-center gap-3">
                         <span className="font-medium text-gray-900">{r.label}</span>
-                        {weekStr && <span className="text-xs text-gray-400">{weekStr}</span>}
+                        {isMonthlyRow ? (
+                          <span className="text-[10px] font-semibold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full uppercase tracking-wide">Monthly</span>
+                        ) : (
+                          weekStr && <span className="text-xs text-gray-400">{weekStr}</span>
+                        )}
                       </div>
                       <p className="text-sm text-gray-400 mt-0.5">
                         Saved {format(new Date(r.created_at), 'MMM d, yyyy h:mm a')}

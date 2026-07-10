@@ -136,6 +136,10 @@ export default async function ReportPage({ params }: Props) {
   const isCurrentMonth = reportDate.slice(0, 7) === new Date().toISOString().slice(0, 7)
   const goals = snapshotGoals ?? (isCurrentMonth ? liveGoals : null)
 
+  const isMonthlyReport = (d as any).reportType === 'monthly'
+  // For date math on monthly reports ('YYYY-MM-M' key), use the saved window end
+  const effectiveDate = isMonthlyReport ? ((d as any).windowEnd ?? `${reportDate.slice(0, 7)}-01`) : reportDate
+
   // Compute last-week and current-month stats
   const wc = report.weekly_charts
   const lastWeekGmv   = wc.gmv.at(-1) ?? 0
@@ -151,7 +155,9 @@ export default async function ReportPage({ params }: Props) {
 
   // Month-to-date + projected values from monthly_charts last entry
   // Use total account GMV (includes product cards + in-house) for targets; fall back to affiliate GMV for older reports
-  const { pct: monthPct } = getMonthProgress(reportDate)
+  const { pct: monthPct } = isMonthlyReport
+    ? { pct: (d as any).monthProgress || 1 }
+    : getMonthProgress(reportDate)
   const mtdGmv    = (mc.totalGmv?.at(-1) || 0) > 0 ? (mc.totalGmv!.at(-1)!) : (mc.gmv.at(-1) ?? 0)
   const mtdAffiliateGmv = mc.gmv.at(-1) ?? 0
   const qtdTotalGmv = mc.totalGmv && mc.totalGmv.some((v: number) => v > 0)
@@ -223,7 +229,7 @@ export default async function ReportPage({ params }: Props) {
       <main className="max-w-screen-2xl mx-auto px-6 lg:px-10 py-6">
         <Tabs defaultValue="30d">
           <TabsList className="mb-6">
-            <TabsTrigger value="30d">Last 30 Days</TabsTrigger>
+            <TabsTrigger value="30d">{isMonthlyReport ? 'Month' : 'Last 30 Days'}</TabsTrigger>
             <TabsTrigger value="weekly">Weekly · 13 wks</TabsTrigger>
             <TabsTrigger value="monthly">Monthly · 6 mo</TabsTrigger>
             <TabsTrigger value="insights">Insights</TabsTrigger>
@@ -253,7 +259,7 @@ export default async function ReportPage({ params }: Props) {
                 <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
                   Top Videos · Posted This Week
                 </h2>
-                <VideoTable videos={report.tables.weeklyTopVideos} reportDate={reportDate} />
+                <VideoTable videos={report.tables.weeklyTopVideos} reportDate={effectiveDate} />
               </section>
             )}
 

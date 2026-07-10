@@ -38,6 +38,12 @@ function anthropicPost(apiKey: string, bodyStr: string, timeoutMs: number): Prom
 export const maxDuration = 800
 export const dynamic = 'force-dynamic'
 
+// Data-extraction phases run many MCP tool calls; the analysis phase is pure
+// reasoning and benefits from the strongest available model. Both overridable
+// via Vercel env vars without a code change.
+const EXTRACT_MODEL = (process.env.EXTRACTION_MODEL || 'claude-sonnet-4-6').trim()
+const ANALYSIS_MODEL = (process.env.ANALYSIS_MODEL || EXTRACT_MODEL).trim()
+
 function buildWindows(today: Date) {
   const gmvEnd = subDays(today, 2), gmvStart = subDays(gmvEnd, 29)
   const priorEnd = subDays(gmvStart, 1), priorStart = subDays(priorEnd, 29)
@@ -64,6 +70,69 @@ function buildWindows(today: Date) {
     weeksRange: `${f(weeks[0].start)} to ${f(lastSat)}`,
     monthKeys: months.map(m => m.key).join(', ')
   }
+}
+
+// Windows for a monthly report: the "current" window is the calendar month
+// (capped at today-2 for the in-progress month), the prior window is the full
+// previous month, so every existing phase prompt produces month vs month data.
+function buildMonthlyWindows(monthKey: string, today: Date) {
+  const mStart = startOfMonth(new Date(monthKey + '-01T00:00:00'))
+  const mEndFull = endOfMonth(mStart)
+  const dataCap = subDays(today, 2)
+  const mEnd = dataCap < mEndFull ? dataCap : mEndFull
+  const priorStart = startOfMonth(subMonths(mStart, 1))
+  const priorEnd = endOfMonth(priorStart)
+
+  const dow = mEnd.getDay()
+  const lastSat = dow === 6 ? mEnd : subDays(mEnd, dow + 1)
+  const last7Start = subDays(lastSat, 6)
+  const weeks = Array.from({ length: 13 }, (_, i) => {
+    const wEnd = subDays(lastSat, i * 7); return { start: subDays(wEnd, 6), end: wEnd }
+  }).reverse()
+  const months = Array.from({ length: 6 }, (_, i) => {
+    const d = subMonths(mStart, 5 - i); const ip = i === 5
+    return { key: format(d, 'yyyy-MM'), label: format(d, 'MMM') + (ip && mEnd < mEndFull ? '*' : ''), start: startOfMonth(d), end: ip ? mEnd : endOfMonth(d) }
+  })
+  const f = (d: Date) => format(d, 'yyyy-MM-dd')
+  return {
+    // 'YYYY-MM-M' can never collide with a weekly report's Monday date
+    reportDate: `${monthKey}-M`,
+    label: `${format(mStart, 'MMMM yyyy')} · Monthly`,
+    dataWindow: `${format(mStart, 'MMM d')} – ${format(mEnd, 'MMM d, yyyy')}`,
+    d30: { start: f(mStart), end: f(mEnd) }, prior: { start: f(priorStart), end: f(priorEnd) },
+    last7: { start: f(last7Start), end: f(lastSat) }, weeks, months,
+    currentMonthStart: f(mStart), currentMonthEnd: f(mEnd),
+    weekLabels: weeks.map(w => `${w.start.getMonth()+1}/${w.start.getDate()}`),
+    monthLabels: months.map(m => m.label),
+    weeksRange: `${f(weeks[0].start)} to ${f(lastSat)}`,
+    monthKeys: months.map(m => m.key).join(', '),
+    monthName: format(mStart, 'MMMM yyyy'),
+    priorMonthName: format(priorStart, 'MMMM yyyy'),
+    monthProgress: Math.min((mEnd.getDate()) / mEndFull.getDate(), 1)
+  }
+}
+
+// Month-focused analysis: whole-month performance, month-over-month vs the
+// prior month, and a concrete plan for next month. Outputs the four-section
+// format the report page renders.
+function monthlyAnalysisPrompt(w: any, pd: any, goals: any): string {
+  const a1 = pd.A1 || {}, a2 = pd.A2 || {}
+  const mom = (c: number, p: number) => p ? Math.round(((c - p) / p) * 100) : 0
+  const goalsBlock = goals ? `\nGOALS FOR THE MONTH: ${JSON.stringify(goals).slice(0, 1200)}` : ''
+  return `Senior analyst writing the ${w.monthName} MONTHLY report for the Ruff Liners TikTok Shop CEO. Be direct, specific, use real numbers.
+
+THIS MONTH (${w.dataWindow}): GMV $${a1.gmv||0}, Orders ${a1.orders||0}, Videos ${a1.videos||0}, Views ${a1.views||0}, Creators ${a1.creators||0}, New ${a1.newCreators||0}, Retention ${a1.retention||0}%
+PRIOR MONTH (${w.priorMonthName}): GMV $${a2.gmv||0} (${mom(a1.gmv||0,a2.gmv||0)>0?'+':''}${mom(a1.gmv||0,a2.gmv||0)}% MoM), Orders ${a2.orders||0}, Videos ${a2.videos||0}, Creators ${a2.creators||0}
+GMV Max: Spend $${pd.A6?.spend||0}, Revenue $${pd.A6?.revenue||0}, ROI ${pd.A6?.roi||0}x${goalsBlock}
+FULL DATA: ${JSON.stringify(pd).slice(0, 9000)}
+
+Write 4 sections:
+1. "performance" (3-4 paragraphs): the month's headline numbers, month-over-month comparison vs ${w.priorMonthName} (what improved, what declined, why), progress vs the month's goals if provided, what drove results — name the creators/products/levels moving the numbers.
+2. "creators" (2-3 paragraphs): breakout creators this month, top content, which level was most active and most productive per creator, level mix shifts vs prior month.
+3. "recruiting" (2-3 paragraphs): outreach results for the month (messages, samples, by level), what converted, reactivation targets, how the recruiting mix should change.
+4. "growth" (3-4 paragraphs): THE PLAN FOR NEXT MONTH — 3-5 concrete prioritized actions with expected impact, informed by this month's week-over-week arc and the 6-month trajectory. Include 1-2 risks to monitor and an upside/downside GMV outlook for next month.
+
+Output ONLY: {"performance":"para1\\n\\npara2","creators":"para1\\n\\npara2","recruiting":"para1\\n\\npara2","growth":"para1\\n\\npara2"}`
 }
 
 const BASE = (w: ReturnType<typeof buildWindows>) =>
@@ -306,7 +375,9 @@ function assemble(w: ReturnType<typeof buildWindows>, pd: any, analysis: any) {
     },
     tables:{topCreators:pd.topCreators||[], topVideos:pd.topVideos||[], activeCreators:pd.activeCreators||[]},
     agents:pd.agents||[],
-    analysis:{d30:analysis?.d30||'', weekly:analysis?.weekly||'', monthly:analysis?.monthly||''}
+    analysis: analysis?.performance !== undefined
+      ? analysis
+      : { d30:analysis?.d30||'', weekly:analysis?.weekly||'', monthly:analysis?.monthly||'' }
   }
 }
 
@@ -343,8 +414,8 @@ async function callClaudeRaw(body: any, apiKey: string, timeoutMs = 680_000): Pr
   return JSON.parse(await res.text())
 }
 
-async function callClaude(prompt: string, apiKey: string, withMcp: boolean, maxTokens = 8000): Promise<string> {
-  const body: any = { model: 'claude-sonnet-4-6', max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] }
+async function callClaude(prompt: string, apiKey: string, withMcp: boolean, maxTokens = 8000, model = EXTRACT_MODEL): Promise<string> {
+  const body: any = { model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] }
   if (withMcp) {
     const raw = (process.env.EUKA_BEARER_TOKEN||'').trim()
     const tok = raw.startsWith('Bearer ') ? raw.slice(7).trim() : raw
@@ -353,8 +424,8 @@ async function callClaude(prompt: string, apiKey: string, withMcp: boolean, maxT
     body.mcp_servers = [srv]
   }
 
-  // MCP call: 680s. Non-MCP: 120s. Agents: 750s (complex multi-step enumeration).
-  const timeoutMs = withMcp ? (maxTokens > 4000 ? 750_000 : 680_000) : 120_000
+  // MCP call: 680s. Non-MCP (analysis): 300s. Agents: 750s (complex multi-step enumeration).
+  const timeoutMs = withMcp ? (maxTokens > 4000 ? 750_000 : 680_000) : 300_000
 
   // Retry up to 2 times on MCP connection errors (transient Euka server unavailability)
   let data: any
@@ -385,7 +456,7 @@ async function callClaude(prompt: string, apiKey: string, withMcp: boolean, maxT
     console.warn('No JSON in first response, sending JSON-coerce follow-up turn')
     const textBlocks = (data.content || []).filter((b: any) => b.type === 'text')
     const followUpBody: any = {
-      model: 'claude-sonnet-4-6',
+      model,
       max_tokens: 2000,
       messages: [
         { role: 'user', content: prompt },
@@ -525,8 +596,11 @@ export async function POST(req: NextRequest) {
 
   const params = job.params || {}
   const today = params.today ? new Date(params.today) : new Date()
-  const w = buildWindows(today)
   const isLive = job.job_type === 'live_refresh'
+  const isMonthly = job.job_type === 'monthly_report'
+  const w: any = isMonthly
+    ? buildMonthlyWindows(params.month || format(subDays(today, 2), 'yyyy-MM'), today)
+    : buildWindows(today)
   const dataPhases = dataPhasesFor(isLive)
 
   // Terminal-step recovery: everything pulled but the final write never landed
@@ -586,13 +660,25 @@ export async function POST(req: NextRequest) {
       const pd = { ...(row?.phase_data || {}) }
 
       if (target === 19) {
-        const text = await callClaude(phaseConfig.prompt(w, pd), apiKey, false)
+        // Monthly reports get a month-over-month analysis with a next-month
+        // plan, written by the strongest configured model
+        let goalsSnap: any = null
+        try {
+          const { data: g } = await supabase.from('app_config').select('value').eq('key','goals').single()
+          if (g?.value) goalsSnap = JSON.parse(g.value)
+        } catch { /* analysis runs without goals context */ }
+        const analysisPrompt = isMonthly
+          ? monthlyAnalysisPrompt(w, pd, goalsSnap)
+          : phaseConfig.prompt(w, pd)
+        const text = await callClaude(analysisPrompt, apiKey, false, 8000, ANALYSIS_MODEL)
         await finishPhase(supabase, jobId, 19, extractJson(text), isLive)
         return
       }
 
       // Phase 20 — assemble and save
-      const analysis = { d30: pd.d30||'', weekly: pd.weekly||'', monthly: pd.monthly||'' }
+      const analysis = isMonthly
+        ? { performance: pd.performance||'', creators: pd.creators||'', recruiting: pd.recruiting||'', growth: pd.growth||'' }
+        : { d30: pd.d30||'', weekly: pd.weekly||'', monthly: pd.monthly||'' }
       // Fallback: if agents weren't fetched in Phase 8, pull from most recent live_report
       if (!pd.agents || pd.agents.length === 0) {
         try {
@@ -604,6 +690,11 @@ export async function POST(req: NextRequest) {
         } catch { /* ignore — report saves without agents */ }
       }
       const report = assemble(w, pd, analysis)
+      if (isMonthly) {
+        ;(report.d30 as any).reportType = 'monthly'
+        ;(report.d30 as any).monthProgress = w.monthProgress
+        ;(report.d30 as any).windowEnd = w.d30.end
+      }
       // Snapshot the goals in effect this month into the report so past
       // reports keep showing the targets (and results) of their own month
       try {
@@ -611,17 +702,20 @@ export async function POST(req: NextRequest) {
         if (g?.value) (report.d30 as any).goals = JSON.parse(g.value)
       } catch { /* report saves without goals snapshot */ }
       await supabase.from('weekly_reports').upsert(report, { onConflict:'report_date' })
-      // Keep the Live 30 Day page in sync — its d30 window matches the weekly report's
-      const liveData = {
-        report_date: report.report_date,
-        label: report.label,
-        data_window: report.data_window,
-        d30: report.d30,
-        tables: report.tables,
-        agents: report.agents,
-        analysis: { d30: report.analysis?.d30 || '' },
+      // Keep the Live 30 Day page in sync with weekly reports — a monthly
+      // report's window is the calendar month, not the trailing 30 days
+      if (!isMonthly) {
+        const liveData = {
+          report_date: report.report_date,
+          label: report.label,
+          data_window: report.data_window,
+          d30: report.d30,
+          tables: report.tables,
+          agents: report.agents,
+          analysis: { d30: report.analysis?.d30 || '' },
+        }
+        await supabase.from('app_config').upsert({ key:'live_report', value: JSON.stringify(liveData) }, { onConflict:'key' })
       }
-      await supabase.from('app_config').upsert({ key:'live_report', value: JSON.stringify(liveData) }, { onConflict:'key' })
       await supabase.from('report_jobs').update({ status:'done', phase:20, phase_label:'Complete ✓', updated_at:new Date().toISOString() }).eq('id',jobId)
       return
     }

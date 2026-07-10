@@ -19,10 +19,13 @@ export function D30Content({ report }: Props) {
   const d = report.d30
   // Reports/live snapshots saved before the L1-L7 refactor only carry g1-g3 tiers
   const t = (k: string) => ((d.tiers as any)?.[k] ?? EMPTY_TIER)
+  const isMonthlyReport = (d as any).reportType === 'monthly'
+  // Monthly report keys ('YYYY-MM-M') aren't parseable dates — use the window end
+  const dateRef = isMonthlyReport ? ((d as any).windowEnd ?? '') : report.report_date
 
   return (
     <div className="space-y-6">
-      <AnalysisCard text={report.analysis?.d30 ?? ''} title="30-Day Analysis" />
+      <AnalysisCard text={report.analysis?.d30 ?? ''} title={isMonthlyReport ? 'Monthly Analysis' : '30-Day Analysis'} />
 
       <section>
         <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Overview</h3>
@@ -87,7 +90,7 @@ export function D30Content({ report }: Props) {
       {report.tables?.topVideos?.length > 0 && (
         <section>
           <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Top 15 Videos · by GMV</h3>
-          <VideoTable videos={report.tables.topVideos} reportDate={report.report_date} />
+          <VideoTable videos={report.tables.topVideos} reportDate={dateRef} />
         </section>
       )}
 
