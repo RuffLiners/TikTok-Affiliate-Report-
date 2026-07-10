@@ -68,7 +68,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Database save failed: ' + dbErr.message }, { status: 500 })
   }
 
-  // Keep the Live 30 Day page in sync — its d30 window matches the weekly report's
+  // Keep the Live 30 Day page in sync with weekly reports — a monthly
+  // report's window is the calendar month, not the trailing 30 days
+  if (report.d30.reportType === 'monthly') {
+    revalidatePath('/dashboard')
+    return NextResponse.json({
+      ok: true,
+      reportDate: report.meta.reportDate,
+      label:      report.meta.label,
+      gmv:        report.d30.gmv
+    })
+  }
   const liveData = {
     report_date: report.meta.reportDate,
     label:       report.meta.label,

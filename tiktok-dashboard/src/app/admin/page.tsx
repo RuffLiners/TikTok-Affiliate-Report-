@@ -206,6 +206,151 @@ OUTPUT — respond with ONLY this JSON object, nothing before or after it. CRITI
 Product name shortening: "Hard Bottom Backseat Extenders for Dogs with Door Protection" → "Back Seat Ext." · "XL Floor Cover for Full-Size Crew Cab Trucks with Fold Up Seats" → "XL Floor Cover" · "Travel Dog Bed for Car" → "Travel Dog Bed"`
 }
 
+// Monthly paste prompt: whole calendar month vs the full prior month, with
+// month-over-month analysis and a next-month plan. Saves under 'YYYY-MM-M'.
+function buildMonthlyClaudePrompt(monthKey: string, goals?: any): string {
+  const mStart = new Date(monthKey + '-01T00:00:00')
+  const mEndFull = new Date(mStart.getFullYear(), mStart.getMonth() + 1, 0)
+  const dataCap = subDays(new Date(), 2)
+  const mEnd = dataCap < mEndFull ? dataCap : mEndFull
+  const priorStart = new Date(mStart.getFullYear(), mStart.getMonth() - 1, 1)
+  const priorEnd = new Date(mStart.getFullYear(), mStart.getMonth(), 0)
+  const dow = mEnd.getDay()
+  const lastSat = dow === 6 ? mEnd : subDays(mEnd, dow + 1)
+  const weeksStart = subDays(lastSat, 13 * 7 - 1)
+  const monthProgress = Math.round(Math.min(mEnd.getDate() / mEndFull.getDate(), 1) * 1000) / 1000
+  const f = (d: Date) => format(d, 'yyyy-MM-dd')
+  const fLabel = (d: Date) => format(d, 'MMM d')
+  const monthName = format(mStart, 'MMMM yyyy')
+  const priorName = format(priorStart, 'MMMM yyyy')
+
+  let goalsSection = ''
+  if (goals && (goals.monthlyGmvTarget || goals.quarterlyGmvTarget)) {
+    goalsSection = `\nGOALS & TARGETS — reference these when writing analysis:\n`
+    if (goals.monthlyGmvTarget) goalsSection += `- Monthly GMV goal: $${Math.round(goals.monthlyGmvTarget).toLocaleString('en-US')}${goals.monthlyPeriod ? ` (${goals.monthlyPeriod})` : ''}\n`
+    if (goals.quarterlyGmvTarget) goalsSection += `- Quarterly GMV goal: $${Math.round(goals.quarterlyGmvTarget).toLocaleString('en-US')}${goals.quarterlyPeriod ? ` (${goals.quarterlyPeriod})` : ''}\n`
+    goalsSection += '\n'
+  }
+
+  return `Run the Ruff Liners TikTok Shop MONTHLY report for ${monthName}.
+
+Store ID: ${STORE_ID}
+
+DATE WINDOWS — use these exactly:
+- This month: ${f(mStart)} to ${f(mEnd)}${mEnd < mEndFull ? ' (month in progress — data through latest available)' : ' (complete month)'}
+- Prior month: ${f(priorStart)} to ${f(priorEnd)} — use for ALL month-over-month % comparisons
+- 13 complete Sun–Sat weeks ending on ${f(lastSat)} (starting ${f(weeksStart)})
+- 6 months: the 5 complete calendar months before ${monthName} + ${monthName} through ${f(mEnd)}
+
+QUERIES TO RUN (read every CSV file Euka returns):
+1. This month's totals (${f(mStart)}–${f(mEnd)}): (a) GMV, orders, videos posted, views, creators posted, new creators (first-ever post for this store), retention rate vs prior month from creator_store_performance; (b) call get_dashboard_performance_overview for the same window and read fields named exactly "totalShopGMV" → shopGmv and "totalAffiliateGMV" → affiliateGmv. GUARDRAIL: only use totalShopGMV when gmvFiltered === false AND filteredGmvUnavailable === false AND shopGmvError === null; otherwise set shopGmv to 0
+2. Prior month (${f(priorStart)}–${f(priorEnd)}): same totals for month-over-month % change calculations
+3. This month by creator level (L1 = global gmv_30d <$5K, L2 = $5K–$25K, L3 = $25K–$60K, L4 = $60K–$150K, L5 = $150K–$400K, L6 = $400K–$1.5M, L7 = $1.5M+): creators, new creators, videos posted, total views, store GMV — L1+…+L7 views must sum to the overall month total views (do not leave views as 0)
+4. This month's outreach by level: messages sent + samples shipped + samples approved, plus overall totals
+5. Prior month outreach: totals + by level (for % change)
+6. GMV Max this month: total ad spend, attributed revenue, blended ROI (use 0 if data unavailable before May 14 2026)
+7. Top 15 creators by store GMV this month — handle, followers, store GMV, global gmv_30d, views, videos this month, videos w/GMV this month, lifetime videos, videos L7d, orders, AOV, engagement rate
+8. For the top 15 handles from #7: count of videos that generated any GMV this month, and lifetime total videos for this store
+9. Top 15 videos by store GMV this month — creator handle, product name, GMV, views, orders, AOV, publish date, likes, comments, product clicks
+10. Top 15 creators by videos posted this month — handle, followers, GMV from this month's videos only, total store GMV, views, avg views/video, orders
+11. 13 weekly totals: GMV, orders, views, videos (13 rows, one per Sun–Sat week)
+12. 13 weeks by level (L1–L7): creators posted, new creators, videos, store GMV per week per level (91 rows)
+13. 13 weeks: retention rate per week (13 rows)
+14. 13 weeks: messages sent + samples shipped by level per week (91 rows)
+15. 6 months: for ${monthName} use ${f(mStart)} through ${f(mEnd)}; for prior complete months use full month ranges. For each month: (a) affiliate GMV (gmv) + views from creator_store_performance, (b) call get_dashboard_performance_overview and read the field named exactly "totalShopGMV" → output as shopGmv; also read "totalAffiliateGMV" → output as affiliateGmv. GUARDRAIL: only use totalShopGMV when gmvFiltered === false AND filteredGmvUnavailable === false AND shopGmvError === null; otherwise set shopGmv to 0. Set shopGmv/affiliateGmv to 0 if unavailable. (6 rows)
+16. 6 months by level (L1–L7): creators, new creators, videos, GMV (42 rows)
+17. 6 months: retention rate per month (6 rows)
+18. 6 months: messages sent + samples shipped + samples approved by level per month (42 rows; samples approved maps to sal1–sal7)
+19. GMV Max spend this month (${f(mStart)}–${f(mEnd)}) broken down by content age. Buckets by video publish date vs ${f(mEnd)}: "< 30 days", "1–2 months" (31–60 days before ${f(mEnd)}), "2–3 months" (61–90 days), "3–5 months" (91–150 days), "5+ months" (151+ days), "Unknown post date" (publish date missing). For each non-empty bucket: label, videos (count), spend, revenue, roi (revenue/spend, 0 if no spend), pct (spend % of total). Omit empty buckets. Output [] if GMV Max data unavailable.
+20. Outreach & CRM agents created this month (${f(mStart)}–${f(mEnd)}): call list_outreach_agents with agentType="outreach" and agentType="crm", multiple searchQuery values ("", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "Video Volume", "GMV Contest", "New Agent", "Tiktoktshopbonus"), limit=25, archived=false. Merge and deduplicate by id, keep only agents with created_time >= ${f(mStart)}. Call get_outreach_agent for each to enrich. Map to the same agent fields as the weekly report (id, name, agent_type, campaign_type, status, date_posted, gmv_filter, kw_filter, other_filters, list_segment, commission_display, creators_reached, remaining, total_invites, accepted_invites, total_replies, samples_requested, samples_shipped, total_videos, total_revenue, product_count, has_followups).
+${goalsSection}
+ANALYSIS — write 4 focused sections after pulling all data:
+- "performance": 3–4 paragraphs — ${monthName}'s headline numbers, explicit month-over-month comparison vs ${priorName} (what improved, what declined, and why), progress vs the month's goals, what drove results. Name the creators/products/levels moving the numbers.
+- "creators": 2–3 paragraphs — Breakout creators this month (names, numbers), top performing content of the month, which level was most active and most productive per creator, level mix shifts vs ${priorName}.
+- "recruiting": 2–3 paragraphs — This month's outreach results (messages, samples, by level) and what converted, top reactivation targets, how the outreach mix should change.
+- "growth": 3–4 paragraphs — THE PLAN FOR NEXT MONTH: 3–5 concrete prioritized actions with expected impact, informed by the week-over-week arc and 6-month trajectory. Include 1–2 risks to monitor and an upside/downside GMV outlook for next month.
+
+OUTPUT — respond with ONLY this JSON object, nothing before or after it. CRITICAL: include EVERY field shown below — never omit a field even if its query returned no data (use empty arrays [] or 0 as defaults). Keep meta.reportDate, d30.reportType, d30.monthProgress, and d30.windowEnd EXACTLY as shown:
+
+{
+  "meta": {
+    "reportDate": "${monthKey}-M",
+    "label": "${monthName} · Monthly",
+    "dataWindow": "${fLabel(mStart)} – ${fLabel(mEnd)}, ${format(mEnd, 'yyyy')}"
+  },
+  "d30": {
+    "reportType": "monthly", "monthProgress": ${monthProgress}, "windowEnd": "${f(mEnd)}",
+    "gmv": 0, "gmvPct": 0, "shopGmv": 0, "shopGmvPct": 0, "affiliateGmv": 0, "affiliateGmvPct": 0,
+    "orders": 0, "ordersPct": 0,
+    "videos": 0, "videosPct": 0, "views": 0, "viewsPct": 0,
+    "creators": 0, "creatorsPct": 0, "newCreators": 0, "newCreatorsPct": 0,
+    "retention": 0, "retentionDelta": 0,
+    "gmvMax": { "spend": 0, "revenue": 0, "roi": 0 },
+    "gmvMaxByAge": [{ "label":"< 30 days","videos":0,"spend":0,"revenue":0,"roi":0,"pct":0 }],
+    "msgs": 0, "msgsPct": 0, "samples": 0, "samplesPct": 0,
+    "tiers": {
+      "l1": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
+      "l2": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
+      "l3": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
+      "l4": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
+      "l5": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
+      "l6": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 },
+      "l7": { "creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0,"msgs":0,"msgsPct":0,"samples":0,"samplesPct":0 }
+    }
+  },
+  "weeklyCharts": {
+    "labels": ["fill","in","13","week","labels","as","M/D"],
+    "gmv":[],"views":[],
+    "crl1":[],"crl2":[],"crl3":[],"crl4":[],"crl5":[],"crl6":[],"crl7":[],
+    "ncl1":[],"ncl2":[],"ncl3":[],"ncl4":[],"ncl5":[],"ncl6":[],"ncl7":[],
+    "vl1":[],"vl2":[],"vl3":[],"vl4":[],"vl5":[],"vl6":[],"vl7":[],
+    "gl1":[],"gl2":[],"gl3":[],"gl4":[],"gl5":[],"gl6":[],"gl7":[],
+    "vwl1":[],"vwl2":[],"vwl3":[],"vwl4":[],"vwl5":[],"vwl6":[],"vwl7":[],
+    "ret":[],"vid":[],
+    "ml1":[],"ml2":[],"ml3":[],"ml4":[],"ml5":[],"ml6":[],"ml7":[],
+    "sl1":[],"sl2":[],"sl3":[],"sl4":[],"sl5":[],"sl6":[],"sl7":[]
+  },
+  "monthlyCharts": {
+    "labels": ["fill","in","6","month","labels","e.g. May"],
+    "gmv":[],"shopGmv":[],"affiliateGmv":[],"views":[],
+    "crl1":[],"crl2":[],"crl3":[],"crl4":[],"crl5":[],"crl6":[],"crl7":[],
+    "ncl1":[],"ncl2":[],"ncl3":[],"ncl4":[],"ncl5":[],"ncl6":[],"ncl7":[],
+    "vl1":[],"vl2":[],"vl3":[],"vl4":[],"vl5":[],"vl6":[],"vl7":[],
+    "gl1":[],"gl2":[],"gl3":[],"gl4":[],"gl5":[],"gl6":[],"gl7":[],
+    "vwl1":[],"vwl2":[],"vwl3":[],"vwl4":[],"vwl5":[],"vwl6":[],"vwl7":[],
+    "ret":[],
+    "ml1":[],"ml2":[],"ml3":[],"ml4":[],"ml5":[],"ml6":[],"ml7":[],
+    "sl1":[],"sl2":[],"sl3":[],"sl4":[],"sl5":[],"sl6":[],"sl7":[],
+    "sal1":[],"sal2":[],"sal3":[],"sal4":[],"sal5":[],"sal6":[],"sal7":[]
+  },
+  "tables": {
+    "topCreators": [
+      { "h":"handle","flw":0,"sgmv":0,"ggmv":0,"views":0,"v30":0,"vmgmv":0,"vlife":0,"v7":0,"ord":0,"aov":0,"eng":null,"active":true }
+    ],
+    "topVideos": [
+      { "h":"handle","ggmv":0,"prod":"product name","gmv":0,"views":0,"ord":0,"aov":0,"likes":0,"cmt":0,"clicks":null,"date":"${fLabel(mStart)}" }
+    ],
+    "activeCreators": [
+      { "h":"handle","ggmv":0,"flw":0,"v30":0,"gmvN":0,"gmvT":0,"views":0,"avgv":0,"ord":0 }
+    ],
+    "weeklyTopCreators": [],
+    "weeklyTopVideos": [],
+    "weeklyActiveCreators": []
+  },
+  "agents": [
+    { "id":0,"name":"","agent_type":"outreach","campaign_type":"","status":"running","date_posted":"YYYY-MM-DD","gmv_filter":"","kw_filter":"","other_filters":"","list_segment":"","commission_display":"","creators_reached":0,"remaining":0,"total_invites":0,"accepted_invites":0,"total_replies":0,"samples_requested":0,"samples_shipped":0,"total_videos":0,"total_revenue":0,"product_count":0,"has_followups":false }
+  ],
+  "analysis": {
+    "performance": "Write 3-4 paragraphs. Use \\n\\n between paragraphs.",
+    "creators": "Write 2-3 paragraphs. Use \\n\\n between paragraphs.",
+    "recruiting": "Write 2-3 paragraphs. Use \\n\\n between paragraphs.",
+    "growth": "Write 3-4 paragraphs. Use \\n\\n between paragraphs."
+  }
+}
+
+Product name shortening: "Hard Bottom Backseat Extenders for Dogs with Door Protection" → "Back Seat Ext." · "XL Floor Cover for Full-Size Crew Cab Trucks with Fold Up Seats" → "XL Floor Cover" · "Travel Dog Bed for Car" → "Travel Dog Bed"`
+}
+
 const GENERATE_STEPS = [
   { id: 'kpis',      label: 'Pulling current & prior KPIs' },
   { id: 'tiers',     label: 'Pulling creator tiers & GMV Max' },
@@ -265,10 +410,21 @@ export default function AdminPage() {
   }, [])
 
   const today = new Date()
-  const prompt = buildClaudePrompt(selectedDate, goals)
+  const isMonthlyKind = reportKind === 'monthly'
+  const prompt = isMonthlyKind
+    ? buildMonthlyClaudePrompt(selectedMonth, goals)
+    : buildClaudePrompt(selectedDate, goals)
   const gmvEnd = subDays(selectedDate, 2)
   const gmvStart = subDays(gmvEnd, 29)
-  const dataWindow = `${format(gmvStart, 'MMM d')} – ${format(gmvEnd, 'MMM d, yyyy')}`
+  const selMonthStart = new Date(selectedMonth + '-01T00:00:00')
+  const selMonthEnd = (() => {
+    const full = new Date(selMonthStart.getFullYear(), selMonthStart.getMonth() + 1, 0)
+    const cap = subDays(new Date(), 2)
+    return cap < full ? cap : full
+  })()
+  const dataWindow = isMonthlyKind
+    ? `${format(selMonthStart, 'MMM d')} – ${format(selMonthEnd, 'MMM d, yyyy')}`
+    : `${format(gmvStart, 'MMM d')} – ${format(gmvEnd, 'MMM d, yyyy')}`
   const fmt$ = (n: number) => '$' + Math.round(n).toLocaleString('en-US')
 
   async function copyPrompt() {
@@ -445,21 +601,19 @@ export default function AdminPage() {
             <div className="flex items-start justify-between mb-3">
               <div>
                 <p className="text-sm font-semibold text-gray-900">
-                  {reportKind === 'monthly' && tab === 'auto' ? 'Month covered' : 'Week covered'}
+                  {reportKind === 'monthly' ? 'Month covered' : 'Week covered'}
                 </p>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  {reportKind === 'monthly' && tab === 'auto'
+                  {reportKind === 'monthly'
                     ? 'Select the calendar month. The current month runs through the latest available data.'
                     : 'Select the Sun–Sat week. Defaults to the most recently completed week.'}
                 </p>
               </div>
-              {(reportKind === 'weekly' || tab !== 'auto') && (
-                <span className="text-xs text-gray-400 bg-gray-50 border border-gray-100 px-2.5 py-1 rounded-full">
-                  Data: {dataWindow}
-                </span>
-              )}
+              <span className="text-xs text-gray-400 bg-gray-50 border border-gray-100 px-2.5 py-1 rounded-full">
+                Data: {dataWindow}
+              </span>
             </div>
-            {tab === 'auto' && (
+            {(
               <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-3">
                 {(['weekly', 'monthly'] as const).map(k => (
                   <button
@@ -474,7 +628,7 @@ export default function AdminPage() {
                 ))}
               </div>
             )}
-            {reportKind === 'monthly' && tab === 'auto' ? (
+            {reportKind === 'monthly' ? (
               <div className="flex flex-wrap gap-2">
                 {recentMonths.map((m, i) => {
                   const isSelected = m === selectedMonth
@@ -537,7 +691,7 @@ export default function AdminPage() {
                   <span className="w-6 h-6 rounded-full bg-gray-900 text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">2</span>
                   <div className="flex-1">
                     <p className="text-sm font-medium text-gray-800">Copy and paste this prompt</p>
-                    <p className="text-xs text-gray-400 mt-0.5 mb-2">Date windows are pre-filled for <strong>{format(selectedDate, 'MMM d, yyyy')}</strong> · {dataWindow}.</p>
+                    <p className="text-xs text-gray-400 mt-0.5 mb-2">Date windows are pre-filled for <strong>{isMonthlyKind ? `${format(selMonthStart, 'MMMM yyyy')} (monthly report)` : format(selectedDate, 'MMM d, yyyy')}</strong> · {dataWindow}.</p>
                     <div className="relative">
                       <pre className="bg-gray-50 border border-gray-100 rounded-lg p-3 text-xs text-gray-600 overflow-auto max-h-48 whitespace-pre-wrap leading-relaxed">
                         {prompt.slice(0, 300)}…
