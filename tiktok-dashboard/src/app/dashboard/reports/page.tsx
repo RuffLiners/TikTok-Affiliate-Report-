@@ -50,7 +50,8 @@ export default async function ReportsPage() {
     supabaseAdmin()
       .from('app_config').select('value').eq('key', 'goals').single()
   ])
-  const goals = goalsConfig ? (() => { try { return JSON.parse(goalsConfig.value) } catch { return null } })() : null
+  const liveGoals = goalsConfig ? (() => { try { return JSON.parse(goalsConfig.value) } catch { return null } })() : null
+  const currentYm = new Date().toISOString().slice(0, 7)
 
   const fmt$ = (n: number) => '$' + Math.round(n).toLocaleString('en-US')
   const fmtN = (n: number) => Math.round(n).toLocaleString('en-US')
@@ -122,7 +123,11 @@ export default async function ReportsPage() {
               const mtdGmv = mc?.gmv?.at(-1) ?? 0
               const { pct: monthPct } = getMonthProgress(r.report_date)
               const projGmv = monthPct > 0 ? mtdGmv / monthPct : mtdGmv
-              const gmvTarget: number | null = goals?.monthlyGmvTarget ?? null
+              // Each report tracks against the goals saved with it; live goals
+              // only apply to reports from the current month
+              const rGoals = (d30 as any)?.goals
+                ?? (r.report_date.slice(0, 7) === currentYm ? liveGoals : null)
+              const gmvTarget: number | null = rGoals?.monthlyGmvTarget ?? null
               const gmvTargetStatus = gmvTarget && gmvTarget > 0
                 ? (projGmv / gmvTarget >= 0.9 ? 'on' : projGmv / gmvTarget >= 0.7 ? 'risk' : 'off')
                 : null

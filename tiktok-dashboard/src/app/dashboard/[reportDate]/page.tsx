@@ -125,11 +125,16 @@ export default async function ReportPage({ params }: Props) {
   const report = data as WeeklyReport
   const d = report.d30
 
-  // Fetch goals from app_config
+  // Goals: prefer the snapshot saved with the report (the targets in effect
+  // that month). Fall back to the live config only for current-month reports —
+  // old reports without a snapshot must not be judged against today's targets.
   const adminSupabase = supabaseAdmin()
   const { data: goalsConfig } = await adminSupabase
     .from('app_config').select('value').eq('key', 'goals').single()
-  const goals = goalsConfig ? (() => { try { return JSON.parse(goalsConfig.value) } catch { return null } })() : null
+  const liveGoals = goalsConfig ? (() => { try { return JSON.parse(goalsConfig.value) } catch { return null } })() : null
+  const snapshotGoals = (d as any).goals ?? null
+  const isCurrentMonth = reportDate.slice(0, 7) === new Date().toISOString().slice(0, 7)
+  const goals = snapshotGoals ?? (isCurrentMonth ? liveGoals : null)
 
   // Compute last-week and current-month stats
   const wc = report.weekly_charts
@@ -282,9 +287,19 @@ export default async function ReportPage({ params }: Props) {
             </section>
 
             {/* Target Tracker */}
-            {goals && (
+            {!goals && (
               <section>
                 <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Target Tracker</h2>
+                <p className="text-sm text-gray-400 bg-white rounded-xl border border-gray-100 px-5 py-4">
+                  No targets were saved with this report, so this month&apos;s goals aren&apos;t applied to it.
+                </p>
+              </section>
+            )}
+            {goals && (
+              <section>
+                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+                  Target Tracker{goals.monthlyPeriod ? ` · ${goals.monthlyPeriod}` : ''}
+                </h2>
                 <div className="space-y-4">
 
                   {/* Revenue — GMV */}

@@ -29,6 +29,15 @@ export async function POST(req: NextRequest) {
 
   const supabase = supabaseAdmin()
 
+  // Snapshot the goals in effect this month into the report so past reports
+  // keep showing the targets (and results) of their own month
+  if (!report.d30.goals) {
+    try {
+      const { data: g } = await supabase.from('app_config').select('value').eq('key', 'goals').single()
+      if (g?.value) report.d30.goals = JSON.parse(g.value)
+    } catch { /* report saves without goals snapshot */ }
+  }
+
   const rowWithAnalysis = {
     report_date:    report.meta.reportDate,
     label:          report.meta.label,

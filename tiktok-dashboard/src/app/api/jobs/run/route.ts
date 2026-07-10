@@ -604,6 +604,12 @@ export async function POST(req: NextRequest) {
         } catch { /* ignore — report saves without agents */ }
       }
       const report = assemble(w, pd, analysis)
+      // Snapshot the goals in effect this month into the report so past
+      // reports keep showing the targets (and results) of their own month
+      try {
+        const { data: g } = await supabase.from('app_config').select('value').eq('key','goals').single()
+        if (g?.value) (report.d30 as any).goals = JSON.parse(g.value)
+      } catch { /* report saves without goals snapshot */ }
       await supabase.from('weekly_reports').upsert(report, { onConflict:'report_date' })
       // Keep the Live 30 Day page in sync — its d30 window matches the weekly report's
       const liveData = {
