@@ -271,10 +271,12 @@ Respond with ONLY the JSON array. No prose, no markdown fences.
     mcp: true,
     prompt: w => BASE(w) + `\n\nQuery: Weekly GMV + orders for all 13 Sun–Sat weeks in ${w.weeksRange}. Return 13 rows in chronological order.\nOutput (exactly 13 items): {"C1":[{"gmv":0,"orders":0}]}`
   },
+  // The by-tier pulls are the heaviest queries in the pipeline — posting
+  // counts and GMV/views run as separate phases so each fits one invocation
   13: {
-    label: 'Pulling 13-week creator trends…',
+    label: 'Pulling 13-week creator posting trends…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Weekly creators, new creators, videos posted, views, store GMV by creator level (L1 <$5K, L2 $5K–$25K, L3 $25K–$60K, L4 $60K–$150K, L5 $150K–$400K, L6 $400K–$1.5M, L7 $1.5M+) for all 13 weeks in ${w.weeksRange}. Apply the canonical TIER GMV rule per week: GMV and views cover ALL rows dated in the week (including evergreen videos posted earlier); creators/new creators/videos count posters only, deduped by handle. Each week's L1+…+L7 GMV must sum to that week's total GMV and L1+…+L7 views to that week's total impressions — verify against a totals row and re-run if off. This query is heavy and can time out: run it as separate calls (posting columns first, then views, then GMV; split GMV by half-range if needed). Return 13 rows per level.\nOutput (exactly 13 items per array): {"C2":{"l1":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"l2":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"l3":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"l4":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"l5":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"l6":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"l7":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}]}}`
+    prompt: w => BASE(w) + `\n\nQuery: Weekly creators, new creators, videos posted by creator level (L1 <$5K, L2 $5K–$25K, L3 $25K–$60K, L4 $60K–$150K, L5 $150K–$400K, L6 $400K–$1.5M, L7 $1.5M+) for all 13 weeks in ${w.weeksRange}. Count only creators who POSTED in each week, deduped by handle before joining levels. Each week's L1+…+L7 creators/new creators/videos must equal that week's posted totals — verify against a totals row and re-run if off. Return 13 rows per level.\nOutput (exactly 13 items per array): {"C2P":{"l1":[{"creators":0,"newCreators":0,"videos":0}],"l2":[{"creators":0,"newCreators":0,"videos":0}],"l3":[{"creators":0,"newCreators":0,"videos":0}],"l4":[{"creators":0,"newCreators":0,"videos":0}],"l5":[{"creators":0,"newCreators":0,"videos":0}],"l6":[{"creators":0,"newCreators":0,"videos":0}],"l7":[{"creators":0,"newCreators":0,"videos":0}]}}`
   },
   14: {
     label: 'Pulling 13-week retention & video trends…',
@@ -292,9 +294,9 @@ Respond with ONLY the JSON array. No prose, no markdown fences.
     prompt: w => BASE(w) + `\n\nFor each of the 6 months query two metrics. Month date ranges: ${w.months.map((m: any) => `${m.key}: ${format(m.start,'yyyy-MM-dd')}–${format(m.end,'yyyy-MM-dd')}`).join(', ')}. IMPORTANT: for the current partial month (${w.months[5].key}) use the full range ${w.currentMonthStart}–${w.currentMonthEnd} — do NOT cap at ${w.d30.end}.\n1) affiliate GMV (gmv) + views from creator_store_performance for each month's exact date range.\n2) For each month call get_dashboard_performance_overview. Map totalShopGMV → shopGmv (total/account GMV including product cards). GUARDRAIL: set shopGmv to 0 for any month where shopGmvError is non-null or gmvFiltered/filteredGmvUnavailable is true.\nReturn 6 rows chronological.\nOutput (exactly 6 items): {"D1":[{"gmv":0,"shopGmv":0,"views":0}]}`
   },
   17: {
-    label: 'Pulling 6-month creator trends…',
+    label: 'Pulling 6-month creator posting trends…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Monthly creators, new creators, videos, views, store GMV by creator level (L1–L7, same thresholds as A3) for months ${w.monthKeys}. Apply the canonical TIER GMV rule per month: GMV and views cover ALL rows dated in the month (including evergreen videos posted earlier); creators/new creators/videos count posters only, deduped by handle. Each month's L1+…+L7 must sum to that month's totals — verify and re-run if off. This query is heavy and can time out: run it as separate calls (posting columns first, then views, then GMV; split GMV by month if needed). Return 6 rows per level.\nOutput (exactly 6 items per array): {"D2":{"l1":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"l2":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"l3":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"l4":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"l5":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"l6":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}],"l7":[{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}]}}`
+    prompt: w => BASE(w) + `\n\nQuery: Monthly creators, new creators, videos posted by creator level (L1–L7, same thresholds as A3) for months ${w.monthKeys}. Count only creators who POSTED in each month, deduped by handle before joining levels. Each month's L1+…+L7 creators/new creators/videos must equal that month's posted totals — verify against a totals row and re-run if off. Return 6 rows per level.\nOutput (exactly 6 items per array): {"D2P":{"l1":[{"creators":0,"newCreators":0,"videos":0}],"l2":[{"creators":0,"newCreators":0,"videos":0}],"l3":[{"creators":0,"newCreators":0,"videos":0}],"l4":[{"creators":0,"newCreators":0,"videos":0}],"l5":[{"creators":0,"newCreators":0,"videos":0}],"l6":[{"creators":0,"newCreators":0,"videos":0}],"l7":[{"creators":0,"newCreators":0,"videos":0}]}}`
   },
   18: {
     label: 'Pulling 6-month retention & outreach…',
@@ -324,6 +326,18 @@ Output ONLY: {"d30":"para1\\n\\npara2\\n\\npara3\\n\\npara4\\n\\npara5","weekly"
     label: 'Saving report…',
     mcp: false,
     prompt: () => '' // handled in code, not via claude
+  },
+  // 21/22 pair with 13/17 — the GMV+views half of the by-tier pulls
+  // (numbered after the analysis/save phases, which stay 19/20)
+  21: {
+    label: 'Pulling 13-week tier GMV & views…',
+    mcp: true,
+    prompt: w => BASE(w) + `\n\nQuery: Weekly store GMV and views by creator level (L1–L7, same thresholds as A3) for all 13 weeks in ${w.weeksRange}. Apply the canonical TIER GMV rule per week: GMV and views cover ALL creator_store_performance rows dated in the week — including GMV/impressions from evergreen videos posted before the week and from creators who did not post in it. Dedup creators by handle before joining levels. Each week's L1+…+L7 GMV must sum to that week's total GMV and L1+…+L7 views to that week's total impressions — verify against a totals row and re-run if off; split the range in half if the query is slow. Return 13 rows per level.\nOutput (exactly 13 items per array): {"C2V":{"l1":[{"views":0,"gmv":0}],"l2":[{"views":0,"gmv":0}],"l3":[{"views":0,"gmv":0}],"l4":[{"views":0,"gmv":0}],"l5":[{"views":0,"gmv":0}],"l6":[{"views":0,"gmv":0}],"l7":[{"views":0,"gmv":0}]}}`
+  },
+  22: {
+    label: 'Pulling 6-month tier GMV & views…',
+    mcp: true,
+    prompt: w => BASE(w) + `\n\nQuery: Monthly store GMV and views by creator level (L1–L7, same thresholds as A3) for months ${w.monthKeys}. Apply the canonical TIER GMV rule per month: GMV and views cover ALL creator_store_performance rows dated in the month — including GMV/impressions from evergreen videos posted before the month and from creators who did not post in it. Dedup creators by handle before joining levels. Each month's L1+…+L7 GMV must sum to that month's total GMV and views to that month's total impressions — verify against a totals row and re-run if off; split by month if the query is slow. Return 6 rows per level.\nOutput (exactly 6 items per array): {"D2V":{"l1":[{"views":0,"gmv":0}],"l2":[{"views":0,"gmv":0}],"l3":[{"views":0,"gmv":0}],"l4":[{"views":0,"gmv":0}],"l5":[{"views":0,"gmv":0}],"l6":[{"views":0,"gmv":0}],"l7":[{"views":0,"gmv":0}]}}`
   }
 }
 
@@ -333,8 +347,12 @@ function assemble(w: ReturnType<typeof buildWindows>, pd: any, analysis: any) {
   const pct=(c:number,p:number)=>p?Math.round(((c-p)/p)*100):0
   const delta=(c:number,p:number)=>Math.round((c-p)*10)/10
   const LVLS=['l1','l2','l3','l4','l5','l6','l7'] as const
-  const c1=pd.C1||[], c2=pd.C2||{}, c3=pd.C3||[], c4=pd.C4||[], c5=pd.C5||{}
-  const d1=pd.D1||[], d2=pd.D2||{}, d3=pd.D3||[], d4=pd.D4||{}
+  const c1=pd.C1||[], c3=pd.C3||[], c4=pd.C4||[], c5=pd.C5||{}
+  const d1=pd.D1||[], d3=pd.D3||[], d4=pd.D4||{}
+  // by-tier series arrive as two halves (posting counts / GMV+views);
+  // legacy single-phase C2/D2 payloads still resolve
+  const c2p=pd.C2P||pd.C2||{}, c2v=pd.C2V||pd.C2||{}
+  const d2p=pd.D2P||pd.D2||{}, d2v=pd.D2V||pd.D2||{}
   const mkTier=(lk:string)=>({
     creators:a3[lk]?.creators||0,newCreators:a3[lk]?.newCreators||0,videos:a3[lk]?.videos||0,views:a3[lk]?.views||0,gmv:a3[lk]?.gmv||0,
     gmvMaxSpend:a6[lk]?.spend||undefined,gmvMaxRoi:a6[lk]?.roi||undefined,
@@ -358,22 +376,22 @@ function assemble(w: ReturnType<typeof buildWindows>, pd: any, analysis: any) {
     },
     weekly_charts:{
       labels:w.weekLabels, gmv:c1.map((r:any)=>r.gmv||0), views:c4.map((r:any)=>r.views||0),
-      ...Object.fromEntries(LVLS.map(lk=>[`crl${lk[1]}`,c2[lk]?.map((r:any)=>r.creators||0)||[]])),
-      ...Object.fromEntries(LVLS.map(lk=>[`ncl${lk[1]}`,c2[lk]?.map((r:any)=>r.newCreators||0)||[]])),
-      ...Object.fromEntries(LVLS.map(lk=>[`vl${lk[1]}`,c2[lk]?.map((r:any)=>r.videos||0)||[]])),
-      ...Object.fromEntries(LVLS.map(lk=>[`gl${lk[1]}`,c2[lk]?.map((r:any)=>r.gmv||0)||[]])),
-      ...Object.fromEntries(LVLS.map(lk=>[`vwl${lk[1]}`,c2[lk]?.map((r:any)=>r.views||0)||[]])),
+      ...Object.fromEntries(LVLS.map(lk=>[`crl${lk[1]}`,c2p[lk]?.map((r:any)=>r.creators||0)||[]])),
+      ...Object.fromEntries(LVLS.map(lk=>[`ncl${lk[1]}`,c2p[lk]?.map((r:any)=>r.newCreators||0)||[]])),
+      ...Object.fromEntries(LVLS.map(lk=>[`vl${lk[1]}`,c2p[lk]?.map((r:any)=>r.videos||0)||[]])),
+      ...Object.fromEntries(LVLS.map(lk=>[`gl${lk[1]}`,c2v[lk]?.map((r:any)=>r.gmv||0)||[]])),
+      ...Object.fromEntries(LVLS.map(lk=>[`vwl${lk[1]}`,c2v[lk]?.map((r:any)=>r.views||0)||[]])),
       ret:c3.map((r:any)=>typeof r==='number'?r:0), vid:c4.map((r:any)=>r.videos||0),
       ...Object.fromEntries(LVLS.map(lk=>[`ml${lk[1]}`,c5[lk]?.map((r:any)=>r.msgs||0)||[]])),
       ...Object.fromEntries(LVLS.map(lk=>[`sl${lk[1]}`,c5[lk]?.map((r:any)=>r.samples||0)||[]]))
     },
     monthly_charts:{
       labels:w.monthLabels, gmv:d1.map((r:any)=>r.gmv||0), totalGmv:d1.every((r:any)=>!r.shopGmv)?undefined:d1.map((r:any)=>r.shopGmv||0), views:d1.map((r:any)=>r.views||0),
-      ...Object.fromEntries(LVLS.map(lk=>[`crl${lk[1]}`,d2[lk]?.map((r:any)=>r.creators||0)||[]])),
-      ...Object.fromEntries(LVLS.map(lk=>[`ncl${lk[1]}`,d2[lk]?.map((r:any)=>r.newCreators||0)||[]])),
-      ...Object.fromEntries(LVLS.map(lk=>[`vl${lk[1]}`,d2[lk]?.map((r:any)=>r.videos||0)||[]])),
-      ...Object.fromEntries(LVLS.map(lk=>[`gl${lk[1]}`,d2[lk]?.map((r:any)=>r.gmv||0)||[]])),
-      ...Object.fromEntries(LVLS.map(lk=>[`vwl${lk[1]}`,d2[lk]?.map((r:any)=>r.views||0)||[]])),
+      ...Object.fromEntries(LVLS.map(lk=>[`crl${lk[1]}`,d2p[lk]?.map((r:any)=>r.creators||0)||[]])),
+      ...Object.fromEntries(LVLS.map(lk=>[`ncl${lk[1]}`,d2p[lk]?.map((r:any)=>r.newCreators||0)||[]])),
+      ...Object.fromEntries(LVLS.map(lk=>[`vl${lk[1]}`,d2p[lk]?.map((r:any)=>r.videos||0)||[]])),
+      ...Object.fromEntries(LVLS.map(lk=>[`gl${lk[1]}`,d2v[lk]?.map((r:any)=>r.gmv||0)||[]])),
+      ...Object.fromEntries(LVLS.map(lk=>[`vwl${lk[1]}`,d2v[lk]?.map((r:any)=>r.views||0)||[]])),
       ret:d3.map((r:any)=>typeof r==='number'?r:0),
       ...Object.fromEntries(LVLS.map(lk=>[`ml${lk[1]}`,d4[lk]?.map((r:any)=>r.msgs||0)||[]])),
       ...Object.fromEntries(LVLS.map(lk=>[`sl${lk[1]}`,d4[lk]?.map((r:any)=>r.samples||0)||[]]))
@@ -505,7 +523,9 @@ const MAX_PHASE_ATTEMPTS = 3
 const IN_FLIGHT_MS = 10 * 60 * 1000
 
 const dataPhasesFor = (isLive: boolean) =>
-  Array.from({ length: isLive ? 11 : 18 }, (_, i) => i + 1)
+  isLive
+    ? Array.from({ length: 11 }, (_, i) => i + 1)
+    : [...Array.from({ length: 18 }, (_, i) => i + 1), 21, 22]
 
 // Jobs created before parallel orchestration tracked progress via the phase
 // counter + label suffixes; derive _ph from that so they resume seamlessly.
@@ -713,7 +733,7 @@ export async function POST(req: NextRequest) {
           for (const iss of issues) {
             if (iss.startsWith('tier ')) { redo.add(1); redo.add(3) }
             if (iss.startsWith('GMV Max spend')) { redo.add(6); redo.add(7) }
-            if (iss.startsWith('weekly ')) { redo.add(12); redo.add(13); redo.add(14) }
+            if (iss.startsWith('weekly ')) { redo.add(12); redo.add(13); redo.add(14); redo.add(21) }
           }
           console.warn(`Job ${jobId}: validation failed (attempt ${retried + 1}), re-pulling phases ${[...redo].join(',')}:`, issues)
           await casUpdate(supabase, jobId, (row: any) => {

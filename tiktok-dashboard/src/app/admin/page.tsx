@@ -494,8 +494,8 @@ export default function AdminPage() {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
   }
 
-  // Server-side pipeline has 20 phases; the progress list shows GENERATE_STEPS
-  const TOTAL_PHASES = 20
+  // Server-side pipeline has 22 phases; the progress list shows GENERATE_STEPS
+  const TOTAL_PHASES = 22
 
   async function generate() {
     setGen('running')
