@@ -332,12 +332,28 @@ Output ONLY: {"d30":"para1\\n\\npara2\\n\\npara3\\n\\npara4\\n\\npara5","weekly"
   21: {
     label: 'Pulling 13-week tier GMV & views…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Weekly store GMV and views by creator level (L1–L7, same thresholds as A3) for all 13 weeks in ${w.weeksRange}. Apply the canonical TIER GMV rule per week: GMV and views cover ALL creator_store_performance rows dated in the week — including GMV/impressions from evergreen videos posted before the week and from creators who did not post in it. Dedup creators by handle before joining levels. Each week's L1+…+L7 GMV must sum to that week's total GMV and L1+…+L7 views to that week's total impressions — verify against a totals row and re-run if off; split the range in half if the query is slow. Return 13 rows per level.\nOutput (exactly 13 items per array): {"C2V":{"l1":[{"views":0,"gmv":0}],"l2":[{"views":0,"gmv":0}],"l3":[{"views":0,"gmv":0}],"l4":[{"views":0,"gmv":0}],"l5":[{"views":0,"gmv":0}],"l6":[{"views":0,"gmv":0}],"l7":[{"views":0,"gmv":0}]}}`
+    // The already-pulled weekly totals (C1/C4) are pinned into the prompt as
+    // hard targets — two independent runs never agree by chance on the newest
+    // weeks, so the split must reconcile against the totals, not re-derive them
+    prompt: (w, pd) => {
+      const c1: any[] = Array.isArray(pd?.C1) ? pd.C1 : []
+      const c4: any[] = Array.isArray(pd?.C4) ? pd.C4 : []
+      const pins = c1.length && c4.length && c1.length === c4.length
+        ? `\nAUTHORITATIVE WEEKLY TOTALS — already pulled from the same canonical definitions. Your L1+…+L7 values MUST sum to these per week within 1%; keep refining the query until every week reconciles:\nTotal GMV per week: ${JSON.stringify(c1.map((r: any) => Math.round(Number(r?.gmv) || 0)))}\nTotal views (impressions) per week: ${JSON.stringify(c4.map((r: any) => Math.round(Number(r?.views) || 0)))}`
+        : `\nAlso pull each week's total GMV and total impressions and verify your L1+…+L7 sums match them within 1% before answering; re-run if off.`
+      return BASE(w) + `\n\nQuery: Weekly store GMV and views by creator level (L1–L7, same thresholds as A3) for all 13 weeks in ${w.weeksRange}. Apply the canonical TIER GMV rule per week: GMV and views cover ALL creator_store_performance rows dated in the week — including GMV/impressions from evergreen videos posted before the week and from creators who did not post in it. Dedup creators by handle before joining levels. Split the range in half if the query is slow. Return 13 rows per level.${pins}\nOutput (exactly 13 items per array): {"C2V":{"l1":[{"views":0,"gmv":0}],"l2":[{"views":0,"gmv":0}],"l3":[{"views":0,"gmv":0}],"l4":[{"views":0,"gmv":0}],"l5":[{"views":0,"gmv":0}],"l6":[{"views":0,"gmv":0}],"l7":[{"views":0,"gmv":0}]}}`
+    }
   },
   22: {
     label: 'Pulling 6-month tier GMV & views…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Monthly store GMV and views by creator level (L1–L7, same thresholds as A3) for months ${w.monthKeys}. Apply the canonical TIER GMV rule per month: GMV and views cover ALL creator_store_performance rows dated in the month — including GMV/impressions from evergreen videos posted before the month and from creators who did not post in it. Dedup creators by handle before joining levels. Each month's L1+…+L7 GMV must sum to that month's total GMV and views to that month's total impressions — verify against a totals row and re-run if off; split by month if the query is slow. Return 6 rows per level.\nOutput (exactly 6 items per array): {"D2V":{"l1":[{"views":0,"gmv":0}],"l2":[{"views":0,"gmv":0}],"l3":[{"views":0,"gmv":0}],"l4":[{"views":0,"gmv":0}],"l5":[{"views":0,"gmv":0}],"l6":[{"views":0,"gmv":0}],"l7":[{"views":0,"gmv":0}]}}`
+    prompt: (w, pd) => {
+      const d1: any[] = Array.isArray(pd?.D1) ? pd.D1 : []
+      const pins = d1.length
+        ? `\nAUTHORITATIVE MONTHLY TOTALS — already pulled from the same canonical definitions. Your L1+…+L7 values MUST sum to these per month within 1%; keep refining the query until every month reconciles:\nAffiliate GMV per month: ${JSON.stringify(d1.map((r: any) => Math.round(Number(r?.gmv) || 0)))}\nTotal views (impressions) per month: ${JSON.stringify(d1.map((r: any) => Math.round(Number(r?.views) || 0)))}`
+        : `\nAlso pull each month's total GMV and total impressions and verify your L1+…+L7 sums match them within 1% before answering; re-run if off.`
+      return BASE(w) + `\n\nQuery: Monthly store GMV and views by creator level (L1–L7, same thresholds as A3) for months ${w.monthKeys}. Apply the canonical TIER GMV rule per month: GMV and views cover ALL creator_store_performance rows dated in the month — including GMV/impressions from evergreen videos posted before the month and from creators who did not post in it. Dedup creators by handle before joining levels. Split by month if the query is slow. Return 6 rows per level.${pins}\nOutput (exactly 6 items per array): {"D2V":{"l1":[{"views":0,"gmv":0}],"l2":[{"views":0,"gmv":0}],"l3":[{"views":0,"gmv":0}],"l4":[{"views":0,"gmv":0}],"l5":[{"views":0,"gmv":0}],"l6":[{"views":0,"gmv":0}],"l7":[{"views":0,"gmv":0}]}}`
+    }
   }
 }
 
@@ -649,13 +665,16 @@ export async function POST(req: NextRequest) {
   // fresh row, so concurrent kicks claim different phases instead of racing.
   let target = 0
   let attempts = 1
-  await casUpdate(supabase, jobId, (row: any) => {
+  const claimedRow = await casUpdate(supabase, jobId, (row: any) => {
     const curPd = row.phase_data || {}
     const curPh = curPd._ph || seedPhaseState(row)
     const now = Date.now()
     const done = (p: number) => curPh[p]?.s === 'done'
     const fresh = (p: number) => curPh[p]?.s === 'run' && now - (curPh[p]?.t || 0) < IN_FLIGHT_MS
     const ready = dataPhases.filter(p => !done(p) && !fresh(p))
+      // 21/22 reconcile against totals pinned from earlier phases — hold them
+      // back until those totals have landed
+      .filter(p => (p !== 21 || (done(12) && done(14))) && (p !== 22 || done(16)))
     if (!isLive && dataPhases.every(done)) {
       if (!done(19) && !fresh(19)) ready.push(19)
       else if (done(19) && !done(20) && !fresh(20)) ready.push(20)
@@ -733,7 +752,8 @@ export async function POST(req: NextRequest) {
           for (const iss of issues) {
             if (iss.startsWith('tier ')) { redo.add(1); redo.add(3) }
             if (iss.startsWith('GMV Max spend')) { redo.add(6); redo.add(7) }
-            if (iss.startsWith('weekly ')) { redo.add(12); redo.add(13); redo.add(14); redo.add(21) }
+            // keep 12/14 (the pinned totals) stable — only the split re-runs
+            if (iss.startsWith('weekly ')) redo.add(21)
           }
           console.warn(`Job ${jobId}: validation failed (attempt ${retried + 1}), re-pulling phases ${[...redo].join(',')}:`, issues)
           await casUpdate(supabase, jobId, (row: any) => {
@@ -791,14 +811,17 @@ export async function POST(req: NextRequest) {
       return
     }
 
-    // Data phase — independent Euka pull, needs no prior phase data
+    // Data phase — an independent Euka pull. Most phases ignore prior data;
+    // 21/22 read the already-pulled totals from it as reconciliation targets
+    // (the claimed row is fresh — the initial `job` fetch predates the claim)
     let delta: any
+    const claimedPd = claimedRow?.phase_data || job.phase_data || {}
     const basePrompt = phaseConfig.promptLive
-      ? phaseConfig.promptLive(w, {})
-      : phaseConfig.prompt(w, {})
+      ? phaseConfig.promptLive(w, claimedPd)
+      : phaseConfig.prompt(w, claimedPd)
     // A validation-retry round carries the failure back into the re-pulled
     // phases so the model knows exactly which interpretation to correct
-    const validationNotes = (job.phase_data || {})._validationNotes
+    const validationNotes = claimedPd._validationNotes
     const activePrompt = validationNotes && !phaseConfig.isAgents
       ? basePrompt + `\n\nPREVIOUS ATTEMPT FAILED VALIDATION — the last run of this report produced the inconsistencies below. Follow the canonical definitions and totals-row verification so they do not recur:\n${validationNotes}`
       : basePrompt
