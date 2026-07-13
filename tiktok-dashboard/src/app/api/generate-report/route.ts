@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { sanitizeRows, sanitizeTables } from '@/lib/sanitize'
+import { CANONICAL_METRIC_DEFS } from '@/lib/canonicalDefs'
 import {
   format, subDays, startOfMonth, endOfMonth, subMonths
 } from 'date-fns'
@@ -81,6 +82,7 @@ RULES:
 - New creators = first-ever video for this store
 - If a query returns 0 rows, retry explicitly stating 2026
 - GMV Max data only available from May 14 2026 — use 0 if earlier
+${CANONICAL_METRIC_DEFS}
 
 ═══════════════════════════════
 PHASE 1 — RUN ALL DATA QUERIES
