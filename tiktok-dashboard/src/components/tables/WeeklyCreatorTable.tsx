@@ -1,4 +1,5 @@
 import { WeeklyCreatorRow } from '@/lib/types'
+import { num, fmtNum, fmtUsd } from '@/lib/fmt'
 
 const tierBadge = (ggmv: number) => {
   if (ggmv >= 1500000) return { label: 'L7', cls: 'bg-orange-100 text-orange-700' }
@@ -10,8 +11,8 @@ const tierBadge = (ggmv: number) => {
   return { label: 'L1', cls: 'bg-slate-100 text-slate-600' }
 }
 
-const f$ = (n: number) => '$' + Math.round(n).toLocaleString('en-US')
-const fN = (n: number) => n.toLocaleString('en-US')
+const f$ = fmtUsd
+const fN = fmtNum
 
 interface Props {
   creators: WeeklyCreatorRow[]
@@ -32,7 +33,7 @@ export function WeeklyCreatorTable({ creators, highlight = 'gmv' }: Props) {
         </thead>
         <tbody>
           {creators.map((c, i) => {
-            const badge = tierBadge(c.ggmv)
+            const badge = tierBadge(num(c.ggmv))
             return (
               <tr key={`${c.h}-${i}`} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                 <td className="px-3 py-2 text-gray-400">{i + 1}</td>

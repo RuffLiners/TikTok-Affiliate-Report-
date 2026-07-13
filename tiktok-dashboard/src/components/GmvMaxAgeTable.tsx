@@ -1,8 +1,10 @@
+import { num, fmtUsd } from '@/lib/fmt'
+
 interface AgeRow { label: string; videos: number; spend: number; revenue: number; roi: number; pct: number }
 interface Props { rows: AgeRow[]; totalSpend: number; totalRevenue: number; totalRoi: number }
 
-const f$ = (n: number) => '$' + Math.round(n).toLocaleString('en-US')
-const fx = (n: number) => n.toFixed(2) + '×'
+const f$ = fmtUsd
+const fx = (n: number) => num(n).toFixed(2) + '×'
 
 export function GmvMaxAgeTable({ rows, totalSpend, totalRevenue, totalRoi }: Props) {
   return (
@@ -26,15 +28,15 @@ export function GmvMaxAgeTable({ rows, totalSpend, totalRevenue, totalRoi }: Pro
                 <td className="px-3 py-2.5 text-right text-gray-600">{row.videos}</td>
                 <td className="px-3 py-2.5 text-right text-gray-800 font-semibold">{f$(row.spend)}</td>
                 <td className="px-3 py-2.5 text-right text-gray-800">{f$(row.revenue)}</td>
-                <td className={`px-3 py-2.5 text-right font-semibold ${row.roi >= 4 ? 'text-green-600' : row.roi >= 3 ? 'text-gray-800' : 'text-amber-600'}`}>
+                <td className={`px-3 py-2.5 text-right font-semibold ${num(row.roi) >= 4 ? 'text-green-600' : num(row.roi) >= 3 ? 'text-gray-800' : 'text-amber-600'}`}>
                   {fx(row.roi)}
                 </td>
                 <td className="px-4 py-2.5">
                   <div className="flex items-center gap-2">
                     <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-violet-400 rounded-full" style={{ width: `${Math.min(row.pct, 100)}%` }} />
+                      <div className="h-full bg-violet-400 rounded-full" style={{ width: `${Math.min(num(row.pct), 100)}%` }} />
                     </div>
-                    <span className="text-gray-500 w-8 text-right">{Math.round(row.pct)}%</span>
+                    <span className="text-gray-500 w-8 text-right">{Math.round(num(row.pct))}%</span>
                   </div>
                 </td>
               </tr>

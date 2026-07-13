@@ -1,4 +1,5 @@
 import { Creator } from '@/lib/types'
+import { num, fmtNum, fmtUsd } from '@/lib/fmt'
 
 const tierBadge = (ggmv: number) => {
   if (ggmv >= 1500000) return { label: 'L7', cls: 'bg-orange-100 text-orange-700' }
@@ -10,9 +11,9 @@ const tierBadge = (ggmv: number) => {
   return { label: 'L1', cls: 'bg-slate-100 text-slate-600' }
 }
 
-const f$ = (n: number) => '$' + Math.round(n).toLocaleString('en-US')
-const fN = (n: number) => n.toLocaleString('en-US')
-const fPct = (n: number | null) => n == null ? '—' : n.toFixed(2) + '%'
+const f$ = fmtUsd
+const fN = fmtNum
+const fPct = (n: number | null) => n == null ? '—' : num(n).toFixed(2) + '%'
 
 interface Props { creators: Creator[] }
 
@@ -30,7 +31,7 @@ export function CreatorTable({ creators }: Props) {
         </thead>
         <tbody>
           {creators.map((c, i) => {
-            const badge = tierBadge(c.ggmv)
+            const badge = tierBadge(num(c.ggmv))
             return (
               <tr key={c.h} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${!c.active ? 'opacity-60' : ''}`}>
                 <td className="px-3 py-2 text-gray-400">{i + 1}</td>

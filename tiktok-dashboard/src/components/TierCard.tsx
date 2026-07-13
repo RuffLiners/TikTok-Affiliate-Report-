@@ -1,5 +1,6 @@
 import { TierData } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { num, fmtNum, fmtUsd } from '@/lib/fmt'
 
 interface Props { tier: string; label: string; data: TierData; color: 'slate' | 'blue' | 'green' | 'teal' | 'lime' | 'amber' | 'orange' }
 
@@ -13,7 +14,7 @@ const colors = {
   orange: { bg: 'bg-orange-50',  label: 'text-orange-600', value: 'text-orange-900' },
 }
 
-const f$ = (n: number) => '$' + Math.round(n).toLocaleString('en-US')
+const f$ = fmtUsd
 
 export function TierCard({ label, data, color }: Props) {
   const c = colors[color]
@@ -25,12 +26,12 @@ export function TierCard({ label, data, color }: Props) {
           ['Creators', data.creators],
           ['New creators', data.newCreators],
           ['Videos', data.videos],
-          ['Views', (data.views ?? 0).toLocaleString('en-US')],
+          ['Views', fmtNum(data.views)],
           ['GMV', f$(data.gmv)],
-          ['GMV / creator', f$(Math.round(data.gmv / Math.max(data.creators, 1)))],
-          ...(data.gmvMaxSpend != null && data.gmvMaxSpend > 0 ? [
+          ['GMV / creator', f$(Math.round(num(data.gmv) / Math.max(num(data.creators), 1)))],
+          ...(data.gmvMaxSpend != null && num(data.gmvMaxSpend) > 0 ? [
             ['GMV Max Spend', f$(data.gmvMaxSpend)],
-            ['GMV Max ROI', data.gmvMaxRoi != null ? data.gmvMaxRoi.toFixed(2) + '×' : '—'],
+            ['GMV Max ROI', data.gmvMaxRoi != null ? num(data.gmvMaxRoi).toFixed(2) + '×' : '—'],
           ] : []),
         ].map(([k, v]) => (
           <div key={String(k)} className="flex justify-between text-sm">

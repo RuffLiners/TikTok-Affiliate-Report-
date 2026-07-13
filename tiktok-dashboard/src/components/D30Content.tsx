@@ -19,6 +19,7 @@ export function D30Content({ report }: Props) {
   const d = report.d30
   // Reports/live snapshots saved before the L1-L7 refactor only carry g1-g3 tiers
   const t = (k: string) => ((d.tiers as any)?.[k] ?? EMPTY_TIER)
+  const gmvMax = d.gmvMax ?? { spend: 0, revenue: 0, roi: 0 }
   const isMonthlyReport = (d as any).reportType === 'monthly'
   // Monthly report keys ('YYYY-MM-M') aren't parseable dates — use the window end
   const dateRef = isMonthlyReport ? ((d as any).windowEnd ?? '') : report.report_date
@@ -73,18 +74,18 @@ export function D30Content({ report }: Props) {
       <section>
         <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">GMV Max</h3>
         <div className="grid grid-cols-3 gap-3 mb-3">
-          <KpiCard label="Ad Spend"   value={d.gmvMax.spend}   format="currency" />
-          <KpiCard label="Ad Revenue" value={d.gmvMax.revenue} format="currency" />
-          <KpiCard label="ROI"        value={d.gmvMax.roi}     format="roi" />
+          <KpiCard label="Ad Spend"   value={gmvMax.spend}   format="currency" />
+          <KpiCard label="Ad Revenue" value={gmvMax.revenue} format="currency" />
+          <KpiCard label="ROI"        value={gmvMax.roi}     format="roi" />
         </div>
         {d.gmvMaxByAge && d.gmvMaxByAge.length > 0 && (
           <>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 mt-4">Spend by Content Age</p>
             <GmvMaxAgeTable
               rows={d.gmvMaxByAge}
-              totalSpend={d.gmvMax.spend}
-              totalRevenue={d.gmvMax.revenue}
-              totalRoi={d.gmvMax.roi}
+              totalSpend={gmvMax.spend}
+              totalRevenue={gmvMax.revenue}
+              totalRoi={gmvMax.roi}
             />
           </>
         )}

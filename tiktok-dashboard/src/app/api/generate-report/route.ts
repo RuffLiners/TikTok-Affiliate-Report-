@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import { sanitizeRows, sanitizeTables } from '@/lib/sanitize'
 import {
   format, subDays, startOfMonth, endOfMonth, subMonths
 } from 'date-fns'
@@ -264,6 +265,9 @@ export async function POST(req: NextRequest) {
   }
 
   if (!report.analysis) report.analysis = { d30: '', weekly: '', monthly: '' }
+
+  report.tables = sanitizeTables(report.tables)
+  if (report.d30.gmvMaxByAge) report.d30.gmvMaxByAge = sanitizeRows(report.d30.gmvMaxByAge)
 
   const supabase = supabaseAdmin()
 

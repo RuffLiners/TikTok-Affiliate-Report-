@@ -124,6 +124,7 @@ export default async function ReportPage({ params }: Props) {
   if (error || !data) notFound()
   const report = data as WeeklyReport
   const d = report.d30
+  const gmvMaxSafe = d.gmvMax ?? { spend: 0, revenue: 0, roi: 0 }
 
   // Goals: prefer the snapshot saved with the report (the targets in effect
   // that month). Fall back to the live config only for current-month reports —
@@ -141,25 +142,25 @@ export default async function ReportPage({ params }: Props) {
   const effectiveDate = isMonthlyReport ? ((d as any).windowEnd ?? `${reportDate.slice(0, 7)}-01`) : reportDate
 
   // Compute last-week and current-month stats
-  const wc = report.weekly_charts
-  const lastWeekGmv   = wc.gmv.at(-1) ?? 0
-  const lastWeekVid   = wc.vid.at(-1) ?? 0
+  const wc = report.weekly_charts ?? ({} as typeof report.weekly_charts)
+  const lastWeekGmv   = wc.gmv?.at(-1) ?? 0
+  const lastWeekVid   = wc.vid?.at(-1) ?? 0
   const lastWeekVidG1 = (wc.vl1?.at(-1) ?? (wc as any).vg1?.at(-1) ?? 0)
   const lastWeekVidG2 = (wc.vl2?.at(-1) ?? (wc as any).vg2?.at(-1) ?? 0)
   const lastWeekVidG3 = (wc.vl3?.at(-1) ?? (wc as any).vg3?.at(-1) ?? 0)
-  const lastWeekLabel = wc.labels.at(-1) ?? ''
-  const mc = report.monthly_charts
-  const currentMonthGmv   = mc.gmv.at(-1) ?? 0
-  const currentMonthLabel = (mc.labels.at(-1) ?? '').replace('*', '').trim()
-  const qtdGmv = mc.gmv.slice(-3).reduce((a: number, b: number) => a + b, 0)
+  const lastWeekLabel = wc.labels?.at(-1) ?? ''
+  const mc = report.monthly_charts ?? ({} as typeof report.monthly_charts)
+  const currentMonthGmv   = mc.gmv?.at(-1) ?? 0
+  const currentMonthLabel = (mc.labels?.at(-1) ?? '').replace('*', '').trim()
+  const qtdGmv = (mc.gmv ?? []).slice(-3).reduce((a: number, b: number) => a + (b || 0), 0)
 
   // Month-to-date + projected values from monthly_charts last entry
   // Use total account GMV (includes product cards + in-house) for targets; fall back to affiliate GMV for older reports
   const { pct: monthPct } = isMonthlyReport
     ? { pct: (d as any).monthProgress || 1 }
     : getMonthProgress(reportDate)
-  const mtdGmv    = (mc.totalGmv?.at(-1) || 0) > 0 ? (mc.totalGmv!.at(-1)!) : (mc.gmv.at(-1) ?? 0)
-  const mtdAffiliateGmv = mc.gmv.at(-1) ?? 0
+  const mtdGmv    = (mc.totalGmv?.at(-1) || 0) > 0 ? (mc.totalGmv!.at(-1)!) : (mc.gmv?.at(-1) ?? 0)
+  const mtdAffiliateGmv = mc.gmv?.at(-1) ?? 0
   const qtdTotalGmv = mc.totalGmv && mc.totalGmv.some((v: number) => v > 0)
     ? mc.totalGmv.slice(-3).reduce((a: number, b: number) => a + b, 0)
     : qtdGmv
@@ -191,8 +192,8 @@ export default async function ReportPage({ params }: Props) {
   const projSamples = safe(mtdSamples)
 
   // Trends from last 4 weeks
-  const gmvTrend = calcTrend(wc.gmv)
-  const vidTrend = calcTrend(wc.vid)
+  const gmvTrend = calcTrend(wc.gmv ?? [])
+  const vidTrend = calcTrend(wc.vid ?? [])
   const wsl = (k: string) => (wc as any)[k] ?? []
   const weeklyTotalSamples = (wsl('sal1').length ? wsl('sal1') : wsl('sl1')).map((v: number, i: number) =>
     v + (wsl('sal2')[i] ?? wsl('sl2')[i] ?? 0)
@@ -384,8 +385,8 @@ export default async function ReportPage({ params }: Props) {
                       {goals.monthlyGmvMaxSpendTarget && (
                         <MonthlyTargetRow
                           label={`Monthly · ${goals.monthlyGmvMaxSpendPeriod ?? currentMonthLabel}`}
-                          mtd={d.gmvMax.spend}
-                          projected={monthPct > 0 ? d.gmvMax.spend / monthPct : d.gmvMax.spend}
+                          mtd={gmvMaxSafe.spend}
+                          projected={monthPct > 0 ? gmvMaxSafe.spend / monthPct : gmvMaxSafe.spend}
                           target={goals.monthlyGmvMaxSpendTarget}
                           fmt="currency" monthPct={monthPct}
                         />
@@ -393,7 +394,7 @@ export default async function ReportPage({ params }: Props) {
                       {goals.quarterlyGmvMaxSpendTarget && (
                         <TargetRow
                           label={`Quarterly · ${goals.quarterlyGmvMaxSpendPeriod ?? 'Current Quarter'}`}
-                          actual={d.gmvMax.spend * 3} target={goals.quarterlyGmvMaxSpendTarget}
+                          actual={gmvMaxSafe.spend * 3} target={goals.quarterlyGmvMaxSpendTarget}
                           fmt="currency" note="30d × 3 est."
                         />
                       )}
@@ -407,14 +408,14 @@ export default async function ReportPage({ params }: Props) {
                       {goals.monthlyGmvMaxRoiTarget && (
                         <TargetRow
                           label={`Monthly · ${goals.monthlyGmvMaxRoiPeriod ?? currentMonthLabel}`}
-                          actual={d.gmvMax.roi} target={goals.monthlyGmvMaxRoiTarget}
+                          actual={gmvMaxSafe.roi} target={goals.monthlyGmvMaxRoiTarget}
                           fmt="x"
                         />
                       )}
                       {goals.quarterlyGmvMaxRoiTarget && (
                         <TargetRow
                           label={`Quarterly · ${goals.quarterlyGmvMaxRoiPeriod ?? 'Current Quarter'}`}
-                          actual={d.gmvMax.roi} target={goals.quarterlyGmvMaxRoiTarget}
+                          actual={gmvMaxSafe.roi} target={goals.quarterlyGmvMaxRoiTarget}
                           fmt="x"
                         />
                       )}
@@ -426,25 +427,25 @@ export default async function ReportPage({ params }: Props) {
                     <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Active Creators · 30-Day</p>
                       {goals.activeL1Target && (
-                        <TargetRow label="L1" actual={d.tiers.l1?.creators ?? 0} target={goals.activeL1Target} />
+                        <TargetRow label="L1" actual={d.tiers?.l1?.creators ?? 0} target={goals.activeL1Target} />
                       )}
                       {goals.activeL2Target && (
-                        <TargetRow label="L2" actual={d.tiers.l2?.creators ?? 0} target={goals.activeL2Target} />
+                        <TargetRow label="L2" actual={d.tiers?.l2?.creators ?? 0} target={goals.activeL2Target} />
                       )}
                       {goals.activeL3Target && (
-                        <TargetRow label="L3" actual={d.tiers.l3?.creators ?? 0} target={goals.activeL3Target} />
+                        <TargetRow label="L3" actual={d.tiers?.l3?.creators ?? 0} target={goals.activeL3Target} />
                       )}
                       {goals.activeL4Target && (
-                        <TargetRow label="L4" actual={d.tiers.l4?.creators ?? 0} target={goals.activeL4Target} />
+                        <TargetRow label="L4" actual={d.tiers?.l4?.creators ?? 0} target={goals.activeL4Target} />
                       )}
                       {goals.activeL5Target && (
-                        <TargetRow label="L5" actual={d.tiers.l5?.creators ?? 0} target={goals.activeL5Target} />
+                        <TargetRow label="L5" actual={d.tiers?.l5?.creators ?? 0} target={goals.activeL5Target} />
                       )}
                       {goals.activeL6Target && (
-                        <TargetRow label="L6" actual={d.tiers.l6?.creators ?? 0} target={goals.activeL6Target} />
+                        <TargetRow label="L6" actual={d.tiers?.l6?.creators ?? 0} target={goals.activeL6Target} />
                       )}
                       {goals.activeL7Target && (
-                        <TargetRow label="L7" actual={d.tiers.l7?.creators ?? 0} target={goals.activeL7Target} />
+                        <TargetRow label="L7" actual={d.tiers?.l7?.creators ?? 0} target={goals.activeL7Target} />
                       )}
                     </div>
                   )}

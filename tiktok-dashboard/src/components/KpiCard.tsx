@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils'
+import { num } from '@/lib/fmt'
 
 interface Props {
   label: string
@@ -9,7 +10,8 @@ interface Props {
   deltaSuffix?: string
 }
 
-function fmt(value: number, format: string) {
+function fmt(raw: number, format: string) {
+  const value = num(raw)
   if (format === 'currency') return '$' + Math.round(value).toLocaleString('en-US')
   if (format === 'compact') {
     if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
@@ -32,7 +34,7 @@ export function KpiCard({ label, value, format, pct, delta, deltaSuffix = '%' }:
       <p className="text-2xl font-semibold text-gray-900">{fmt(value, format)}</p>
       {change != null && (
         <p className={cn('text-xs font-medium mt-1', isNeutral ? 'text-gray-400' : isUp ? 'text-green-600' : 'text-red-500')}>
-          {isNeutral ? '→ 0' : `${isUp ? '↑' : '↓'} ${Math.abs(change).toFixed(1)}`}{deltaSuffix} vs prior
+          {isNeutral ? '→ 0' : `${isUp ? '↑' : '↓'} ${Math.abs(num(change)).toFixed(1)}`}{deltaSuffix} vs prior
         </p>
       )}
     </div>

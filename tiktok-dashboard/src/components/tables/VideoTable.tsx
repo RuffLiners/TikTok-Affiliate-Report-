@@ -1,4 +1,5 @@
 import { Video } from '@/lib/types'
+import { num, fmtNum, fmtUsd2 } from '@/lib/fmt'
 
 const tierBadge = (ggmv: number) => {
   if (ggmv >= 1500000) return { label: 'L7', cls: 'bg-orange-100 text-orange-700' }
@@ -10,12 +11,13 @@ const tierBadge = (ggmv: number) => {
   return { label: 'L1', cls: 'bg-slate-100 text-slate-600' }
 }
 
-const f$ = (n: number) => '$' + n.toFixed(2)
-const fN = (n: number) => n.toLocaleString('en-US')
+const f$ = fmtUsd2
+const fN = fmtNum
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
 function daysSincePosted(dateStr: string, reportDate: string): number | null {
+  if (typeof dateStr !== 'string') return null
   const parts = dateStr.split(' ')
   if (parts.length !== 2) return null
   const month = MONTHS.indexOf(parts[0])
@@ -47,8 +49,8 @@ export function VideoTable({ videos, reportDate }: Props) {
         </thead>
         <tbody>
           {videos.map((v, i) => {
-            const badge = tierBadge(v.ggmv)
-            const cvr = v.views > 0 ? (v.ord / v.views * 100).toFixed(3) + '%' : '—'
+            const badge = tierBadge(num(v.ggmv))
+            const cvr = num(v.views) > 0 ? (num(v.ord) / num(v.views) * 100).toFixed(3) + '%' : '—'
             const age = reportDate ? daysSincePosted(v.date, reportDate) : null
             const isNew = age !== null && age <= 30
             const isThisWeek = age !== null && age <= 7

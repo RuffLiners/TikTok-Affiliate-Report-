@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { supabaseAdmin } from '@/lib/supabase'
 import { reconcileD30 } from '@/lib/reconcile'
+import { sanitizeRows, sanitizeTables } from '@/lib/sanitize'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +28,9 @@ export async function POST(req: NextRequest) {
   }
 
   if (!report.analysis) report.analysis = { d30: '', weekly: '', monthly: '' }
+
+  report.tables = sanitizeTables(report.tables)
+  if (report.d30.gmvMaxByAge) report.d30.gmvMaxByAge = sanitizeRows(report.d30.gmvMaxByAge)
 
   const supabase = supabaseAdmin()
 

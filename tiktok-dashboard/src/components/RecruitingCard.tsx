@@ -4,8 +4,10 @@ interface Props {
   l4: number; l4pct: number; l5: number; l5pct: number; l6: number; l6pct: number
   l7: number; l7pct: number
 }
-const fK = (n: number) => n >= 1000 ? (n / 1000).toFixed(1) + 'K' : String(n)
-const pctStr = (n: number) => `${n >= 0 ? '↑+' : '↓-'}${Math.abs(n).toFixed(0)}%`
+import { num } from '@/lib/fmt'
+
+const fK = (raw: number) => { const n = num(raw); return n >= 1000 ? (n / 1000).toFixed(1) + 'K' : String(n) }
+const pctStr = (raw: number) => { const n = num(raw); return `${n >= 0 ? '↑+' : '↓-'}${Math.abs(n).toFixed(0)}%` }
 
 export function RecruitingCard({ label, total, pct, l1, l1pct, l2, l2pct, l3, l3pct, l4, l4pct, l5, l5pct, l6, l6pct, l7, l7pct }: Props) {
   return (

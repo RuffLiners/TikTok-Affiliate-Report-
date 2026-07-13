@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse, after } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { reconcileD30 } from '@/lib/reconcile'
+import { sanitizeRows, sanitizeTables } from '@/lib/sanitize'
 import { format, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { request as httpsRequest } from 'https'
 
@@ -347,7 +348,7 @@ function assemble(w: ReturnType<typeof buildWindows>, pd: any, analysis: any) {
       creators:a1.creators||0, creatorsPct:pct(a1.creators||0,a2.creators||0), newCreators:a1.newCreators||0, newCreatorsPct:pct(a1.newCreators||0,a2.newCreators||0),
       retention:a1.retention||0, retentionDelta:delta(a1.retention||0,a2.retention||0),
       gmvMax:{spend:a6.spend||0,revenue:a6.revenue||0,roi:a6.roi||0},
-      gmvMaxByAge:(pd.A7&&pd.A7.length>0)?pd.A7:undefined,
+      gmvMaxByAge:(pd.A7&&pd.A7.length>0)?sanitizeRows(pd.A7):undefined,
       msgs:a4.total?.msgs||0, msgsPct:pct(a4.total?.msgs||0,a5.total?.msgs||0),
       samples:a4.total?.samples||0, samplesPct:pct(a4.total?.samples||0,a5.total?.samples||0),
       tiers:Object.fromEntries(LVLS.map(lk=>[lk,mkTier(lk)])) as any
@@ -374,7 +375,7 @@ function assemble(w: ReturnType<typeof buildWindows>, pd: any, analysis: any) {
       ...Object.fromEntries(LVLS.map(lk=>[`ml${lk[1]}`,d4[lk]?.map((r:any)=>r.msgs||0)||[]])),
       ...Object.fromEntries(LVLS.map(lk=>[`sl${lk[1]}`,d4[lk]?.map((r:any)=>r.samples||0)||[]]))
     },
-    tables:{topCreators:pd.topCreators||[], topVideos:pd.topVideos||[], activeCreators:pd.activeCreators||[]},
+    tables:sanitizeTables({topCreators:pd.topCreators||[], topVideos:pd.topVideos||[], activeCreators:pd.activeCreators||[]}),
     agents:pd.agents||[],
     analysis: analysis?.performance !== undefined
       ? analysis
