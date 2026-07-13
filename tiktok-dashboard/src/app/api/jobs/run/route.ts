@@ -844,9 +844,10 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     const msg = err?.message||'Unknown error'
     console.error(`Job ${jobId} phase ${target}:`, msg)
-    // Transient failures (slow MCP pull timing out, Anthropic overloaded)
-    // get the phase re-run by the next kick instead of killing the job
-    const transient = /timeout|unreachable|overloaded|Claude API 5\d\d|mcp_tool_result/i.test(msg)
+    // Transient failures (slow MCP pull timing out, Anthropic overloaded, a
+    // response that narrated tool work and truncated before its JSON) get the
+    // phase re-run by the next kick instead of killing the job
+    const transient = /timeout|unreachable|overloaded|Claude API 5\d\d|mcp_tool_result|No JSON in Claude response/i.test(msg)
     if (transient && attempts < MAX_PHASE_ATTEMPTS) {
       await casUpdate(supabase, jobId, (row: any) => {
         const curPd = row.phase_data || {}

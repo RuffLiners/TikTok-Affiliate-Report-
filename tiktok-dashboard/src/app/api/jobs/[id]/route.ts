@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
   // Compact per-phase progress for the client driver — phase_data itself is
   // large (all pulled report data) and never leaves the server
   const isLive = data.job_type === 'live_refresh'
-  const total = isLive ? 11 : 20
+  const total = isLive ? 11 : 22
   const ph = (data.phase_data as any)?._ph || {}
   const now = Date.now()
   let done = 0, running = 0
