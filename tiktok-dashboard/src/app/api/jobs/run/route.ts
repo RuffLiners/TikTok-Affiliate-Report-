@@ -536,7 +536,9 @@ function extractJson(text: string): any {
 // s = 'run' | 'done' | 'retry', t = start epoch ms, a = attempts so far.
 // Data phases (1-18 weekly, 1-11 live) are independent Euka pulls and run
 // concurrently; analysis (19) needs all data; save (20) needs analysis.
-const MAX_PHASE_ATTEMPTS = 3
+// 4 attempts: a flurry of upstream 520s/timeouts on a long phase should not
+// kill a 40-minute job on its own
+const MAX_PHASE_ATTEMPTS = 4
 // A run-marked phase younger than this is treated as still executing; older
 // means its runner died (deploy, crash, platform kill) and it may be re-claimed
 const IN_FLIGHT_MS = 10 * 60 * 1000
