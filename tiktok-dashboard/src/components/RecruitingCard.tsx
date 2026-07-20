@@ -1,13 +1,14 @@
+type Pct = number | null // null = prior value was 0, no meaningful delta
 interface Props {
-  label: string; total: number; pct: number
-  l1: number; l1pct: number; l2: number; l2pct: number; l3: number; l3pct: number
-  l4: number; l4pct: number; l5: number; l5pct: number; l6: number; l6pct: number
-  l7: number; l7pct: number
+  label: string; total: number; pct: Pct
+  l1: number; l1pct: Pct; l2: number; l2pct: Pct; l3: number; l3pct: Pct
+  l4: number; l4pct: Pct; l5: number; l5pct: Pct; l6: number; l6pct: Pct
+  l7: number; l7pct: Pct
 }
 import { num } from '@/lib/fmt'
 
 const fK = (raw: number) => { const n = num(raw); return n >= 1000 ? (n / 1000).toFixed(1) + 'K' : String(n) }
-const pctStr = (raw: number) => { const n = num(raw); return `${n >= 0 ? '↑+' : '↓-'}${Math.abs(n).toFixed(0)}%` }
+const pctStr = (raw: Pct) => { if (raw == null) return '—'; const n = num(raw); return `${n >= 0 ? '↑+' : '↓-'}${Math.abs(n).toFixed(0)}%` }
 
 export function RecruitingCard({ label, total, pct, l1, l1pct, l2, l2pct, l3, l3pct, l4, l4pct, l5, l5pct, l6, l6pct, l7, l7pct }: Props) {
   return (
@@ -16,7 +17,7 @@ export function RecruitingCard({ label, total, pct, l1, l1pct, l2, l2pct, l3, l3
         <p className="text-xs text-gray-400 font-medium">{label}</p>
         <div className="text-right">
           <p className="text-lg font-semibold text-gray-900">{fK(total)}</p>
-          <p className={`text-xs font-medium ${pct >= 0 ? 'text-green-600' : 'text-red-500'}`}>{pctStr(pct)} vs prior</p>
+          <p className={`text-xs font-medium ${pct == null ? 'text-gray-400' : pct >= 0 ? 'text-green-600' : 'text-red-500'}`}>{pctStr(pct)} vs prior</p>
         </div>
       </div>
       <div className="flex gap-2 flex-wrap">

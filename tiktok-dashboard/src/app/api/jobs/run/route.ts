@@ -42,6 +42,20 @@ function anthropicPost(apiKey: string, bodyStr: string, timeoutMs: number): Prom
 export const maxDuration = 800
 export const dynamic = 'force-dynamic'
 
+// Every report date — window boundaries, Sun–Sat weeks, months — is defined in
+// America/Los_Angeles. Vercel runs in UTC, so deriving "today" from the raw
+// clock shifts every boundary one day forward for evening runs; shift to LA
+// first. An explicit params.today (YYYY-MM-DD) is already a calendar date.
+const REPORT_TZ = 'America/Los_Angeles'
+function todayInReportTz(param?: string): Date {
+  if (param) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(param)
+    if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+    return new Date(param)
+  }
+  return new Date(new Date().toLocaleString('en-US', { timeZone: REPORT_TZ }))
+}
+
 // Data-extraction phases run many MCP tool calls; the analysis phase is pure
 // reasoning and benefits from the strongest available model. Both overridable
 // via Vercel env vars without a code change.
@@ -143,7 +157,7 @@ const BASE = (w: ReturnType<typeof buildWindows>) =>
   `You are a data extraction agent for Ruff Liners TikTok Shop. STORE ID: ${process.env.EUKA_STORE_ID}
 Current 30d: ${w.d30.start} to ${w.d30.end} | Prior 30d: ${w.prior.start} to ${w.prior.end}
 13 weeks: ${w.weeksRange} | 6 months: ${w.monthKeys}
-RULES: Always specify year 2026 in queries. Read every CSV with read_sandbox_file. Use creator_store_performance for GMV. GMV Max only from May 14 2026 (use 0 if earlier).
+RULES: Always specify year 2026 in queries. Read every CSV with read_sandbox_file. Use creator_store_performance for GMV. GMV Max only from May 14 2026 (use 0 if earlier). ALL date bucketing — video publish dates, Sun–Sat week boundaries, month boundaries, message dates, sample request dates — uses America/Los_Angeles, NEVER UTC.
 ${CANONICAL_METRIC_DEFS}
 CRITICAL OUTPUT RULE: You MUST respond with ONLY a single JSON object. No explanations, no analysis, no markdown, no prose before or after. Your entire response must start with { and end with }. Fill in real numbers from the data.`
 
@@ -152,27 +166,27 @@ const PHASES: Record<number, { label: string; prompt: (w: ReturnType<typeof buil
   1: {
     label: 'Pulling current 30-day KPIs…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery two things for ${w.d30.start}–${w.d30.end}:\n1) From creator_store_performance, per the canonical definitions:\n- affiliate GMV = SUM(gmv); orders = SUM(items_sold_count) ALL attribution; views = SUM(impressions) — each over EVERY row dated in the window.\n- creators = DISTINCT handles that POSTED at least one NEW video during the window (video publish date inside the window). A handle whose rows only carry GMV/views from videos posted before the window does NOT count. Dedup by handle before counting — the creators table has duplicate-handle rows.\n- videos = count of videos published inside the window, deduped by video id — duplicate creator rows must not double-count videos.\n- new creators = handles whose first-ever post for this store falls inside the window.\n- retention = (distinct handles that posted in BOTH the prior window and this window) ÷ (distinct handles that posted in the prior window), expressed as a PERCENT 0–100 with one decimal (e.g. 28.0) — NOT a fraction.\n2) Call get_dashboard_performance_overview for the same window. The response contains: totalShopGMV (map → shopGmv), totalShopGMVDifference (map → shopGmvPct), totalAffiliateGMV (map → affiliateGmv), totalAffiliateGMVDifference (map → affiliateGmvPct). GUARDRAIL: only populate shopGmv/affiliateGmv if shopGmvError === null AND gmvFiltered === false AND filteredGmvUnavailable === false; otherwise set both to 0.\nOutput: {"A1":{"gmv":0,"shopGmv":0,"shopGmvPct":0,"affiliateGmv":0,"affiliateGmvPct":0,"orders":0,"videos":0,"views":0,"creators":0,"newCreators":0,"retention":0}}`
+    prompt: w => BASE(w) + `\n\nQuery two things for ${w.d30.start}–${w.d30.end}:\n1) From creator_store_performance, per the canonical definitions:\n- affiliate GMV = SUM(gmv); orders = SUM(items_sold_count) ALL attribution; views = SUM(impressions) — each over EVERY row dated in the window.\n- creators = DISTINCT handles that POSTED at least one NEW video during the window (video publish date inside the window, America/Los_Angeles). A handle whose rows only carry GMV/views from videos posted before the window does NOT count. Dedup by handle before counting — the creators table has duplicate-handle rows. Handles with NO match in the creators dimension (no gmv_30d) STILL COUNT — never drop them (do not INNER JOIN to the creators table for counting).\n- videos = count of videos published inside the window, deduped by video id — duplicate creator rows must not double-count videos, and videos from handles missing in the creators dimension STILL COUNT.\n- new creators = handles whose first-ever post for this store falls inside the window.\n- retention = (distinct handles that posted in BOTH the prior window and this window) ÷ (distinct handles that posted in the prior window), expressed as a PERCENT 0–100 with one decimal (e.g. 28.0) — NOT a fraction.\n2) Call get_dashboard_performance_overview for the same window. The response contains: totalShopGMV (map → shopGmv), totalShopGMVDifference (map → shopGmvPct), totalAffiliateGMV (map → affiliateGmv), totalAffiliateGMVDifference (map → affiliateGmvPct). GUARDRAIL: only populate shopGmv/affiliateGmv if shopGmvError === null AND gmvFiltered === false AND filteredGmvUnavailable === false; otherwise set both to 0.\nOutput: {"A1":{"gmv":0,"shopGmv":0,"shopGmvPct":0,"affiliateGmv":0,"affiliateGmvPct":0,"orders":0,"videos":0,"views":0,"creators":0,"newCreators":0,"retention":0}}`
   },
   2: {
     label: 'Pulling prior 30-day KPIs…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Prior 30d (${w.prior.start}–${w.prior.end}) totals, per the canonical definitions: affiliate GMV = SUM(gmv); orders = SUM(items_sold_count) ALL attribution; views = SUM(impressions); creators = DISTINCT handles that POSTED at least one NEW video inside the window (publish date in window; any-activity rows do NOT count; dedup by handle); videos = videos published inside the window deduped by video id; new creators = first-ever post falls in the window; retention = same formula shifted one window back, expressed as a PERCENT 0–100 (e.g. 28.0), NOT a fraction.\nOutput: {"A2":{"gmv":0,"orders":0,"videos":0,"views":0,"creators":0,"newCreators":0,"retention":0}}`
+    prompt: w => BASE(w) + `\n\nQuery: Prior 30d (${w.prior.start}–${w.prior.end}) totals, per the canonical definitions: affiliate GMV = SUM(gmv); orders = SUM(items_sold_count) ALL attribution; views = SUM(impressions); creators = DISTINCT handles that POSTED at least one NEW video inside the window (publish date in window; any-activity rows do NOT count; dedup by handle; handles missing from the creators dimension STILL COUNT — never drop them); videos = videos published inside the window deduped by video id (unmatched-handle videos still count); new creators = first-ever post falls in the window; retention = same formula shifted one window back, expressed as a PERCENT 0–100 (e.g. 28.0), NOT a fraction.\nOutput: {"A2":{"gmv":0,"orders":0,"videos":0,"views":0,"creators":0,"newCreators":0,"retention":0}}`
   },
   3: {
     label: 'Pulling creator tier breakdown…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Current 30d (${w.d30.start}–${w.d30.end}) by creator level. Apply the canonical TIER GMV rule exactly:\n- GMV and views per level cover EVERY creator_store_performance row in the window — including GMV/impressions from evergreen videos posted before the window and from creators who did not post in it. Do NOT restrict to videos posted in-window.\n- creators / new creators / videos per level count only creators who POSTED at least one NEW video inside the window (publish date in window — any-activity rows do NOT count); dedup by handle before joining levels, and dedup videos by video id.\n- Levels from gmv_30d_num: L1 <$5K, L2 $5K–$25K, L3 $25K–$60K, L4 $60K–$150K, L5 $150K–$400K, L6 $400K–$1.5M, L7 $1.5M+; null or unmatched handle → L1.\nVERIFY BEFORE ANSWERING: request a totals row — L1+…+L7 GMV must equal the window's total affiliate GMV, L1+…+L7 views must equal total impressions, and L1+…+L7 creators/new creators/videos must equal the posted-creator totals. If any sum is off, re-run the query; never hand-patch numbers. Once verified, output ONLY the JSON — no analysis, no explanation.\nReturn ONLY: {"A3":{"l1":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0},"l2":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0},"l3":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0},"l4":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0},"l5":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0},"l6":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0},"l7":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}}}`
+    prompt: w => BASE(w) + `\n\nQuery: Current 30d (${w.d30.start}–${w.d30.end}) by creator level. Apply the canonical TIER GMV rule exactly:\n- GMV and views per level cover EVERY creator_store_performance row in the window — including GMV/impressions from evergreen videos posted before the window and from creators who did not post in it. Do NOT restrict to videos posted in-window.\n- creators / new creators / videos per level count only creators who POSTED at least one NEW video inside the window (publish date in window — any-activity rows do NOT count); dedup by handle before joining levels, and dedup videos by video id.\n- Levels from gmv_30d_num: L1 <$5K, L2 $5K–$25K, L3 $25K–$60K, L4 $60K–$150K, L5 $150K–$400K, L6 $400K–$1.5M, L7 $1.5M+; null or unmatched handle → L1. This unmatched→L1 rule applies to ALL metrics — creators, new creators, videos, views, AND gmv. Creators with no creators-dimension match are counted in L1, never dropped (use a LEFT JOIN, not an inner join).\nVERIFY BEFORE ANSWERING: request a totals row — L1+…+L7 GMV must equal the window's total affiliate GMV, L1+…+L7 views must equal total impressions, and L1+…+L7 creators/new creators/videos must equal the posted-creator totals. If any sum is off, re-run the query; never hand-patch numbers. Once verified, output ONLY the JSON — no analysis, no explanation.\nReturn ONLY: {"A3":{"l1":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0},"l2":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0},"l3":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0},"l4":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0},"l5":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0},"l6":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0},"l7":{"creators":0,"newCreators":0,"videos":0,"views":0,"gmv":0}}}`
   },
   4: {
     label: 'Pulling current outreach data…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Current 30d (${w.d30.start}–${w.d30.end}) outreach totals + by creator level (L1–L7, same thresholds as A3): messages sent (total message EVENTS including follow-ups, not distinct creators messaged), samples shipped.\nOutput: {"A4":{"total":{"msgs":0,"samples":0},"l1":{"msgs":0,"samples":0},"l2":{"msgs":0,"samples":0},"l3":{"msgs":0,"samples":0},"l4":{"msgs":0,"samples":0},"l5":{"msgs":0,"samples":0},"l6":{"msgs":0,"samples":0},"l7":{"msgs":0,"samples":0}}}`
+    prompt: w => BASE(w) + `\n\nQuery: Current 30d (${w.d30.start}–${w.d30.end}) outreach totals + by creator level (L1–L7, same thresholds as A3): msgs = INITIAL outreach messages ONLY per the canonical MESSAGES rule (EXCLUDE follow-up messages, dedup by message id); samples = sample requests shipped, bucketed by the request's CREATED date (America/Los_Angeles).\nOutput: {"A4":{"total":{"msgs":0,"samples":0},"l1":{"msgs":0,"samples":0},"l2":{"msgs":0,"samples":0},"l3":{"msgs":0,"samples":0},"l4":{"msgs":0,"samples":0},"l5":{"msgs":0,"samples":0},"l6":{"msgs":0,"samples":0},"l7":{"msgs":0,"samples":0}}}`
   },
   5: {
     label: 'Pulling prior outreach data…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Prior 30d (${w.prior.start}–${w.prior.end}) outreach totals + by creator level (L1–L7, same thresholds as A3): messages sent (total message EVENTS including follow-ups, not distinct creators messaged), samples shipped.\nOutput: {"A5":{"total":{"msgs":0,"samples":0},"l1":{"msgs":0,"samples":0},"l2":{"msgs":0,"samples":0},"l3":{"msgs":0,"samples":0},"l4":{"msgs":0,"samples":0},"l5":{"msgs":0,"samples":0},"l6":{"msgs":0,"samples":0},"l7":{"msgs":0,"samples":0}}}`
+    prompt: w => BASE(w) + `\n\nQuery: Prior 30d (${w.prior.start}–${w.prior.end}) outreach totals + by creator level (L1–L7, same thresholds as A3): msgs = INITIAL outreach messages ONLY per the canonical MESSAGES rule (EXCLUDE follow-up messages, dedup by message id); samples = sample requests shipped, bucketed by the request's CREATED date (America/Los_Angeles).\nOutput: {"A5":{"total":{"msgs":0,"samples":0},"l1":{"msgs":0,"samples":0},"l2":{"msgs":0,"samples":0},"l3":{"msgs":0,"samples":0},"l4":{"msgs":0,"samples":0},"l5":{"msgs":0,"samples":0},"l6":{"msgs":0,"samples":0},"l7":{"msgs":0,"samples":0}}}`
   },
   6: {
     label: 'Pulling GMV Max data…',
@@ -203,7 +217,7 @@ STEP 1 — Enumerate
 list_outreach_agents caps at limit=25 per call. On every call pass: botStatus=["running","stopped","error"], limit=25, archived=false, storeId=${process.env.EUKA_STORE_ID}.
 
 Run these searches:
-OUTREACH (agentType="outreach"), searchQuery = "", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "Video Volume", "GMV Contest", "New Agent"
+OUTREACH (agentType="outreach"), searchQuery = "", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "Video Volume", "GMV Contest", "New Agent", "Tiktoktshopbonus"
 CRM (agentType="crm"), searchQuery = "", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "New Agent", "Video Volume", "GMV Contest", "Tiktoktshopbonus"
 
 Merge all results → deduplicate by id → drop any agent with created_time older than ${startDate}.
@@ -232,7 +246,7 @@ GOAL: Return a JSON array of every outreach AND CRM agent created in the last 30
 list_outreach_agents caps at limit=25 per call and has no pagination. On every call pass: botStatus=["running","stopped","error"], limit=25, archived=false, storeId=${process.env.EUKA_STORE_ID}.
 
 Run these searches:
-OUTREACH (agentType="outreach"), searchQuery = "", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "Video Volume", "GMV Contest", "New Agent"
+OUTREACH (agentType="outreach"), searchQuery = "", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "Video Volume", "GMV Contest", "New Agent", "Tiktoktshopbonus"
 CRM (agentType="crm"), searchQuery = "", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "New Agent", "Video Volume", "GMV Contest", "Tiktoktshopbonus"
 
 Merge all results → deduplicate by id → drop any agent with created_time older than ${startDate}.
@@ -240,7 +254,7 @@ Merge all results → deduplicate by id → drop any agent with created_time old
 Completeness guard: if any single searchQuery in-window count hits the 25-row cap AND that call's total > 25, add narrower date-string queries and repeat until no bucket is truncated.
 
 ## STEP 2 — Enrich
-For EVERY in-window agent, call get_outreach_agent(campaignId=id, storeId=${process.env.EUKA_STORE_ID}).
+Fetch the campaign settings (target_gmvs, target_categories, other target_* fields, lists/segments/targeting_method, commission rates, has_followups, products) for ALL in-window agents with ONE batched query_store_data call over the outreach campaign settings table filtered to the collected ids (WHERE id IN (...)) — do NOT call get_outreach_agent once per agent. Fall back to get_outreach_agent(campaignId=id, storeId=${process.env.EUKA_STORE_ID}) ONLY for individual ids missing from the batched result.
 
 ## STEP 3 — Field map
 id, name, agent_type ("outreach"/"crm"), campaign_type, status (bot_status), date_posted (created_time date only YYYY-MM-DD), gmv_filter (target_gmvs joined ", "; "none" if empty), kw_filter (target_categories joined ", "; "none" if empty), other_filters (concise summary of other non-empty target_* fields; "none" if all empty), list_segment (lists names or segments names or targeting_method; "none" if absent), commission_display (unique commission rate + shop ads if present; "none" if absent), creators_reached (total_conversations), remaining (remaining_creators), total_invites (total_target_invites), accepted_invites (total_target_accepted_invites), total_replies, samples_requested (total_sample_request), samples_shipped (total_samples_shipped), total_videos, total_revenue, product_count (length of products array), has_followups
@@ -254,17 +268,19 @@ Respond with ONLY the JSON array. No prose, no markdown fences.
   9: {
     label: 'Pulling top 15 creators…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Top 15 creators by store GMV (${w.d30.start}–${w.d30.end}): handle, followers, store GMV, global gmv_30d, views, videos L30d, videos with any GMV L30d, lifetime videos for this store, videos L7d, orders, AOV, engagement rate.\nOutput: {"topCreators":[{"h":"","flw":0,"sgmv":0,"ggmv":0,"views":0,"v30":0,"vmgmv":0,"vlife":0,"v7":0,"ord":0,"aov":0,"eng":null}]}`
+    // eng = engagement RATE as a percent ((likes+comments+shares)/views×100),
+    // never a raw interaction count — null when only counts are available
+    prompt: w => BASE(w) + `\n\nQuery: Top 15 creators by store GMV (${w.d30.start}–${w.d30.end}): handle (h), followers (flw), store GMV in the window (sgmv), ggmv = the creator's GLOBAL gmv_30d_num from the creators dimension (their overall TikTok GMV, not this store's), views, v30 = videos posted in the window (publish dates in America/Los_Angeles), vmgmv, vlife = lifetime videos for this store, v7 = videos posted ${w.last7.start}–${w.last7.end}, orders, AOV, eng.\nvmgmv = the number of this creator's videos for THIS STORE that generated ANY GMV during the window REGARDLESS of when the video was posted — evergreen videos published before the window COUNT. Do NOT restrict vmgmv to videos posted inside the window (vmgmv is usually ≥ the in-window video count).\neng = engagement RATE as a percent ((likes+comments+shares) ÷ views × 100, e.g. 4.2). If the source only provides a raw interaction COUNT or no engagement data, output null — never a raw count.\nOutput: {"topCreators":[{"h":"","flw":0,"sgmv":0,"ggmv":0,"views":0,"v30":0,"vmgmv":0,"vlife":0,"v7":0,"ord":0,"aov":0,"eng":null}]}`
   },
   10: {
     label: 'Pulling top 15 videos…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Top 15 videos by store GMV (${w.d30.start}–${w.d30.end}): creator handle, product name (shorten: "Hard Bottom Backseat Extenders for Dogs with Door Protection"→"Back Seat Ext.", "XL Floor Cover for Full-Size Crew Cab Trucks with Fold Up Seats"→"XL Floor Cover", "Travel Dog Bed for Car"→"Travel Dog Bed"), GMV, views, orders, AOV, publish date, likes, comments, product clicks.\nOutput: {"topVideos":[{"h":"","ggmv":0,"prod":"","gmv":0,"views":0,"ord":0,"aov":0,"likes":0,"cmt":0,"clicks":null,"date":""}]}`
+    prompt: w => BASE(w) + `\n\nQuery: Top 15 videos by store GMV (${w.d30.start}–${w.d30.end}): creator handle (h), ggmv, product name (shorten: "Hard Bottom Backseat Extenders for Dogs with Door Protection"→"Back Seat Ext.", "XL Floor Cover for Full-Size Crew Cab Trucks with Fold Up Seats"→"XL Floor Cover", "Travel Dog Bed for Car"→"Travel Dog Bed"), GMV, views, orders, AOV, publish date, likes, comments, product clicks.\nggmv = the CREATOR's global gmv_30d_num from the creators dimension (the creator's overall TikTok GMV) — it is NOT this video's gmv; the two columns must be different numbers. Never copy gmv into ggmv.\nOutput: {"topVideos":[{"h":"","ggmv":0,"prod":"","gmv":0,"views":0,"ord":0,"aov":0,"likes":0,"cmt":0,"clicks":null,"date":""}]}`
   },
   11: {
     label: 'Pulling most active creators…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Top 15 creators by videos posted (${w.d30.start}–${w.d30.end}): handle, global GMV, followers, videos posted, GMV from those videos (new video GMV), total store GMV, total views, avg views per video, orders.\nOutput: {"activeCreators":[{"h":"","ggmv":0,"flw":0,"v30":0,"gmvN":0,"gmvT":0,"views":0,"avgv":0,"ord":0}]}`
+    prompt: w => BASE(w) + `\n\nQuery: Top 15 creators by videos posted (${w.d30.start}–${w.d30.end}): handle (h), ggmv, followers (flw), videos posted in the window (v30), GMV from those in-window videos (gmvN), total store GMV in the window (gmvT), total views, avg views per video, orders.\nggmv = the creator's GLOBAL gmv_30d_num from the creators dimension — the EXACT same column topCreators.ggmv uses. Do NOT use lifetime GMV, cumulative GMV, or any other aggregate.\nOutput: {"activeCreators":[{"h":"","ggmv":0,"flw":0,"v30":0,"gmvN":0,"gmvT":0,"views":0,"avgv":0,"ord":0}]}`
   },
   12: {
     label: 'Pulling 13-week GMV trends…',
@@ -276,17 +292,17 @@ Respond with ONLY the JSON array. No prose, no markdown fences.
   13: {
     label: 'Pulling 13-week creator posting trends…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Weekly creators, new creators, videos posted by creator level (L1 <$5K, L2 $5K–$25K, L3 $25K–$60K, L4 $60K–$150K, L5 $150K–$400K, L6 $400K–$1.5M, L7 $1.5M+) for all 13 weeks in ${w.weeksRange}. Count only creators who POSTED in each week, deduped by handle before joining levels. Each week's L1+…+L7 creators/new creators/videos must equal that week's posted totals — verify against a totals row and re-run if off. Return 13 rows per level.\nOutput (exactly 13 items per array): {"C2P":{"l1":[{"creators":0,"newCreators":0,"videos":0}],"l2":[{"creators":0,"newCreators":0,"videos":0}],"l3":[{"creators":0,"newCreators":0,"videos":0}],"l4":[{"creators":0,"newCreators":0,"videos":0}],"l5":[{"creators":0,"newCreators":0,"videos":0}],"l6":[{"creators":0,"newCreators":0,"videos":0}],"l7":[{"creators":0,"newCreators":0,"videos":0}]}}`
+    prompt: w => BASE(w) + `\n\nQuery: Weekly creators, new creators, videos posted by creator level (L1 <$5K, L2 $5K–$25K, L3 $25K–$60K, L4 $60K–$150K, L5 $150K–$400K, L6 $400K–$1.5M, L7 $1.5M+; null or unmatched handle → L1, never dropped — LEFT JOIN to the creators dimension) for all 13 Sun–Sat weeks in ${w.weeksRange} (America/Los_Angeles publish dates). Count only creators who POSTED in each week, deduped by handle before joining levels. Each week's L1+…+L7 creators/new creators/videos must equal that week's posted totals INCLUDING unmatched-handle creators — verify against a totals row and re-run if off. Return 13 rows per level.\nOutput (exactly 13 items per array): {"C2P":{"l1":[{"creators":0,"newCreators":0,"videos":0}],"l2":[{"creators":0,"newCreators":0,"videos":0}],"l3":[{"creators":0,"newCreators":0,"videos":0}],"l4":[{"creators":0,"newCreators":0,"videos":0}],"l5":[{"creators":0,"newCreators":0,"videos":0}],"l6":[{"creators":0,"newCreators":0,"videos":0}],"l7":[{"creators":0,"newCreators":0,"videos":0}]}}`
   },
   14: {
     label: 'Pulling 13-week retention & video trends…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Weekly retention rate + total videos posted + total views for all 13 weeks in ${w.weeksRange}.\nOutput (exactly 13 items): {"C3":[0],"C4":[{"videos":0,"views":0}]}`
+    prompt: w => BASE(w) + `\n\nQuery: For all 13 Sun–Sat weeks in ${w.weeksRange} (America/Los_Angeles):\n1) Weekly retention rate — for each week: (distinct handles that posted in BOTH the prior week and that week) ÷ (distinct handles that posted in the prior week) × 100. C3 must be an array of 13 plain NUMBERS on the PERCENT scale (e.g. 38.1), NOT fractions (0.381) and NOT objects — a week with no data is 0, never null or {}.\n2) Weekly total videos posted (publish date in the week) + total views (SUM(impressions) over rows dated in the week).\nOutput (exactly 13 items per array): {"C3":[0],"C4":[{"videos":0,"views":0}]}`
   },
   15: {
     label: 'Pulling 13-week outreach trends…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Weekly messages sent + samples shipped by creator level (L1–L7, same thresholds as A3) for all 13 weeks in ${w.weeksRange}.\nOutput (exactly 13 items per array): {"C5":{"l1":[{"msgs":0,"samples":0}],"l2":[{"msgs":0,"samples":0}],"l3":[{"msgs":0,"samples":0}],"l4":[{"msgs":0,"samples":0}],"l5":[{"msgs":0,"samples":0}],"l6":[{"msgs":0,"samples":0}],"l7":[{"msgs":0,"samples":0}]}}`
+    prompt: w => BASE(w) + `\n\nQuery: Weekly outreach by creator level (L1–L7, same thresholds as A3) for all 13 Sun–Sat weeks in ${w.weeksRange} (America/Los_Angeles): msgs = INITIAL outreach messages ONLY per the canonical MESSAGES rule (EXCLUDE follow-up messages, dedup by message id); samples = sample requests shipped, bucketed by the request's CREATED date.\nOutput (exactly 13 items per array): {"C5":{"l1":[{"msgs":0,"samples":0}],"l2":[{"msgs":0,"samples":0}],"l3":[{"msgs":0,"samples":0}],"l4":[{"msgs":0,"samples":0}],"l5":[{"msgs":0,"samples":0}],"l6":[{"msgs":0,"samples":0}],"l7":[{"msgs":0,"samples":0}]}}`
   },
   16: {
     label: 'Pulling 6-month GMV trends…',
@@ -296,12 +312,12 @@ Respond with ONLY the JSON array. No prose, no markdown fences.
   17: {
     label: 'Pulling 6-month creator posting trends…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Monthly creators, new creators, videos posted by creator level (L1–L7, same thresholds as A3) for months ${w.monthKeys}. Count only creators who POSTED in each month, deduped by handle before joining levels. Each month's L1+…+L7 creators/new creators/videos must equal that month's posted totals — verify against a totals row and re-run if off. Return 6 rows per level.\nOutput (exactly 6 items per array): {"D2P":{"l1":[{"creators":0,"newCreators":0,"videos":0}],"l2":[{"creators":0,"newCreators":0,"videos":0}],"l3":[{"creators":0,"newCreators":0,"videos":0}],"l4":[{"creators":0,"newCreators":0,"videos":0}],"l5":[{"creators":0,"newCreators":0,"videos":0}],"l6":[{"creators":0,"newCreators":0,"videos":0}],"l7":[{"creators":0,"newCreators":0,"videos":0}]}}`
+    prompt: w => BASE(w) + `\n\nQuery: Monthly creators, new creators, videos posted by creator level (L1–L7, same thresholds as A3; null or unmatched handle → L1, never dropped — LEFT JOIN to the creators dimension) for months ${w.monthKeys} (America/Los_Angeles publish dates). Count only creators who POSTED in each month, deduped by handle before joining levels. Each month's L1+…+L7 creators/new creators/videos must equal that month's posted totals INCLUDING unmatched-handle creators — verify against a totals row and re-run if off. Return 6 rows per level.\nOutput (exactly 6 items per array): {"D2P":{"l1":[{"creators":0,"newCreators":0,"videos":0}],"l2":[{"creators":0,"newCreators":0,"videos":0}],"l3":[{"creators":0,"newCreators":0,"videos":0}],"l4":[{"creators":0,"newCreators":0,"videos":0}],"l5":[{"creators":0,"newCreators":0,"videos":0}],"l6":[{"creators":0,"newCreators":0,"videos":0}],"l7":[{"creators":0,"newCreators":0,"videos":0}]}}`
   },
   18: {
     label: 'Pulling 6-month retention & outreach…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Monthly retention rate + outreach (messages sent + samples shipped by creator level L1–L7, same thresholds as A3) for months ${w.monthKeys}.\nOutput (exactly 6 items per array): {"D3":[0],"D4":{"l1":[{"msgs":0,"samples":0}],"l2":[{"msgs":0,"samples":0}],"l3":[{"msgs":0,"samples":0}],"l4":[{"msgs":0,"samples":0}],"l5":[{"msgs":0,"samples":0}],"l6":[{"msgs":0,"samples":0}],"l7":[{"msgs":0,"samples":0}]}}`
+    prompt: w => BASE(w) + `\n\nQuery: For months ${w.monthKeys} (calendar months, America/Los_Angeles):\n1) Monthly retention rate — (distinct handles that posted in BOTH the prior month and that month) ÷ (distinct handles that posted in the prior month) × 100. D3 must be an array of 6 plain NUMBERS on the PERCENT scale (e.g. 30.2), NOT fractions (0.302) and NOT objects.\n2) Monthly outreach by creator level (L1–L7, same thresholds as A3): msgs = INITIAL outreach messages only per the canonical MESSAGES rule; samples = sample requests SHIPPED; approved = sample requests APPROVED (moved past "To Review" and not canceled). Both samples and approved are bucketed by the request's CREATED date (America/Los_Angeles), not ship date.\nOutput (exactly 6 items per array): {"D3":[0],"D4":{"l1":[{"msgs":0,"samples":0,"approved":0}],"l2":[{"msgs":0,"samples":0,"approved":0}],"l3":[{"msgs":0,"samples":0,"approved":0}],"l4":[{"msgs":0,"samples":0,"approved":0}],"l5":[{"msgs":0,"samples":0,"approved":0}],"l6":[{"msgs":0,"samples":0,"approved":0}],"l7":[{"msgs":0,"samples":0,"approved":0}]}}`
   },
   19: {
     label: 'Writing analysis…',
@@ -309,17 +325,25 @@ Respond with ONLY the JSON array. No prose, no markdown fences.
     prompt: (w, pd) => {
       const a1=pd.A1||{}, a2=pd.A2||{}
       const gmvChg = a2.gmv ? Math.round(((a1.gmv-a2.gmv)/a2.gmv)*100) : 0
-      return `Senior analyst writing TikTok Shop affiliate report for the Ruff Liners CEO. Be direct, use real numbers.
-DATA SUMMARY: GMV $${a1.gmv||0} (${gmvChg>0?'+':''}${gmvChg}% vs prior), Orders ${a1.orders||0}, Videos ${a1.videos||0}, Creators ${a1.creators||0}, New ${a1.newCreators||0}, Retention ${a1.retention||0}%
+      const goals = pd._goals || null
+      const goalsBlock = goals ? `\nGOALS: ${JSON.stringify(goals).slice(0, 1200)}` : ''
+      return `Senior analyst writing the weekly TikTok Shop affiliate report for the Ruff Liners CEO. Be direct, specific, use real numbers from the data.
+DATA SUMMARY: Affiliate GMV $${a1.gmv||0} (${gmvChg>0?'+':''}${gmvChg}% vs prior), Shop GMV $${a1.shopGmv||0}, Orders ${a1.orders||0}, Videos ${a1.videos||0}, Creators ${a1.creators||0}, New ${a1.newCreators||0}, Retention ${a1.retention||0}%
 GMV Max: Spend $${pd.A6?.spend||0}, Revenue $${pd.A6?.revenue||0}, ROI ${pd.A6?.roi||0}x
+Most recent complete Sun–Sat week: ${w.last7.start} to ${w.last7.end}${goalsBlock}
 FULL DATA: ${JSON.stringify(pd).slice(0,7000)}
 
-Write 3 analyses:
-1. d30 (4-5 paragraphs): headline GMV, tier drivers, creator health + retention, GMV Max efficiency, recruiting, 30d outlook
-2. weekly (3 paragraphs): 13-week trend arc, creator/content patterns, recruiting lag
-3. monthly (3 paragraphs): 6-month trajectory, tier mix shifts, strategic outlook
+FACT GUARDRAILS — these exact mistakes have shipped before; never repeat them:
+- NEVER conflate a % CHANGE with a % SHARE. Affiliate share of total shop GMV = affiliateGmv ÷ shopGmv × 100 (here ≈ ${a1.shopGmv ? Math.round((a1.gmv/a1.shopGmv)*1000)/10 : '?'}%). Growth-rate fields like affiliateGmvPct/shopGmvPct are changes vs the prior window — they are NOT shares, never present one as the other.
+- RETENTION (retention / ret series) = % of the PRIOR period's POSTING CREATORS who posted again in the current period. It says NOTHING about buyers, returning customers, repeat purchases, or customer LTV — never describe it in those terms.
 
-Output ONLY: {"d30":"para1\\n\\npara2\\n\\npara3\\n\\npara4\\n\\npara5","weekly":"para1\\n\\npara2\\n\\npara3","monthly":"para1\\n\\npara2\\n\\npara3"}`
+Write 4 sections:
+1. "performance" (3-4 paragraphs): the most recent complete Sun–Sat week's headline numbers; month-to-date pacing vs the monthly GMV goal — state explicitly whether on or off track and by how much; quarter-to-date progress; name the creators/tiers/products driving results.
+2. "creators" (2-3 paragraphs): new-creator breakouts by handle with their numbers; the top video this week (creator + GMV); which tier is most active and most productive per creator; L6/L7 activation pace.
+3. "recruiting" (2-3 paragraphs): named reactivation targets with their global GMV; the current outreach mix vs where GMV actually comes from; sample allocation recommendations; concrete next-week recruiting actions.
+4. "growth" (2-3 paragraphs): 13-week trend direction and momentum; the current growth engine; 2-3 specific opportunities and 1-2 risks; a 4-week forward outlook with upside and downside scenarios.
+
+Output ONLY: {"performance":"para1\\n\\npara2","creators":"para1\\n\\npara2","recruiting":"para1\\n\\npara2","growth":"para1\\n\\npara2"}`
     }
   },
   20: {
@@ -354,17 +378,45 @@ Output ONLY: {"d30":"para1\\n\\npara2\\n\\npara3\\n\\npara4\\n\\npara5","weekly"
         : `\nAlso pull each month's total GMV and total impressions and verify your L1+…+L7 sums match them within 1% before answering; re-run if off.`
       return BASE(w) + `\n\nQuery: Monthly store GMV and views by creator level (L1–L7, same thresholds as A3) for months ${w.monthKeys}. Apply the canonical TIER GMV rule per month: GMV and views cover ALL creator_store_performance rows dated in the month — including GMV/impressions from evergreen videos posted before the month and from creators who did not post in it. Dedup creators by handle before joining levels. Split by month if the query is slow. Return 6 rows per level.${pins}\nOutput (exactly 6 items per array): {"D2V":{"l1":[{"views":0,"gmv":0}],"l2":[{"views":0,"gmv":0}],"l3":[{"views":0,"gmv":0}],"l4":[{"views":0,"gmv":0}],"l5":[{"views":0,"gmv":0}],"l6":[{"views":0,"gmv":0}],"l7":[{"views":0,"gmv":0}]}}`
     }
+  },
+  // 23-25: the three weekly tables, scoped to the most recent complete
+  // Sun–Sat week (w.last7)
+  23: {
+    label: 'Pulling this week\'s top creators…',
+    mcp: true,
+    prompt: w => BASE(w) + `\n\nQuery: This week's top 10 creators by store GMV for the most recent complete Sun–Sat week ${w.last7.start} to ${w.last7.end}: handle, ggmv = the creator's GLOBAL gmv_30d_num from the creators dimension (their overall TikTok GMV, NOT their GMV for this store), store GMV this week (all rows dated in the week, evergreen included), views this week, videos POSTED this week (publish date in the week, America/Los_Angeles), orders, AOV. Sort by weekly store GMV descending.\nOutput: {"weeklyTopCreators":[{"h":"","ggmv":0,"gmv":0,"views":0,"vid":0,"ord":0,"aov":0}]}`
+  },
+  24: {
+    label: 'Pulling this week\'s top videos…',
+    mcp: true,
+    prompt: w => BASE(w) + `\n\nQuery: Top 10 videos by GMV among videos PUBLISHED inside the most recent complete Sun–Sat week ${w.last7.start} to ${w.last7.end} (publish date in the week, America/Los_Angeles): creator handle, ggmv = the CREATOR's global gmv_30d_num from the creators dimension (NOT this video's gmv — the two must be different numbers), product name (shorten: "Hard Bottom Backseat Extenders for Dogs with Door Protection"→"Back Seat Ext.", "XL Floor Cover for Full-Size Crew Cab Trucks with Fold Up Seats"→"XL Floor Cover", "Travel Dog Bed for Car"→"Travel Dog Bed"), GMV, views, orders, AOV, likes, comments, product clicks (null if unavailable), publish date. Sort by GMV descending.\nOutput: {"weeklyTopVideos":[{"h":"","ggmv":0,"prod":"","gmv":0,"views":0,"ord":0,"aov":0,"likes":0,"cmt":0,"clicks":null,"date":""}]}`
+  },
+  25: {
+    label: 'Pulling this week\'s most active creators…',
+    mcp: true,
+    prompt: w => BASE(w) + `\n\nQuery: This week's top 10 most active creators by videos POSTED in the most recent complete Sun–Sat week ${w.last7.start} to ${w.last7.end} (publish date in the week, America/Los_Angeles): handle, ggmv = the creator's GLOBAL gmv_30d_num from the creators dimension, store GMV this week, views this week, videos posted this week, orders, AOV. Sort by videos posted descending.\nOutput: {"weeklyActiveCreators":[{"h":"","ggmv":0,"gmv":0,"views":0,"vid":0,"ord":0,"aov":0}]}`
   }
 }
 
 
 function assemble(w: ReturnType<typeof buildWindows>, pd: any, analysis: any) {
   const a1=pd.A1||{}, a2=pd.A2||{}, a3=pd.A3||{}, a4=pd.A4||{total:{}}, a5=pd.A5||{total:{}}, a6=pd.A6||{}
-  const pct=(c:number,p:number)=>p?Math.round(((c-p)/p)*100):0
+  // % change vs prior — 1 decimal everywhere, and null (not 0) when the prior
+  // value is 0: the UI renders null as no-change instead of a fake 0%
+  const pct=(c:number,p:number)=>p?Math.round(((c-p)/p)*1000)/10:null
+  const round1=(v:any)=>{const n=Number(v);return Number.isFinite(n)?Math.round(n*10)/10:undefined}
   const delta=(c:number,p:number)=>Math.round((c-p)*10)/10
   // retention must be a percent (28.0); a model that answers with a
   // fraction (0.28) gets normalized rather than displayed as 0.28%
   const asPct=(v:any)=>{const n=Number(v)||0;return n>0&&n<=1?Math.round(n*1000)/10:n}
+  // Retention SERIES arrive in whatever shape the extraction model picked —
+  // plain numbers or {retention: x} objects — and sometimes on the fraction
+  // scale (0.38 instead of 38). Normalize at the payload boundary: unwrap
+  // objects, and if every nonzero value is < 1 the whole array is fractions,
+  // so multiply by 100 once. This is what kept weekly ret at all-zeros and
+  // the monthly retention chart empty against a 0-4% axis.
+  const retVal=(r:any)=>{if(r&&typeof r==='object'){const v=Number(r.retention??r.ret??r.rate??r.value);return Number.isFinite(v)?v:0}const v=Number(r);return Number.isFinite(v)?v:0}
+  const normRet=(rows:any[])=>{const vals=(rows||[]).map(retVal);const nz=vals.filter(v=>v>0);const frac=nz.length>0&&nz.every(v=>v<1);return vals.map(v=>Math.round((frac?v*100:v)*10)/10)}
   const LVLS=['l1','l2','l3','l4','l5','l6','l7'] as const
   const c1=pd.C1||[], c3=pd.C3||[], c4=pd.C4||[], c5=pd.C5||{}
   const d1=pd.D1||[], d3=pd.D3||[], d4=pd.D4||{}
@@ -382,7 +434,8 @@ function assemble(w: ReturnType<typeof buildWindows>, pd: any, analysis: any) {
     report_date:w.reportDate, label:w.label, data_window:w.dataWindow,
     d30:{
       gmv:a1.gmv||0, gmvPct:pct(a1.gmv||0,a2.gmv||0),
-      shopGmv:a1.shopGmv||undefined, affiliateGmv:a1.affiliateGmv||undefined, affiliateGmvPct:a1.affiliateGmvPct||undefined,
+      shopGmv:a1.shopGmv||undefined, shopGmvPct:a1.shopGmv?round1(a1.shopGmvPct):undefined,
+      affiliateGmv:a1.affiliateGmv||undefined, affiliateGmvPct:a1.affiliateGmv?round1(a1.affiliateGmvPct):undefined,
       orders:a1.orders||0, ordersPct:pct(a1.orders||0,a2.orders||0),
       videos:a1.videos||0, videosPct:pct(a1.videos||0,a2.videos||0), views:a1.views||0, viewsPct:pct(a1.views||0,a2.views||0),
       creators:a1.creators||0, creatorsPct:pct(a1.creators||0,a2.creators||0), newCreators:a1.newCreators||0, newCreatorsPct:pct(a1.newCreators||0,a2.newCreators||0),
@@ -400,22 +453,34 @@ function assemble(w: ReturnType<typeof buildWindows>, pd: any, analysis: any) {
       ...Object.fromEntries(LVLS.map(lk=>[`vl${lk[1]}`,c2p[lk]?.map((r:any)=>r.videos||0)||[]])),
       ...Object.fromEntries(LVLS.map(lk=>[`gl${lk[1]}`,c2v[lk]?.map((r:any)=>r.gmv||0)||[]])),
       ...Object.fromEntries(LVLS.map(lk=>[`vwl${lk[1]}`,c2v[lk]?.map((r:any)=>r.views||0)||[]])),
-      ret:c3.map((r:any)=>typeof r==='number'?r:0), vid:c4.map((r:any)=>r.videos||0),
+      ret:normRet(c3), vid:c4.map((r:any)=>r.videos||0),
       ...Object.fromEntries(LVLS.map(lk=>[`ml${lk[1]}`,c5[lk]?.map((r:any)=>r.msgs||0)||[]])),
       ...Object.fromEntries(LVLS.map(lk=>[`sl${lk[1]}`,c5[lk]?.map((r:any)=>r.samples||0)||[]]))
     },
     monthly_charts:{
-      labels:w.monthLabels, gmv:d1.map((r:any)=>r.gmv||0), totalGmv:d1.every((r:any)=>!r.shopGmv)?undefined:d1.map((r:any)=>r.shopGmv||0), views:d1.map((r:any)=>r.views||0),
+      labels:w.monthLabels, gmv:d1.map((r:any)=>r.gmv||0),
+      // contract keys: shopGmv (total account GMV) + affiliateGmv, always
+      // present; totalGmv kept as a legacy alias until old reports are gone
+      shopGmv:d1.map((r:any)=>r.shopGmv||0),
+      totalGmv:d1.every((r:any)=>!r.shopGmv)?undefined:d1.map((r:any)=>r.shopGmv||0),
+      affiliateGmv:d1.map((r:any)=>r.gmv||0),
+      views:d1.map((r:any)=>r.views||0),
       ...Object.fromEntries(LVLS.map(lk=>[`crl${lk[1]}`,d2p[lk]?.map((r:any)=>r.creators||0)||[]])),
       ...Object.fromEntries(LVLS.map(lk=>[`ncl${lk[1]}`,d2p[lk]?.map((r:any)=>r.newCreators||0)||[]])),
       ...Object.fromEntries(LVLS.map(lk=>[`vl${lk[1]}`,d2p[lk]?.map((r:any)=>r.videos||0)||[]])),
       ...Object.fromEntries(LVLS.map(lk=>[`gl${lk[1]}`,d2v[lk]?.map((r:any)=>r.gmv||0)||[]])),
       ...Object.fromEntries(LVLS.map(lk=>[`vwl${lk[1]}`,d2v[lk]?.map((r:any)=>r.views||0)||[]])),
-      ret:d3.map((r:any)=>typeof r==='number'?r:0),
+      ret:normRet(d3),
       ...Object.fromEntries(LVLS.map(lk=>[`ml${lk[1]}`,d4[lk]?.map((r:any)=>r.msgs||0)||[]])),
-      ...Object.fromEntries(LVLS.map(lk=>[`sl${lk[1]}`,d4[lk]?.map((r:any)=>r.samples||0)||[]]))
+      ...Object.fromEntries(LVLS.map(lk=>[`sl${lk[1]}`,d4[lk]?.map((r:any)=>r.samples||0)||[]])),
+      // samples APPROVED by level per month (request-created date basis);
+      // contract requires the keys even when every value is 0
+      ...Object.fromEntries(LVLS.map(lk=>[`sal${lk[1]}`,d4[lk]?.map((r:any)=>r.approved||0)||Array(w.monthLabels.length).fill(0)]))
     },
-    tables:sanitizeTables({topCreators:pd.topCreators||[], topVideos:pd.topVideos||[], activeCreators:pd.activeCreators||[]}),
+    tables:sanitizeTables({
+      topCreators:pd.topCreators||[], topVideos:pd.topVideos||[], activeCreators:pd.activeCreators||[],
+      weeklyTopCreators:pd.weeklyTopCreators||[], weeklyTopVideos:pd.weeklyTopVideos||[], weeklyActiveCreators:pd.weeklyActiveCreators||[]
+    }),
     agents:pd.agents||[],
     analysis: analysis?.performance !== undefined
       ? analysis
@@ -546,7 +611,7 @@ const IN_FLIGHT_MS = 10 * 60 * 1000
 const dataPhasesFor = (isLive: boolean) =>
   isLive
     ? Array.from({ length: 11 }, (_, i) => i + 1)
-    : [...Array.from({ length: 18 }, (_, i) => i + 1), 21, 22]
+    : [...Array.from({ length: 18 }, (_, i) => i + 1), 21, 22, 23, 24, 25]
 
 // Jobs created before parallel orchestration tracked progress via the phase
 // counter + label suffixes; derive _ph from that so they resume seamlessly.
@@ -645,7 +710,7 @@ export async function POST(req: NextRequest) {
   }
 
   const params = job.params || {}
-  const today = params.today ? new Date(params.today) : new Date()
+  const today = todayInReportTz(params.today)
   const isLive = job.job_type === 'live_refresh'
   const isMonthly = job.job_type === 'monthly_report'
   const w: any = isMonthly
@@ -720,6 +785,7 @@ export async function POST(req: NextRequest) {
           const { data: g } = await supabase.from('app_config').select('value').eq('key','goals').single()
           if (g?.value) goalsSnap = JSON.parse(g.value)
         } catch { /* analysis runs without goals context */ }
+        pd._goals = goalsSnap // weekly analysis paces MTD/QTD against the goals
         const analysisPrompt = isMonthly
           ? monthlyAnalysisPrompt(w, pd, goalsSnap)
           : phaseConfig.prompt(w, pd)
@@ -728,8 +794,10 @@ export async function POST(req: NextRequest) {
         return
       }
 
-      // Phase 20 — assemble and save
-      const analysis = isMonthly
+      // Phase 20 — assemble and save. Weekly and monthly analyses both use the
+      // four contract sections; the d30/weekly/monthly branch only remains for
+      // jobs already mid-flight when the analysis phase still wrote old keys.
+      const analysis = (pd.performance !== undefined || pd.recruiting !== undefined || isMonthly)
         ? { performance: pd.performance||'', creators: pd.creators||'', recruiting: pd.recruiting||'', growth: pd.growth||'' }
         : { d30: pd.d30||'', weekly: pd.weekly||'', monthly: pd.monthly||'' }
       // Fallback: if agents weren't fetched in Phase 8, pull from most recent live_report
@@ -808,7 +876,7 @@ export async function POST(req: NextRequest) {
           d30: report.d30,
           tables: report.tables,
           agents: report.agents,
-          analysis: { d30: report.analysis?.d30 || '' },
+          analysis: { d30: report.analysis?.d30 || report.analysis?.performance || '' },
         }
         await supabase.from('app_config').upsert({ key:'live_report', value: JSON.stringify(liveData) }, { onConflict:'key' })
       }

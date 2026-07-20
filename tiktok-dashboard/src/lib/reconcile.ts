@@ -14,6 +14,16 @@ export function reconcileD30(d30: any): string[] {
   check('Views', d30?.views, sum('views'), 5)
   check('Messages', d30?.msgs, sum('msgs'), 5)
   check('Samples', d30?.samples, sum('samples'), 10)
+  // Count metrics must reconcile EXACTLY: unmatched-handle creators bucket
+  // into L1 for all metrics, so tier sums equal the headline or data was lost
+  const checkExact = (name: string, total: number, s: number) => {
+    const t = Number(total) || 0
+    if (!t && !s) return
+    if (t !== s) warnings.push(`${name}: levels sum to ${s.toLocaleString('en-US')} but total is ${t.toLocaleString('en-US')} — unmatched-handle creators must bucket into L1 for every metric`)
+  }
+  checkExact('Videos posted', d30?.videos, sum('videos'))
+  checkExact('Creators posted', d30?.creators, sum('creators'))
+  checkExact('New creators', d30?.newCreators, sum('newCreators'))
   const spendSum = (d30?.gmvMaxByAge || []).reduce((a: number, b: any) => a + (Number(b?.spend) || 0), 0)
   if (d30?.gmvMax?.spend && spendSum) {
     const diff = Math.abs(d30.gmvMax.spend - spendSum) / d30.gmvMax.spend * 100

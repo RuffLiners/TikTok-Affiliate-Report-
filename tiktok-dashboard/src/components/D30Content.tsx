@@ -41,7 +41,7 @@ export function D30Content({ report }: Props) {
       <section>
         <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Overview</h3>
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          <KpiCard label="Total GMV"     value={d.shopGmv ?? d.gmv}      format="currency" pct={d.gmvPct} />
+          <KpiCard label="Total GMV"     value={d.shopGmv ?? d.gmv}      format="currency" pct={d.shopGmvPct ?? d.gmvPct} />
           <KpiCard label="Affiliate GMV" value={d.affiliateGmv ?? d.gmv} format="currency" pct={d.affiliateGmvPct ?? d.gmvPct} />
           <KpiCard label="Orders"        value={d.orders} format="number"   pct={d.ordersPct} />
           <KpiCard label="Videos Posted" value={d.videos} format="number"   pct={d.videosPct} />

@@ -159,10 +159,12 @@ export default async function ReportPage({ params }: Props) {
   const { pct: monthPct } = isMonthlyReport
     ? { pct: (d as any).monthProgress || 1 }
     : getMonthProgress(reportDate)
-  const mtdGmv    = (mc.totalGmv?.at(-1) || 0) > 0 ? (mc.totalGmv!.at(-1)!) : (mc.gmv?.at(-1) ?? 0)
+  // Prefer the contract key shopGmv; totalGmv is the legacy alias on old reports
+  const mcShopGmv = (mc.shopGmv?.some((v: number) => v > 0) ? mc.shopGmv : mc.totalGmv) ?? undefined
+  const mtdGmv    = (mcShopGmv?.at(-1) || 0) > 0 ? (mcShopGmv!.at(-1)!) : (mc.gmv?.at(-1) ?? 0)
   const mtdAffiliateGmv = mc.gmv?.at(-1) ?? 0
-  const qtdTotalGmv = mc.totalGmv && mc.totalGmv.some((v: number) => v > 0)
-    ? mc.totalGmv.slice(-3).reduce((a: number, b: number) => a + b, 0)
+  const qtdTotalGmv = mcShopGmv && mcShopGmv.some((v: number) => v > 0)
+    ? mcShopGmv.slice(-3).reduce((a: number, b: number) => a + b, 0)
     : qtdGmv
   const mtdVidG1  = (mc.vl1?.at(-1) ?? (mc as any).vg1?.at(-1) ?? 0)
   const mtdVidG2  = (mc.vl2?.at(-1) ?? (mc as any).vg2?.at(-1) ?? 0)

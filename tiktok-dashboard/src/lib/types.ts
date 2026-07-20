@@ -1,3 +1,5 @@
+// *Pct fields are % change vs the prior window, 1 decimal; null when the
+// prior value was 0 (no meaningful delta — the UI shows a neutral state)
 export interface TierData {
   creators: number
   newCreators: number
@@ -7,36 +9,37 @@ export interface TierData {
   gmvMaxSpend?: number
   gmvMaxRoi?: number
   msgs: number
-  msgsPct: number
+  msgsPct: number | null
   samples: number
-  samplesPct: number
+  samplesPct: number | null
 }
 
 export interface D30Data {
   gmv: number        // affiliate GMV from creator_store_performance (backward compat)
-  gmvPct: number
+  gmvPct: number | null
   shopGmv?: number   // total/account GMV from get_dashboard_performance_overview (totalShopGMV)
+  shopGmvPct?: number | null // change vs prior window (totalShopGMVDifference)
   affiliateGmv?: number     // affiliate-only from get_dashboard_performance_overview (totalAffiliateGMV)
-  affiliateGmvPct?: number
+  affiliateGmvPct?: number | null
   totalGmv?: number  // legacy alias for shopGmv (kept for backward compat)
   orders: number
-  ordersPct: number
+  ordersPct: number | null
   videos: number
-  videosPct: number
+  videosPct: number | null
   views: number
-  viewsPct: number
+  viewsPct: number | null
   creators: number
-  creatorsPct: number
+  creatorsPct: number | null
   newCreators: number
-  newCreatorsPct: number
+  newCreatorsPct: number | null
   retention: number
   retentionDelta: number
   gmvMax: { spend: number; revenue: number; roi: number }
   gmvMaxByAge?: Array<{ label: string; videos: number; spend: number; revenue: number; roi: number; pct: number }>
   msgs: number
-  msgsPct: number
+  msgsPct: number | null
   samples: number
-  samplesPct: number
+  samplesPct: number | null
   tiers: { l1: TierData; l2: TierData; l3: TierData; l4: TierData; l5: TierData; l6: TierData; l7: TierData }
 }
 
@@ -59,7 +62,9 @@ export interface WeeklyCharts {
 export interface MonthlyCharts {
   labels: string[]
   gmv: number[]
-  totalGmv?: number[]
+  shopGmv?: number[]      // total account GMV per month (contract key)
+  affiliateGmv?: number[] // affiliate GMV per month (same values as gmv)
+  totalGmv?: number[]     // legacy alias for shopGmv
   views: number[]
   crl1: number[]; crl2: number[]; crl3: number[]; crl4: number[]; crl5: number[]; crl6: number[]; crl7: number[]
   ncl1: number[]; ncl2: number[]; ncl3: number[]; ncl4: number[]; ncl5: number[]; ncl6: number[]; ncl7: number[]

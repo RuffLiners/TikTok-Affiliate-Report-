@@ -5,8 +5,8 @@ interface Props {
   label: string
   value: number
   format: 'currency' | 'number' | 'compact' | 'percent' | 'roi'
-  pct?: number
-  delta?: number
+  pct?: number | null
+  delta?: number | null
   deltaSuffix?: string
 }
 
