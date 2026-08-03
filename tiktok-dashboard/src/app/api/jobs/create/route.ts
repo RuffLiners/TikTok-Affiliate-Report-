@@ -16,6 +16,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Database config error: ${e?.message}` }, { status: 503 })
   }
 
+  // Reattach instead of restart: the browser drives jobs, so a connectivity
+  // blip aborts the client while the server-side job keeps running. If a job
+  // for the same report is already in flight and recently active, hand back
+  // its id — completed phases are kept and the driver resumes where it was.
+  const REATTACH_WINDOW_MS = 30 * 60 * 1000
+  const { data: inflight } = await supabase
+    .from('report_jobs')
+    .select('id, params, updated_at')
+    .eq('job_type', jobType)
+    .in('status', ['queued', 'running'])
+    .gte('updated_at', new Date(Date.now() - REATTACH_WINDOW_MS).toISOString())
+    .order('updated_at', { ascending: false })
+    .limit(5)
+  const match = (inflight ?? []).find(j =>
+    (j.params?.today ?? null) === (params.today ?? null) &&
+    (j.params?.month ?? null) === (params.month ?? null)
+  )
+  if (match) return NextResponse.json({ jobId: match.id, resumed: true })
+
   const { data, error } = await supabase
     .from('report_jobs')
     .insert({

@@ -516,6 +516,7 @@ export default function AdminPage() {
       const createData = await createRes.json().catch(() => ({}))
       if (!createRes.ok || !createData.jobId) throw new Error(createData.error || 'Failed to create job')
       const { jobId } = createData
+      if (createData.resumed) setPhaseLabel('Reconnected to the run already in progress…')
 
       // poll for status label updates
       pollRef.current = setInterval(async () => {

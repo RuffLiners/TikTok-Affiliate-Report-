@@ -19,11 +19,15 @@ interface JobRow {
 // this bounds concurrent load on both APIs while cutting wall time ~3x.
 const CONCURRENCY = 3
 const POLL_MS = 5000
-const MAX_POLL_MISSES = 24
+// The job runs server-side; the browser only polls and kicks phases. Ride out
+// long connectivity blips (sleep, Wi-Fi drops) instead of giving up — phases
+// in flight keep executing the whole time.
+const MAX_POLL_MISSES = 120 // 10 minutes
 
-async function fetchJob(jobId: string): Promise<JobRow | null> {
+async function fetchJob(jobId: string): Promise<JobRow | 'auth' | null> {
   try {
     const res = await fetch(`/api/jobs/${jobId}`)
+    if (res.status === 401) return 'auth'
     if (!res.ok) return null
     return await res.json()
   } catch {
@@ -35,9 +39,12 @@ export async function driveJob(jobId: string): Promise<void> {
   let misses = 0
   while (true) {
     const job = await fetchJob(jobId)
+    if (job === 'auth') {
+      throw new JobFailedError('Session expired — log in again, then hit Try again to resume the run.')
+    }
     if (!job) {
       if (++misses >= MAX_POLL_MISSES) {
-        throw new JobFailedError('Network error — check your connection and try again.')
+        throw new JobFailedError('Lost contact with the server — the report may still be generating. Try again to reconnect and resume.')
       }
       await new Promise(r => setTimeout(r, POLL_MS))
       continue
@@ -60,7 +67,8 @@ export async function driveJob(jobId: string): Promise<void> {
         data = await res.json().catch(() => ({}))
         if (!res.ok) {
           const fresh = await fetchJob(jobId)
-          throw new JobFailedError(String(fresh?.error ?? data?.error ?? `Phase failed (HTTP ${res.status})`))
+          const freshErr = fresh && fresh !== 'auth' ? fresh.error : null
+          throw new JobFailedError(String(freshErr ?? data?.error ?? `Phase failed (HTTP ${res.status})`))
         }
       } catch (e) {
         if (e instanceof JobFailedError) throw e

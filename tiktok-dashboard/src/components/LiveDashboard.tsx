@@ -49,6 +49,7 @@ export default function LiveDashboard({ report, goals: _goals }: Props) {
       const createData = await createRes.json().catch(() => ({}))
       if (!createRes.ok || !createData.jobId) throw new Error(createData.error || 'Failed to create job')
       const { jobId } = createData
+      if (createData.resumed) setPhaseLabel('Reconnected to the refresh already in progress…')
 
       // poll for status label updates only — primary driver is the while loop below
       pollRef.current = setInterval(async () => {
