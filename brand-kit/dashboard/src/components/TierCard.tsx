@@ -1,0 +1,45 @@
+import { TierData } from '@/lib/types'
+import { cn } from '@/lib/utils'
+import { num, fmtNum, fmtUsd } from '@/lib/fmt'
+
+interface Props { tier: string; label: string; data: TierData; color: 'slate' | 'blue' | 'green' | 'teal' | 'lime' | 'amber' | 'orange' }
+
+const colors = {
+  slate:  { bg: 'bg-slate-50',   label: 'text-slate-500',  value: 'text-slate-900' },
+  blue:   { bg: 'bg-blue-50',    label: 'text-blue-600',   value: 'text-blue-900' },
+  green:  { bg: 'bg-green-50',   label: 'text-green-600',  value: 'text-green-900' },
+  teal:   { bg: 'bg-teal-50',    label: 'text-teal-600',   value: 'text-teal-900' },
+  lime:   { bg: 'bg-lime-50',    label: 'text-lime-600',   value: 'text-lime-900' },
+  amber:  { bg: 'bg-amber-50',   label: 'text-amber-600',  value: 'text-amber-900' },
+  orange: { bg: 'bg-orange-50',  label: 'text-orange-600', value: 'text-orange-900' },
+}
+
+const f$ = fmtUsd
+
+export function TierCard({ label, data, color }: Props) {
+  const c = colors[color]
+  return (
+    <div className={cn('rounded-xl p-4', c.bg)}>
+      <p className={cn('text-xs font-semibold uppercase tracking-wider mb-3', c.label)}>{label}</p>
+      <div className="space-y-1.5">
+        {[
+          ['Creators', data.creators],
+          ['New creators', data.newCreators],
+          ['Videos', data.videos],
+          ['Views', fmtNum(data.views)],
+          ['GMV', f$(data.gmv)],
+          ['GMV / creator', f$(Math.round(num(data.gmv) / Math.max(num(data.creators), 1)))],
+          ...(data.gmvMaxSpend != null && num(data.gmvMaxSpend) > 0 ? [
+            ['GMV Max Spend', f$(data.gmvMaxSpend)],
+            ['GMV Max ROI', data.gmvMaxRoi != null ? num(data.gmvMaxRoi).toFixed(2) + '×' : '—'],
+          ] : []),
+        ].map(([k, v]) => (
+          <div key={String(k)} className="flex justify-between text-sm">
+            <span className={cn('text-xs', c.label)}>{k}</span>
+            <span className={cn('font-semibold text-xs', c.value)}>{v}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
