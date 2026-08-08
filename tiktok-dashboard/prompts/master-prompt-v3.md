@@ -10,8 +10,9 @@ missing schema fields).
 |---|---|---|
 | Auto-generate pipeline | `src/app/api/jobs/run/route.ts` (`PHASES` + `BASE`) and `src/lib/canonicalDefs.ts` | Hand-maintained; any change here requires a matching change there and a version bump |
 | Version stamp | `PROMPT_VERSION` in `src/lib/canonicalDefs.ts` | Must equal the version in this file's title |
-| Claude skill (user + org) | `ruff-liners-euka-json-report` SKILL.md | Regenerated from this file whenever the version bumps |
-| Manual paste prompt | given to the VA / used in claude.ai | Regenerated from this file whenever the version bumps |
+| Claude skill (user + org) | source: `prompts/SKILL-ruff-liners-euka-json-report.md` → installed as the `ruff-liners-euka-json-report` skill in claude.ai (user + org copies) | Regenerated from this file whenever the version bumps; paste the repo copy over both installed copies |
+| Manual paste prompt | `setup-kit/weekly-report-prompt.md` (mirrored at `brand-kit/prompts/weekly-report-prompt.md`) | Regenerated from this file whenever the version bumps |
+| White-label skill | `brand-kit/skills/tiktok-weekly-report/SKILL.md` | Same rules, brand-neutral |
 
 **Change protocol:** edit this file → bump the version here and in
 `PROMPT_VERSION` → mirror the change into the pipeline prompts → regenerate

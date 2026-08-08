@@ -42,6 +42,7 @@ State the computed windows before pulling data, and use them exactly.
 - **TIMEZONE** = ALL date bucketing (video publish dates, Sun–Sat week boundaries, month boundaries, message dates, sample request dates) uses America/Los_Angeles, never UTC.
 - **HEAVY TIER QUERIES TIME OUT**: run weekly-by-tier and monthly-by-tier as separate calls (posting columns, then views, then GMV; split GMV by month/half-range if needed).
 - If a query returns 0 rows or claims the current year is "in the future," retry stating the year explicitly — the data exists.
+- **NEVER fabricate a value.** If a query fails after retries, output 0 (or [] / null per the schema) and record it in `validation.flags` — a zero with a flag is recoverable; an invented number poisons the dashboard.
 
 ## Queries to run (read every CSV file Euka returns)
 
@@ -50,7 +51,7 @@ State the computed windows before pulling data, and use them exactly.
 3. **Current 30d by creator level** (L1–L7 per the tier definition): creators, new creators, videos posted, total views, store GMV — L1+…+L7 views must sum to the overall 30d total views (do not leave views as 0).
 4. **Current 30d outreach by level**: messages sent + samples shipped + samples approved, plus overall totals.
 5. **Prior 30d outreach**: totals + by level (for % change).
-6. **GMV Max current 30d**: total ad spend, attributed revenue, blended ROI (0 if unavailable).
+6. **GMV Max current 30d**: spend, attributed revenue, blended ROI from the GMV Max ad tables ONLY per the GMV MAX header rule (0 if unavailable).
 7. **Top 15 creators by store GMV** — handle, followers, store GMV, global gmv_30d, views, videos L30d, videos w/GMV L30d, lifetime videos, videos L7d, orders, AOV, engagement rate.
 8. For the top 15 handles from #7: count of videos that generated any GMV this period, and lifetime total videos for this store.
 9. **Top 15 videos by store GMV** — creator handle, product name, GMV, views, orders, AOV, publish date, likes, comments, product clicks.
@@ -76,16 +77,23 @@ State the computed windows before pulling data, and use them exactly.
 - **"recruiting"**: 2–3 paragraphs — top reactivation targets (inactive creators with high global GMV who haven't posted recently: name them, their global GMV, last post timing); current outreach mix analysis (is the L3/L4 vs L5+ balance aligned with where GMV comes from?); sample allocation recommendations; concrete next-week recruiting actions.
 - **"growth"**: 2–3 paragraphs — 13-week GMV trend direction and momentum; which tier/product/content format is the primary growth engine; 2–3 specific opportunities this week; 1–2 risks to monitor; 4-week forward outlook with upside and downside scenarios.
 
+## Self-validate before output
+
+Fix failures by re-querying, never by editing numbers: V1/V2 tier gmv and views sum to the 30d totals (±1%) · V3 tier creators/newCreators/videos sum exactly · V4 gmvMax.spend = Σ gmvMaxByAge spend (±1%) · V5/V6 weekly gl*/vwl* sum to each week's gmv/views (±1%) · V7 every weekly series has exactly 13 items, every monthly series 6 · V8 no negatives · V9 retention on the percent scale (38.1, not 0.381) · V10 gmv > 0 · V11 no 30d metric moved more than ±60% vs the prior report without a known cause · V12 weekly gmv not all zeros. Set `validation.passed = true` only if all twelve hold; otherwise list each failure in `validation.flags` and still output the report.
+
 ## Output
 
-Respond with **ONLY this JSON object**, nothing before or after it. CRITICAL: include EVERY field shown below — never omit a field even if its query returned no data (use empty arrays [] or 0 as defaults). The fields gmvMaxByAge, agents, vwl1–vwl7, and level views are required even if empty:
+Respond with **ONLY this JSON object**, nothing before or after it. CRITICAL: include EVERY field shown below — never omit a field even if its query returned no data (use empty arrays [] or 0 as defaults). The fields gmvMaxByAge, agents, vwl1–vwl7, sal1–sal7, and level views are required even if empty:
 
 ```json
 {
   "meta": {
     "reportDate": "YYYY-MM-DD",
     "label": "Month D, YYYY",
-    "dataWindow": "Mon D – Mon D, YYYY"
+    "dataWindow": "Mon D – Mon D, YYYY",
+    "promptVersion": "3.0",
+    "weekWindow": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" },
+    "d30Window": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" }
   },
   "d30": {
     "gmv": 0, "gmvPct": 0, "shopGmv": 0, "shopGmvPct": 0, "affiliateGmv": 0, "affiliateGmvPct": 0,
@@ -145,7 +153,8 @@ Respond with **ONLY this JSON object**, nothing before or after it. CRITICAL: in
     "creators": "",
     "recruiting": "",
     "growth": ""
-  }
+  },
+  "validation": { "passed": true, "flags": [] }
 }
 ```
 
