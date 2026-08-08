@@ -6,7 +6,7 @@ const secret = new TextEncoder().encode(process.env.AUTH_SECRET!)
 const PUBLIC = ['/login', '/api/auth']
 
 // Routes that require full admin auth — view-only users are redirected to dashboard
-const ADMIN_ROUTES = ['/admin', '/api/admin', '/api/save-report', '/api/generate-report']
+const ADMIN_ROUTES = ['/admin', '/api/admin', '/api/save-report']
 
 export default async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname

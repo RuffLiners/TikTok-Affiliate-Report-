@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "insert-report": "npx tsx scripts/insert-report.ts"
+    "insert-report": "npx tsx scripts/insert-report.ts",
+    "golden-diff": "npx tsx scripts/golden-diff.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

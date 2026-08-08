@@ -29,6 +29,17 @@ export async function POST(req: NextRequest) {
 
   if (!report.analysis) report.analysis = { d30: '', weekly: '', monthly: '' }
 
+  // Provenance: carry the pasted prompt's spec version (v3 manual prompt and
+  // the regenerated skills stamp meta.promptVersion) into the stored report so
+  // every report — manual or auto — records which spec produced it
+  report.d30.meta = {
+    ...(report.d30.meta || {}),
+    ...(report.meta.promptVersion ? { promptVersion: report.meta.promptVersion } : {}),
+    ...(report.meta.weekWindow ? { weekWindow: report.meta.weekWindow } : {}),
+    source: 'manual-paste',
+    savedAt: new Date().toISOString()
+  }
+
   report.tables = sanitizeTables(report.tables)
   if (report.d30.gmvMaxByAge) report.d30.gmvMaxByAge = sanitizeRows(report.d30.gmvMaxByAge)
 

@@ -2,8 +2,9 @@ import { NextRequest, NextResponse, after } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { reconcileD30 } from '@/lib/reconcile'
 import { sanitizeRows, sanitizeTables } from '@/lib/sanitize'
-import { CANONICAL_METRIC_DEFS } from '@/lib/canonicalDefs'
-import { validateGeneratedReport } from '@/lib/validateReport'
+import { CANONICAL_METRIC_DEFS, PROMPT_VERSION } from '@/lib/canonicalDefs'
+import { validateGeneratedReport, phasesForIssue } from '@/lib/validateReport'
+import { sanityDiffVsPrior } from '@/lib/sanityDiff'
 import { format, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { request as httpsRequest } from 'https'
 
@@ -433,6 +434,17 @@ function assemble(w: ReturnType<typeof buildWindows>, pd: any, analysis: any) {
   return {
     report_date:w.reportDate, label:w.label, data_window:w.dataWindow,
     d30:{
+      // Provenance stamp: which spec produced this report and the exact
+      // windows the server injected, echoed back so drift between the master
+      // prompt, the skills, and this pipeline is verifiable from the output
+      meta:{
+        promptVersion:PROMPT_VERSION,
+        weekWindow:{start:w.last7.start,end:w.last7.end},
+        d30Window:{start:w.d30.start,end:w.d30.end},
+        priorWindow:{start:w.prior.start,end:w.prior.end},
+        timezone:REPORT_TZ,
+        generatedAt:new Date().toISOString()
+      },
       gmv:a1.gmv||0, gmvPct:pct(a1.gmv||0,a2.gmv||0),
       shopGmv:a1.shopGmv||undefined, shopGmvPct:a1.shopGmv?round1(a1.shopGmvPct):undefined,
       affiliateGmv:a1.affiliateGmv||undefined, affiliateGmvPct:a1.affiliateGmv?round1(a1.affiliateGmvPct):undefined,
@@ -822,12 +834,7 @@ export async function POST(req: NextRequest) {
         const retried = Number(pd._validationRetries || 0)
         if (retried < 2) {
           const redo = new Set<number>()
-          for (const iss of issues) {
-            if (iss.startsWith('tier ')) { redo.add(1); redo.add(3) }
-            if (iss.startsWith('GMV Max spend')) { redo.add(6); redo.add(7) }
-            // keep 12/14 (the pinned totals) stable — only the split re-runs
-            if (iss.startsWith('weekly ')) redo.add(21)
-          }
+          for (const iss of issues) for (const p of phasesForIssue(iss)) redo.add(p)
           console.warn(`Job ${jobId}: validation failed (attempt ${retried + 1}), re-pulling phases ${[...redo].join(',')}:`, issues)
           await casUpdate(supabase, jobId, (row: any) => {
             const curPd = row.phase_data || {}
@@ -852,7 +859,25 @@ export async function POST(req: NextRequest) {
       // Softer reconcile warnings still banner anything the strict gate does
       // not cover (messages/samples drift)
       const reconWarnings = reconcileD30(report.d30)
-      if (reconWarnings.length) (report.d30 as any).reconciliation = reconWarnings
+
+      // Sanity diff vs the prior report of the same type: implausible
+      // window-over-window swings, $0 GMV, or all-zero series flag the report
+      // needsReview — it saves with a visible banner but is held out of the
+      // live snapshot until a human confirms the numbers against Euka
+      let priorD30: any = null
+      try {
+        const { data: priors } = await supabase.from('weekly_reports')
+          .select('report_date, d30')
+          .lt('report_date', report.report_date)
+          .order('report_date', { ascending: false })
+          .limit(10)
+        priorD30 = (priors ?? []).find(r => isMonthly === /-M$/.test(r.report_date))?.d30 ?? null
+      } catch { /* first report ever — sanity diff runs without a prior */ }
+      const reviewFlags = sanityDiffVsPrior(report, priorD30)
+      if (reviewFlags.length) (report.d30 as any).needsReview = reviewFlags
+
+      const banner = [...reviewFlags.map(f => `NEEDS REVIEW: ${f}`), ...reconWarnings]
+      if (banner.length) (report.d30 as any).reconciliation = banner
 
       if (isMonthly) {
         ;(report.d30 as any).reportType = 'monthly'
@@ -867,8 +892,10 @@ export async function POST(req: NextRequest) {
       } catch { /* report saves without goals snapshot */ }
       await supabase.from('weekly_reports').upsert(report, { onConflict:'report_date' })
       // Keep the Live 30 Day page in sync with weekly reports — a monthly
-      // report's window is the calendar month, not the trailing 30 days
-      if (!isMonthly) {
+      // report's window is the calendar month, not the trailing 30 days.
+      // A needs-review report never overwrites the live snapshot: the saved
+      // report page shows the flags, the live page keeps the last good data.
+      if (!isMonthly && !reviewFlags.length) {
         const liveData = {
           report_date: report.report_date,
           label: report.label,
@@ -880,7 +907,11 @@ export async function POST(req: NextRequest) {
         }
         await supabase.from('app_config').upsert({ key:'live_report', value: JSON.stringify(liveData) }, { onConflict:'key' })
       }
-      await supabase.from('report_jobs').update({ status:'done', phase:20, phase_label:'Complete ✓', updated_at:new Date().toISOString() }).eq('id',jobId)
+      await supabase.from('report_jobs').update({
+        status:'done', phase:20,
+        phase_label: reviewFlags.length ? 'Complete — needs review ⚠ (see report banner)' : 'Complete ✓',
+        updated_at:new Date().toISOString()
+      }).eq('id',jobId)
       return
     }
 

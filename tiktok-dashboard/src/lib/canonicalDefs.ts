@@ -6,6 +6,12 @@
 // used total ad spend). These definitions mirror the "CRITICAL — determinism"
 // block of the org's ruff-liners-euka-json-report skill (the canonical manual
 // claude.ai run) — keep the two in sync when either changes.
+// Spec version of prompts/master-prompt-v3.md. Stamped into every saved
+// report as d30.meta.promptVersion so spec drift between the master file,
+// the skill copies, and this pipeline is detectable from the output itself.
+// Bump it whenever the master prompt (or these definitions) changes.
+export const PROMPT_VERSION = '3.0'
+
 export const CANONICAL_METRIC_DEFS = `
 CANONICAL METRIC DEFINITIONS — authoritative; never substitute another interpretation:
 - VIEWS = SUM(impressions) from creator_store_performance rows dated in the window. NOT creator_videos view counts, NOT lifetime cumulative views.
