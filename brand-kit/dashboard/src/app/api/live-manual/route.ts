@@ -161,7 +161,7 @@ PART A — KPI & TABLE QUERIES:
 8. Top 15 videos by store GMV — creator handle, product name, GMV, views, orders, AOV, publish date, likes, comments, product clicks
 9. Top 15 creators by videos posted — handle, followers, GMV from new-period videos only, total store GMV, views, avg views/video, orders
 
-Product name shortening: "Hard Bottom Backseat Extenders for Dogs with Door Protection" → "Back Seat Ext." · "XL Floor Cover for Full-Size Crew Cab Trucks with Fold Up Seats" → "XL Floor Cover" · "Travel Dog Bed for Car" → "Travel Dog Bed"
+Product name shortening: shorten long product names to a compact display name (≤ 20 chars) that stays recognizable, e.g. "Stainless Steel Insulated Water Bottle 32oz with Straw Lid" → "Water Bottle 32oz". Always use the same short name for the same product.
 
 PART B — OUTREACH & CRM AGENTS:
 List all outreach and CRM agents created since ${w.d30.start}.
