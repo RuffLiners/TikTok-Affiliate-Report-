@@ -1,4 +1,42 @@
 {
+  "permissions": {
+    "allow": [
+      "mcp__https_app_euka_ai_api_mcp__query_store_data",
+      "mcp__https_app_euka_ai_api_mcp__read_sandbox_file",
+      "mcp__https_app_euka_ai_api_mcp__get_file_download_link",
+      "mcp__https_app_euka_ai_api_mcp__get_dashboard_performance_overview",
+      "mcp__https_app_euka_ai_api_mcp__get_dashboard_creator_level_breakdown",
+      "mcp__https_app_euka_ai_api_mcp__get_dashboard_creator_outreach_funnel",
+      "mcp__https_app_euka_ai_api_mcp__get_dashboard_performance_series",
+      "mcp__https_app_euka_ai_api_mcp__get_dashboard_top_creators_by_gmv",
+      "mcp__https_app_euka_ai_api_mcp__get_dashboard_top_videos_by_revenue",
+      "mcp__https_app_euka_ai_api_mcp__get_dashboard_sample_approval_rate",
+      "mcp__https_app_euka_ai_api_mcp__get_dashboard_content_overview",
+      "mcp__https_app_euka_ai_api_mcp__get_dashboard_affiliate_funnel",
+      "mcp__https_app_euka_ai_api_mcp__get_dashboard_conversion_funnel",
+      "mcp__https_app_euka_ai_api_mcp__get_dashboard_campaign_breakdown",
+      "mcp__https_app_euka_ai_api_mcp__get_dashboard_products_performance",
+      "mcp__https_app_euka_ai_api_mcp__get_dashboard_livestream_gmv",
+      "mcp__https_app_euka_ai_api_mcp__get_dashboard_featured_products_count",
+      "mcp__https_app_euka_ai_api_mcp__get_dashboard_ads_overview",
+      "mcp__https_app_euka_ai_api_mcp__get_dashboard_top_products_by_all_channel_gmv",
+      "mcp__https_app_euka_ai_api_mcp__get_gmv_max_campaign_report",
+      "mcp__https_app_euka_ai_api_mcp__get_gmv_max_item_report",
+      "mcp__https_app_euka_ai_api_mcp__get_gmv_max_product_report",
+      "mcp__https_app_euka_ai_api_mcp__list_gmv_max_advertisers",
+      "mcp__https_app_euka_ai_api_mcp__list_gmv_max_campaigns",
+      "mcp__https_app_euka_ai_api_mcp__list_outreach_agents",
+      "mcp__https_app_euka_ai_api_mcp__get_outreach_agent",
+      "mcp__https_app_euka_ai_api_mcp__get_outreach_overview_metrics",
+      "mcp__https_app_euka_ai_api_mcp__get_outreach_campaign_metrics",
+      "mcp__https_app_euka_ai_api_mcp__get_outreach_campaign_health",
+      "mcp__https_app_euka_ai_api_mcp__list_accessible_brands",
+      "mcp__https_app_euka_ai_api_mcp__get_creator_profile",
+      "mcp__https_app_euka_ai_api_mcp__get_creator_gmv_history",
+      "mcp__https_app_euka_ai_api_mcp__read_skill_file",
+      "mcp__https_app_euka_ai_api_mcp__skill"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       {
