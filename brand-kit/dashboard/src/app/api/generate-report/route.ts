@@ -110,9 +110,9 @@ PHASE 1 — RUN ALL DATA QUERIES
 [D3] 6 months retention rate (6 rows)
 [D4] 6 months outreach by level (L1–L7): messages + samples (42 rows)
 
-═══════════════════════════════════════════════
+═══════════════════════════════════════════
 PHASE 2 — WRITE ANALYSIS FOR EACH REPORT TAB
-═══════════════════════════════════════════════
+═══════════════════════════════════════════
 
 Write as a senior analyst briefing the CEO. Be direct, specific, use actual numbers.
 
@@ -120,9 +120,9 @@ d30 analysis (4-5 paragraphs): headline, GMV drivers by tier, creator health + r
 weekly analysis (3 paragraphs): 13-week arc narrative, creator/content patterns, recruiting lag correlations
 monthly analysis (3 paragraphs): 6-month growth rate + trajectory, tier mix changes, strategic outlook
 
-═══════════════════════════════════
+═════════════════════════════════
 PHASE 3 — OUTPUT THE COMPLETE JSON
-═══════════════════════════════════
+═════════════════════════════════
 
 Output ONLY this JSON. No prose before or after.
 
@@ -182,9 +182,9 @@ Output ONLY this JSON. No prose before or after.
 }
 
 Product name shortening:
-"Hard Bottom Backseat Extenders for Dogs with Door Protection" → "Back Seat Ext."
-"XL Floor Cover for Full-Size Crew Cab Trucks with Fold Up Seats" → "XL Floor Cover"
-"Travel Dog Bed for Car" → "Travel Dog Bed"
+Shorten long product names to a compact display name (≤ 20 chars) that stays recognizable,
+e.g. "Stainless Steel Insulated Water Bottle 32oz with Straw Lid" → "Water Bottle 32oz".
+Always use the same short name for the same product.
 `
 }
 
