@@ -29,6 +29,6 @@ export async function GET(req: NextRequest) {
     ready: hasAnthropicKey && hasEukaMcpUrl && hasEukaStoreId,
     anthropicKey: { set: hasAnthropicKey, source: dbKey ? 'db' : process.env.ANTHROPIC_API_KEY ? 'env' : 'none', masked: maskedKey },
     eukaMcpUrl:  { set: hasEukaMcpUrl },
-    eukaStoreId: { set: hasEukaStoreId },
+    eukaStoreId: { set: hasEukaStoreId, value: process.env.EUKA_STORE_ID || null },
   })
 }
