@@ -45,12 +45,11 @@ interface ConfigStatus {
   ready: boolean
   anthropicKey: { set: boolean; source: string; masked: string | null }
   eukaMcpUrl: { set: boolean }
-  eukaStoreId: { set: boolean }
+  eukaStoreId: { set: boolean; value?: string | null }
 }
 
-const STORE_ID = '455ea4f9-a404-411b-b748-9ba1929efb93'
-
-function buildClaudePrompt(today: Date, goals?: any): string {
+function buildClaudePrompt(today: Date, goals?: any, storeId?: string | null): string {
+  const STORE_ID = storeId || '<YOUR_EUKA_STORE_ID>'
   const gmvEnd   = subDays(today, 2)   // always a Saturday (today is Monday)
   const gmvStart = subDays(gmvEnd, 29)
   const priorEnd  = subDays(gmvStart, 1)
@@ -204,12 +203,13 @@ OUTPUT — respond with ONLY this JSON object, nothing before or after it. CRITI
   }
 }
 
-Product name shortening: "Hard Bottom Backseat Extenders for Dogs with Door Protection" → "Back Seat Ext." · "XL Floor Cover for Full-Size Crew Cab Trucks with Fold Up Seats" → "XL Floor Cover" · "Travel Dog Bed for Car" → "Travel Dog Bed"`
+Product name shortening: shorten long product names to a compact display name (≤ 20 chars) that stays recognizable, e.g. "Stainless Steel Insulated Water Bottle 32oz with Straw Lid" → "Water Bottle 32oz". Always use the same short name for the same product.`
 }
 
 // Monthly paste prompt: whole calendar month vs the full prior month, with
 // month-over-month analysis and a next-month plan. Saves under 'YYYY-MM-M'.
-function buildMonthlyClaudePrompt(monthKey: string, goals?: any): string {
+function buildMonthlyClaudePrompt(monthKey: string, goals?: any, storeId?: string | null): string {
+  const STORE_ID = storeId || '<YOUR_EUKA_STORE_ID>'
   const mStart = new Date(monthKey + '-01T00:00:00')
   const mEndFull = new Date(mStart.getFullYear(), mStart.getMonth() + 1, 0)
   const dataCap = subDays(new Date(), 2)
@@ -349,7 +349,7 @@ OUTPUT — respond with ONLY this JSON object, nothing before or after it. CRITI
   }
 }
 
-Product name shortening: "Hard Bottom Backseat Extenders for Dogs with Door Protection" → "Back Seat Ext." · "XL Floor Cover for Full-Size Crew Cab Trucks with Fold Up Seats" → "XL Floor Cover" · "Travel Dog Bed for Car" → "Travel Dog Bed"`
+Product name shortening: shorten long product names to a compact display name (≤ 20 chars) that stays recognizable, e.g. "Stainless Steel Insulated Water Bottle 32oz with Straw Lid" → "Water Bottle 32oz". Always use the same short name for the same product.`
 }
 
 const GENERATE_STEPS = [
@@ -413,8 +413,8 @@ export default function AdminPage() {
   const today = new Date()
   const isMonthlyKind = reportKind === 'monthly'
   const prompt = isMonthlyKind
-    ? buildMonthlyClaudePrompt(selectedMonth, goals)
-    : buildClaudePrompt(selectedDate, goals)
+    ? buildMonthlyClaudePrompt(selectedMonth, goals, config?.eukaStoreId?.value)
+    : buildClaudePrompt(selectedDate, goals, config?.eukaStoreId?.value)
   const gmvEnd = subDays(selectedDate, 2)
   const gmvStart = subDays(gmvEnd, 29)
   const selMonthStart = new Date(selectedMonth + '-01T00:00:00')
