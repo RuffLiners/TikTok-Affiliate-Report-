@@ -17,6 +17,7 @@ Your job: walk them through setup **one step at a time**, in plain English, wait
 | `env.example` | Every environment variable the app needs |
 | `prompts/setup-prompt.md` | A copy-paste prompt a user can give any Claude to start this walkthrough |
 | `prompts/weekly-report-prompt.md` | The fill-in-the-blanks prompt for generating a weekly report manually |
+| `prompts/audit-prompt.md` | Audit prompt for Claude Code: verifies the installation works and reports correctly |
 | `skills/tiktok-weekly-report/` | Claude skill: pull all KPI data from Euka and output the report JSON |
 | `skills/tiktok-dashboard-analysis/` | Claude skill: ad-hoc analysis and visualization of the same data |
 

@@ -28,6 +28,7 @@ Works for **any brand** — set your brand name with one environment variable, n
 | `env.example` | Every environment variable, with instructions |
 | `prompts/setup-prompt.md` | Paste into Claude for a guided, beginner-friendly setup |
 | `prompts/weekly-report-prompt.md` | Fill-in-the-blanks prompt to generate a report manually |
+| `prompts/audit-prompt.md` | Paste into Claude Code to audit that your installation works and the numbers are correct |
 | `skills/tiktok-weekly-report/` | Claude skill that pulls all Euka data and outputs the report JSON |
 | `skills/tiktok-dashboard-analysis/` | Claude skill for ad-hoc analysis and visualization of your TikTok Shop data |
 
@@ -123,6 +124,8 @@ Both skills read your brand name and store ID from you at run time — nothing b
 | Numbers seem off | Reports have reconciliation guardrails (tier sums must equal totals). Re-run the report; don't hand-edit the JSON |
 
 Still stuck? Paste `prompts/setup-prompt.md` into Claude and describe what you're seeing — it will troubleshoot with you.
+
+Want a full health check? Open the kit folder in Claude Code and paste `prompts/audit-prompt.md` — Claude will audit the code, configuration, and your latest report's numbers end-to-end and give you a pass/fail report with fixes.
 
 ## Estimated monthly cost
 
