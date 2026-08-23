@@ -45,12 +45,12 @@ interface ConfigStatus {
   ready: boolean
   anthropicKey: { set: boolean; source: string; masked: string | null }
   eukaMcpUrl: { set: boolean }
-  eukaStoreId: { set: boolean }
+  eukaStoreId: { set: boolean; value?: string | null }
 }
 
-const STORE_ID = '455ea4f9-a404-411b-b748-9ba1929efb93'
+const STORE_ID_PLACEHOLDER = '[YOUR EUKA STORE ID — set the EUKA_STORE_ID environment variable]'
 
-function buildClaudePrompt(today: Date, goals?: any): string {
+function buildClaudePrompt(today: Date, storeId: string, goals?: any): string {
   const gmvEnd   = subDays(today, 2)   // always a Saturday (today is Monday)
   const gmvStart = subDays(gmvEnd, 29)
   const priorEnd  = subDays(gmvStart, 1)
@@ -81,7 +81,7 @@ function buildClaudePrompt(today: Date, goals?: any): string {
 
   return `Run the ${BRAND_NAME} TikTok Shop weekly report for today ${format(today, 'MMMM d, yyyy')}.
 
-Store ID: ${STORE_ID}
+Store ID: ${storeId}
 
 DATE WINDOWS — use these exactly:
 - Current 30d: ${f(gmvStart)} to ${f(gmvEnd)}
@@ -96,7 +96,7 @@ QUERIES TO RUN (read every CSV file Euka returns):
 3. Current 30d by creator level (L1 = global gmv_30d <$5K, L2 = $5K–$25K, L3 = $25K–$60K, L4 = $60K–$150K, L5 = $150K–$400K, L6 = $400K–$1.5M, L7 = $1.5M+): creators, new creators, videos posted, total views, store GMV — L1+…+L7 views must sum to the overall 30d total views (do not leave views as 0)
 4. Current 30d outreach by level: messages sent + samples shipped + samples approved, plus overall totals
 5. Prior 30d outreach: totals + by level (for % change)
-6. GMV Max current 30d: total ad spend, attributed revenue, blended ROI (use 0 if data unavailable before May 14 2026)
+6. GMV Max current 30d: total ad spend, attributed revenue, blended ROI (use 0 if GMV Max data is unavailable for this window)
 7. Top 15 creators by store GMV — handle, followers, store GMV, global gmv_30d, views, videos L30d, videos w/GMV L30d, lifetime videos, videos L7d, orders, AOV, engagement rate
 8. For the top 15 handles from #7: count of videos that generated any GMV this period, and lifetime total videos for this store
 9. Top 15 videos by store GMV — creator handle, product name, GMV, views, orders, AOV, publish date, likes, comments, product clicks
@@ -204,12 +204,12 @@ OUTPUT — respond with ONLY this JSON object, nothing before or after it. CRITI
   }
 }
 
-Product name shortening: "Hard Bottom Backseat Extenders for Dogs with Door Protection" → "Back Seat Ext." · "XL Floor Cover for Full-Size Crew Cab Trucks with Fold Up Seats" → "XL Floor Cover" · "Travel Dog Bed for Car" → "Travel Dog Bed"`
+Product name shortening: shorten each long product name to a short recognizable label (max ~20 characters), keeping its most distinctive words — e.g. "Stainless Steel Insulated Water Bottle with Straw Lid, 32oz" → "Insulated Bottle 32oz"`
 }
 
 // Monthly paste prompt: whole calendar month vs the full prior month, with
 // month-over-month analysis and a next-month plan. Saves under 'YYYY-MM-M'.
-function buildMonthlyClaudePrompt(monthKey: string, goals?: any): string {
+function buildMonthlyClaudePrompt(monthKey: string, storeId: string, goals?: any): string {
   const mStart = new Date(monthKey + '-01T00:00:00')
   const mEndFull = new Date(mStart.getFullYear(), mStart.getMonth() + 1, 0)
   const dataCap = subDays(new Date(), 2)
@@ -235,7 +235,7 @@ function buildMonthlyClaudePrompt(monthKey: string, goals?: any): string {
 
   return `Run the ${BRAND_NAME} TikTok Shop MONTHLY report for ${monthName}.
 
-Store ID: ${STORE_ID}
+Store ID: ${storeId}
 
 DATE WINDOWS — use these exactly:
 - This month: ${f(mStart)} to ${f(mEnd)}${mEnd < mEndFull ? ' (month in progress — data through latest available)' : ' (complete month)'}
@@ -249,7 +249,7 @@ QUERIES TO RUN (read every CSV file Euka returns):
 3. This month by creator level (L1 = global gmv_30d <$5K, L2 = $5K–$25K, L3 = $25K–$60K, L4 = $60K–$150K, L5 = $150K–$400K, L6 = $400K–$1.5M, L7 = $1.5M+): creators, new creators, videos posted, total views, store GMV — L1+…+L7 views must sum to the overall month total views (do not leave views as 0)
 4. This month's outreach by level: messages sent + samples shipped + samples approved, plus overall totals
 5. Prior month outreach: totals + by level (for % change)
-6. GMV Max this month: total ad spend, attributed revenue, blended ROI (use 0 if data unavailable before May 14 2026)
+6. GMV Max this month: total ad spend, attributed revenue, blended ROI (use 0 if GMV Max data is unavailable for this window)
 7. Top 15 creators by store GMV this month — handle, followers, store GMV, global gmv_30d, views, videos this month, videos w/GMV this month, lifetime videos, videos L7d, orders, AOV, engagement rate
 8. For the top 15 handles from #7: count of videos that generated any GMV this month, and lifetime total videos for this store
 9. Top 15 videos by store GMV this month — creator handle, product name, GMV, views, orders, AOV, publish date, likes, comments, product clicks
@@ -349,7 +349,7 @@ OUTPUT — respond with ONLY this JSON object, nothing before or after it. CRITI
   }
 }
 
-Product name shortening: "Hard Bottom Backseat Extenders for Dogs with Door Protection" → "Back Seat Ext." · "XL Floor Cover for Full-Size Crew Cab Trucks with Fold Up Seats" → "XL Floor Cover" · "Travel Dog Bed for Car" → "Travel Dog Bed"`
+Product name shortening: shorten each long product name to a short recognizable label (max ~20 characters), keeping its most distinctive words — e.g. "Stainless Steel Insulated Water Bottle with Straw Lid, 32oz" → "Insulated Bottle 32oz"`
 }
 
 const GENERATE_STEPS = [
@@ -412,9 +412,10 @@ export default function AdminPage() {
 
   const today = new Date()
   const isMonthlyKind = reportKind === 'monthly'
+  const storeId = config?.eukaStoreId?.value || STORE_ID_PLACEHOLDER
   const prompt = isMonthlyKind
-    ? buildMonthlyClaudePrompt(selectedMonth, goals)
-    : buildClaudePrompt(selectedDate, goals)
+    ? buildMonthlyClaudePrompt(selectedMonth, storeId, goals)
+    : buildClaudePrompt(selectedDate, storeId, goals)
   const gmvEnd = subDays(selectedDate, 2)
   const gmvStart = subDays(gmvEnd, 29)
   const selMonthStart = new Date(selectedMonth + '-01T00:00:00')

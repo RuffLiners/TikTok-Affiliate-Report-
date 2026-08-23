@@ -63,5 +63,71 @@ export function validateGeneratedReport(report: any): string[] {
   weekly('gl', wc.gmv ?? [], 'GMV')
   weekly('vwl', wc.views ?? [], 'views')
 
+  // Structural checks — a series with the wrong number of buckets or a
+  // negative value means the extraction misread the window spec, not that
+  // the store had a bad week. Issues are prefixed "series <chart>.<key>:"
+  // so phasesForIssue can route the retry to the phase that pulled them.
+  const mc = report?.monthly_charts ?? {}
+  const nWeeks = Array.isArray(wc.labels) ? wc.labels.length : 13
+  const nMonths = Array.isArray(mc.labels) ? mc.labels.length : 6
+  const series = (chart: any, chartName: string, key: string, expected: number) => {
+    const arr = chart?.[key]
+    if (!Array.isArray(arr)) return
+    if (arr.length !== expected) {
+      issues.push(`series ${chartName}.${key}: has ${arr.length} items but the window has ${expected} — return one item per bucket in chronological order`)
+    }
+    if (arr.some((v: unknown) => Number.isFinite(Number(v)) && Number(v) < 0)) {
+      issues.push(`series ${chartName}.${key}: contains a negative value — re-pull, these metrics are never negative`)
+    }
+  }
+  const perLevel = (prefix: string) => LVLS.map(k => `${prefix}${k[1]}`)
+  for (const key of ['gmv', 'views', 'ret', 'vid',
+    ...perLevel('crl'), ...perLevel('ncl'), ...perLevel('vl'),
+    ...perLevel('gl'), ...perLevel('vwl'), ...perLevel('ml'), ...perLevel('sl')]) {
+    series(wc, 'weekly_charts', key, nWeeks)
+  }
+  for (const key of ['gmv', 'shopGmv', 'affiliateGmv', 'views', 'ret',
+    ...perLevel('crl'), ...perLevel('ncl'), ...perLevel('vl'),
+    ...perLevel('gl'), ...perLevel('vwl'), ...perLevel('ml'), ...perLevel('sl'), ...perLevel('sal')]) {
+    series(mc, 'monthly_charts', key, nMonths)
+  }
+  for (const key of ['gmv', 'orders', 'videos', 'views', 'creators', 'newCreators', 'msgs', 'samples'] as const) {
+    if (n(d[key]) < 0) issues.push(`d30 ${key}: is negative — re-pull the 30d totals`)
+  }
+
   return issues
+}
+
+// Which data phases produced the numbers behind a validation issue, so a
+// failed save re-pulls exactly those instead of the whole report. Keys match
+// the phase numbers in api/jobs/run (12 C1, 13 C2P, 14 C3/C4, 15 C5,
+// 16 D1, 17 D2P, 18 D3/D4, 21 C2V, 22 D2V).
+const SERIES_PHASE: Record<string, number> = {
+  'weekly_charts.gmv': 12,
+  'weekly_charts.views': 14, 'weekly_charts.ret': 14, 'weekly_charts.vid': 14,
+  'monthly_charts.gmv': 16, 'monthly_charts.shopGmv': 16, 'monthly_charts.affiliateGmv': 16, 'monthly_charts.views': 16,
+  'monthly_charts.ret': 18
+}
+const SERIES_PREFIX_PHASE: [RegExp, number][] = [
+  [/^weekly_charts\.(crl|ncl|vl)\d$/, 13],
+  [/^weekly_charts\.(gl|vwl)\d$/, 21],
+  [/^weekly_charts\.(ml|sl)\d$/, 15],
+  [/^monthly_charts\.(crl|ncl|vl)\d$/, 17],
+  [/^monthly_charts\.(gl|vwl)\d$/, 22],
+  [/^monthly_charts\.(ml|sl|sal)\d$/, 18]
+]
+
+export function phasesForIssue(issue: string): number[] {
+  if (issue.startsWith('tier ')) return [1, 3]
+  if (issue.startsWith('GMV Max spend')) return [6, 7]
+  // per-tier weekly sums reconcile against pinned totals — only the split re-runs
+  if (issue.startsWith('weekly ')) return [21]
+  if (issue.startsWith('d30 ')) return [1]
+  const m = /^series ([\w.]+):/.exec(issue)
+  if (m) {
+    const key = m[1]
+    if (SERIES_PHASE[key] !== undefined) return [SERIES_PHASE[key]]
+    for (const [re, phase] of SERIES_PREFIX_PHASE) if (re.test(key)) return [phase]
+  }
+  return []
 }

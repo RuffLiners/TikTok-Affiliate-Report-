@@ -148,7 +148,7 @@ DATE WINDOWS — use these exactly:
 - Current 30d: ${w.d30.start} to ${w.d30.end}
 - Prior 30d: ${w.prior.start} to ${w.prior.end}
 
-RULES: Always specify year 2026 in queries. Read every CSV with read_sandbox_file. Use creator_store_performance for GMV. New creators = first-ever video for this store. GMV Max only from May 14 2026 (use 0 if earlier).
+RULES: Always specify the full year (e.g. 2026) in date queries. Read every CSV with read_sandbox_file. Use creator_store_performance for GMV. New creators = first-ever video for this store. If GMV Max data is unavailable for any part of the window, use 0 for those dates.
 
 PART A — KPI & TABLE QUERIES:
 1. Current 30d totals: GMV, orders, videos posted, views, creators posted, new creators, retention rate
@@ -156,12 +156,12 @@ PART A — KPI & TABLE QUERIES:
 3. Current 30d by creator level (L1 = global gmv_30d <$5K, L2 = $5K–$25K, L3 = $25K–$60K, L4 = $60K–$150K, L5 = $150K–$400K, L6 = $400K–$1.5M, L7 = $1.5M+): creators, new creators, videos, views, store GMV
 4. Current 30d outreach by level: messages sent + samples shipped + overall totals
 5. Prior 30d outreach: totals + by level
-6. GMV Max current 30d: total ad spend, attributed revenue, blended ROI; also break down ad spend + ROI by creator level (L1–L7 global gmv_30d thresholds). Use 0 for all if before May 14 2026. Also break down spend by content age — buckets based on video publish date vs ${w.d30.end}: "< 30 days" (posted ${w.d30.start}–${w.d30.end}), "1–2 months" (31–60 days before ${w.d30.end}), "2–3 months" (61–90 days), "3–5 months" (91–150 days), "5+ months" (151+ days), "Unknown post date" (publish date missing or unavailable). For each non-empty bucket include: label, videos (count), spend, revenue, roi (revenue/spend, 0 if no spend), pct (spend as % of total spend).
+6. GMV Max current 30d: total ad spend, attributed revenue, blended ROI; also break down ad spend + ROI by creator level (L1–L7 global gmv_30d thresholds). Use 0 for all if GMV Max data is unavailable for the window. Also break down spend by content age — buckets based on video publish date vs ${w.d30.end}: "< 30 days" (posted ${w.d30.start}–${w.d30.end}), "1–2 months" (31–60 days before ${w.d30.end}), "2–3 months" (61–90 days), "3–5 months" (91–150 days), "5+ months" (151+ days), "Unknown post date" (publish date missing or unavailable). For each non-empty bucket include: label, videos (count), spend, revenue, roi (revenue/spend, 0 if no spend), pct (spend as % of total spend).
 7. Top 15 creators by store GMV — handle, followers, store GMV, global gmv_30d, views, videos L30d, videos w/GMV L30d, lifetime videos, videos L7d, orders, AOV, engagement rate
 8. Top 15 videos by store GMV — creator handle, product name, GMV, views, orders, AOV, publish date, likes, comments, product clicks
 9. Top 15 creators by videos posted — handle, followers, GMV from new-period videos only, total store GMV, views, avg views/video, orders
 
-Product name shortening: "Hard Bottom Backseat Extenders for Dogs with Door Protection" → "Back Seat Ext." · "XL Floor Cover for Full-Size Crew Cab Trucks with Fold Up Seats" → "XL Floor Cover" · "Travel Dog Bed for Car" → "Travel Dog Bed"
+Product name shortening: shorten each long product name to a short recognizable label (max ~20 characters), keeping its most distinctive words — e.g. "Stainless Steel Insulated Water Bottle with Straw Lid, 32oz" → "Insulated Bottle 32oz"
 
 PART B — OUTREACH & CRM AGENTS:
 List all outreach and CRM agents created since ${w.d30.start}.

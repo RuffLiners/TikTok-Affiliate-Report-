@@ -3,8 +3,9 @@ import { BRAND_NAME } from '@/lib/brand'
 import { supabaseAdmin } from '@/lib/supabase'
 import { reconcileD30 } from '@/lib/reconcile'
 import { sanitizeRows, sanitizeTables } from '@/lib/sanitize'
-import { CANONICAL_METRIC_DEFS } from '@/lib/canonicalDefs'
-import { validateGeneratedReport } from '@/lib/validateReport'
+import { CANONICAL_METRIC_DEFS, PROMPT_VERSION } from '@/lib/canonicalDefs'
+import { validateGeneratedReport, phasesForIssue } from '@/lib/validateReport'
+import { sanityDiffVsPrior } from '@/lib/sanityDiff'
 import { format, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { request as httpsRequest } from 'https'
 
@@ -158,7 +159,7 @@ const BASE = (w: ReturnType<typeof buildWindows>) =>
   `You are a data extraction agent for ${BRAND_NAME} TikTok Shop. STORE ID: ${process.env.EUKA_STORE_ID}
 Current 30d: ${w.d30.start} to ${w.d30.end} | Prior 30d: ${w.prior.start} to ${w.prior.end}
 13 weeks: ${w.weeksRange} | 6 months: ${w.monthKeys}
-RULES: Always specify year 2026 in queries. Read every CSV with read_sandbox_file. Use creator_store_performance for GMV. GMV Max only from May 14 2026 (use 0 if earlier). ALL date bucketing — video publish dates, Sun–Sat week boundaries, month boundaries, message dates, sample request dates — uses America/Los_Angeles, NEVER UTC.
+RULES: Always specify the full year (e.g. 2026) in date queries. Read every CSV with read_sandbox_file. Use creator_store_performance for GMV. If GMV Max data is unavailable for any part of the window, use 0 for those dates. ALL date bucketing — video publish dates, Sun–Sat week boundaries, month boundaries, message dates, sample request dates — uses America/Los_Angeles, NEVER UTC.
 ${CANONICAL_METRIC_DEFS}
 CRITICAL OUTPUT RULE: You MUST respond with ONLY a single JSON object. No explanations, no analysis, no markdown, no prose before or after. Your entire response must start with { and end with }. Fill in real numbers from the data.`
 
@@ -192,7 +193,7 @@ const PHASES: Record<number, { label: string; prompt: (w: ReturnType<typeof buil
   6: {
     label: 'Pulling GMV Max data…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: GMV Max current 30d (${w.d30.start}–${w.d30.end}): (1) spend, attributed revenue, and ROI from the GMV Max ad tables ONLY (video-level GMV Max spend/revenue summed over the window — the exact same source used for the content-age breakdown, so this header spend will equal the sum of the age-bucket spends). Do NOT use get_dashboard_ads_overview's totalAdSpend — it includes non-GMV-Max ad spend; (2) GMV Max spend and ROI broken down by creator level for affiliate videos (classify each video's creator by global gmv_30d: L1 <$5K, L2 $5K–$25K, L3 $25K–$60K, L4 $60K–$150K, L5 $150K–$400K, L6 $400K–$1.5M, L7 $1.5M+). Use 0 for all if data unavailable before May 14 2026.\nOutput: {"A6":{"spend":0,"revenue":0,"roi":0,"l1":{"spend":0,"roi":0},"l2":{"spend":0,"roi":0},"l3":{"spend":0,"roi":0},"l4":{"spend":0,"roi":0},"l5":{"spend":0,"roi":0},"l6":{"spend":0,"roi":0},"l7":{"spend":0,"roi":0}}}`
+    prompt: w => BASE(w) + `\n\nQuery: GMV Max current 30d (${w.d30.start}–${w.d30.end}): (1) spend, attributed revenue, and ROI from the GMV Max ad tables ONLY (video-level GMV Max spend/revenue summed over the window — the exact same source used for the content-age breakdown, so this header spend will equal the sum of the age-bucket spends). Do NOT use get_dashboard_ads_overview's totalAdSpend — it includes non-GMV-Max ad spend; (2) GMV Max spend and ROI broken down by creator level for affiliate videos (classify each video's creator by global gmv_30d: L1 <$5K, L2 $5K–$25K, L3 $25K–$60K, L4 $60K–$150K, L5 $150K–$400K, L6 $400K–$1.5M, L7 $1.5M+). Use 0 for all if GMV Max data is unavailable for the window.\nOutput: {"A6":{"spend":0,"revenue":0,"roi":0,"l1":{"spend":0,"roi":0},"l2":{"spend":0,"roi":0},"l3":{"spend":0,"roi":0},"l4":{"spend":0,"roi":0},"l5":{"spend":0,"roi":0},"l6":{"spend":0,"roi":0},"l7":{"spend":0,"roi":0}}}`
   },
   7: {
     label: 'Pulling GMV Max content age…',
@@ -276,7 +277,7 @@ Respond with ONLY the JSON array. No prose, no markdown fences.
   10: {
     label: 'Pulling top 15 videos…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Top 15 videos by store GMV (${w.d30.start}–${w.d30.end}): creator handle (h), ggmv, product name (shorten: "Hard Bottom Backseat Extenders for Dogs with Door Protection"→"Back Seat Ext.", "XL Floor Cover for Full-Size Crew Cab Trucks with Fold Up Seats"→"XL Floor Cover", "Travel Dog Bed for Car"→"Travel Dog Bed"), GMV, views, orders, AOV, publish date, likes, comments, product clicks.\nggmv = the CREATOR's global gmv_30d_num from the creators dimension (the creator's overall TikTok GMV) — it is NOT this video's gmv; the two columns must be different numbers. Never copy gmv into ggmv.\nOutput: {"topVideos":[{"h":"","ggmv":0,"prod":"","gmv":0,"views":0,"ord":0,"aov":0,"likes":0,"cmt":0,"clicks":null,"date":""}]}`
+    prompt: w => BASE(w) + `\n\nQuery: Top 15 videos by store GMV (${w.d30.start}–${w.d30.end}): creator handle (h), ggmv, product name (shorten long names to a recognizable label of max ~20 characters, keeping the most distinctive words — e.g. "Stainless Steel Insulated Water Bottle with Straw Lid, 32oz"→"Insulated Bottle 32oz"), GMV, views, orders, AOV, publish date, likes, comments, product clicks.\nggmv = the CREATOR's global gmv_30d_num from the creators dimension (the creator's overall TikTok GMV) — it is NOT this video's gmv; the two columns must be different numbers. Never copy gmv into ggmv.\nOutput: {"topVideos":[{"h":"","ggmv":0,"prod":"","gmv":0,"views":0,"ord":0,"aov":0,"likes":0,"cmt":0,"clicks":null,"date":""}]}`
   },
   11: {
     label: 'Pulling most active creators…',
@@ -390,7 +391,7 @@ Output ONLY: {"performance":"para1\\n\\npara2","creators":"para1\\n\\npara2","re
   24: {
     label: 'Pulling this week\'s top videos…',
     mcp: true,
-    prompt: w => BASE(w) + `\n\nQuery: Top 10 videos by GMV among videos PUBLISHED inside the most recent complete Sun–Sat week ${w.last7.start} to ${w.last7.end} (publish date in the week, America/Los_Angeles): creator handle, ggmv = the CREATOR's global gmv_30d_num from the creators dimension (NOT this video's gmv — the two must be different numbers), product name (shorten: "Hard Bottom Backseat Extenders for Dogs with Door Protection"→"Back Seat Ext.", "XL Floor Cover for Full-Size Crew Cab Trucks with Fold Up Seats"→"XL Floor Cover", "Travel Dog Bed for Car"→"Travel Dog Bed"), GMV, views, orders, AOV, likes, comments, product clicks (null if unavailable), publish date. Sort by GMV descending.\nOutput: {"weeklyTopVideos":[{"h":"","ggmv":0,"prod":"","gmv":0,"views":0,"ord":0,"aov":0,"likes":0,"cmt":0,"clicks":null,"date":""}]}`
+    prompt: w => BASE(w) + `\n\nQuery: Top 10 videos by GMV among videos PUBLISHED inside the most recent complete Sun–Sat week ${w.last7.start} to ${w.last7.end} (publish date in the week, America/Los_Angeles): creator handle, ggmv = the CREATOR's global gmv_30d_num from the creators dimension (NOT this video's gmv — the two must be different numbers), product name (shorten long names to a recognizable label of max ~20 characters, keeping the most distinctive words — e.g. "Stainless Steel Insulated Water Bottle with Straw Lid, 32oz"→"Insulated Bottle 32oz"), GMV, views, orders, AOV, likes, comments, product clicks (null if unavailable), publish date. Sort by GMV descending.\nOutput: {"weeklyTopVideos":[{"h":"","ggmv":0,"prod":"","gmv":0,"views":0,"ord":0,"aov":0,"likes":0,"cmt":0,"clicks":null,"date":""}]}`
   },
   25: {
     label: 'Pulling this week\'s most active creators…',
@@ -434,6 +435,17 @@ function assemble(w: ReturnType<typeof buildWindows>, pd: any, analysis: any) {
   return {
     report_date:w.reportDate, label:w.label, data_window:w.dataWindow,
     d30:{
+      // Provenance stamp: which spec produced this report and the exact
+      // windows the server injected, echoed back so drift between the skill,
+      // the manual prompt, and this pipeline is verifiable from the output
+      meta:{
+        promptVersion:PROMPT_VERSION,
+        weekWindow:{start:w.last7.start,end:w.last7.end},
+        d30Window:{start:w.d30.start,end:w.d30.end},
+        priorWindow:{start:w.prior.start,end:w.prior.end},
+        timezone:REPORT_TZ,
+        generatedAt:new Date().toISOString()
+      },
       gmv:a1.gmv||0, gmvPct:pct(a1.gmv||0,a2.gmv||0),
       shopGmv:a1.shopGmv||undefined, shopGmvPct:a1.shopGmv?round1(a1.shopGmvPct):undefined,
       affiliateGmv:a1.affiliateGmv||undefined, affiliateGmvPct:a1.affiliateGmv?round1(a1.affiliateGmvPct):undefined,
@@ -823,12 +835,7 @@ export async function POST(req: NextRequest) {
         const retried = Number(pd._validationRetries || 0)
         if (retried < 2) {
           const redo = new Set<number>()
-          for (const iss of issues) {
-            if (iss.startsWith('tier ')) { redo.add(1); redo.add(3) }
-            if (iss.startsWith('GMV Max spend')) { redo.add(6); redo.add(7) }
-            // keep 12/14 (the pinned totals) stable — only the split re-runs
-            if (iss.startsWith('weekly ')) redo.add(21)
-          }
+          for (const iss of issues) for (const p of phasesForIssue(iss)) redo.add(p)
           console.warn(`Job ${jobId}: validation failed (attempt ${retried + 1}), re-pulling phases ${[...redo].join(',')}:`, issues)
           await casUpdate(supabase, jobId, (row: any) => {
             const curPd = row.phase_data || {}
@@ -853,7 +860,25 @@ export async function POST(req: NextRequest) {
       // Softer reconcile warnings still banner anything the strict gate does
       // not cover (messages/samples drift)
       const reconWarnings = reconcileD30(report.d30)
-      if (reconWarnings.length) (report.d30 as any).reconciliation = reconWarnings
+
+      // Sanity diff vs the prior report of the same type: implausible
+      // window-over-window swings, $0 GMV, or all-zero series flag the report
+      // needsReview — it saves with a visible banner but is held out of the
+      // live snapshot until a human confirms the numbers against Euka
+      let priorD30: any = null
+      try {
+        const { data: priors } = await supabase.from('weekly_reports')
+          .select('report_date, d30')
+          .lt('report_date', report.report_date)
+          .order('report_date', { ascending: false })
+          .limit(10)
+        priorD30 = (priors ?? []).find(r => isMonthly === /-M$/.test(r.report_date))?.d30 ?? null
+      } catch { /* first report ever — sanity diff runs without a prior */ }
+      const reviewFlags = sanityDiffVsPrior(report, priorD30)
+      if (reviewFlags.length) (report.d30 as any).needsReview = reviewFlags
+
+      const banner = [...reviewFlags.map(f => `NEEDS REVIEW: ${f}`), ...reconWarnings]
+      if (banner.length) (report.d30 as any).reconciliation = banner
 
       if (isMonthly) {
         ;(report.d30 as any).reportType = 'monthly'
@@ -868,8 +893,10 @@ export async function POST(req: NextRequest) {
       } catch { /* report saves without goals snapshot */ }
       await supabase.from('weekly_reports').upsert(report, { onConflict:'report_date' })
       // Keep the Live 30 Day page in sync with weekly reports — a monthly
-      // report's window is the calendar month, not the trailing 30 days
-      if (!isMonthly) {
+      // report's window is the calendar month, not the trailing 30 days.
+      // A needs-review report never overwrites the live snapshot: the saved
+      // report page shows the flags, the live page keeps the last good data.
+      if (!isMonthly && !reviewFlags.length) {
         const liveData = {
           report_date: report.report_date,
           label: report.label,
@@ -881,7 +908,11 @@ export async function POST(req: NextRequest) {
         }
         await supabase.from('app_config').upsert({ key:'live_report', value: JSON.stringify(liveData) }, { onConflict:'key' })
       }
-      await supabase.from('report_jobs').update({ status:'done', phase:20, phase_label:'Complete ✓', updated_at:new Date().toISOString() }).eq('id',jobId)
+      await supabase.from('report_jobs').update({
+        status:'done', phase:20,
+        phase_label: reviewFlags.length ? 'Complete — needs review ⚠ (see report banner)' : 'Complete ✓',
+        updated_at:new Date().toISOString()
+      }).eq('id',jobId)
       return
     }
 

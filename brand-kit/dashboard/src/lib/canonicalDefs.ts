@@ -6,6 +6,11 @@
 // used total ad spend). These definitions mirror the "CRITICAL — determinism"
 // block of the tiktok-weekly-report skill (skills/tiktok-weekly-report/SKILL.md,
 // the canonical manual claude.ai run) — keep the two in sync when either changes.
+// Spec version, stamped into every saved report as d30.meta.promptVersion so
+// spec drift between the skill, the manual prompt, and this pipeline is
+// detectable from the output itself. Bump it whenever the definitions change.
+export const PROMPT_VERSION = '3.0'
+
 export const CANONICAL_METRIC_DEFS = `
 CANONICAL METRIC DEFINITIONS — authoritative; never substitute another interpretation:
 - VIEWS = SUM(impressions) from creator_store_performance rows dated in the window. NOT creator_videos view counts, NOT lifetime cumulative views.

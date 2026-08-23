@@ -82,7 +82,7 @@ RULES:
 - Use creator_store_performance table for GMV (not video-level sums)
 - New creators = first-ever video for this store
 - If a query returns 0 rows, retry explicitly stating 2026
-- GMV Max data only available from May 14 2026 — use 0 if earlier
+- If GMV Max data is unavailable for the window, use 0
 ${CANONICAL_METRIC_DEFS}
 
 ═══════════════════════════════
@@ -181,10 +181,8 @@ Output ONLY this JSON. No prose before or after.
   }
 }
 
-Product name shortening:
-"Hard Bottom Backseat Extenders for Dogs with Door Protection" → "Back Seat Ext."
-"XL Floor Cover for Full-Size Crew Cab Trucks with Fold Up Seats" → "XL Floor Cover"
-"Travel Dog Bed for Car" → "Travel Dog Bed"
+Product name shortening: shorten each long product name to a short recognizable label (max ~20 characters), keeping its most distinctive words.
+Example: "Stainless Steel Insulated Water Bottle with Straw Lid, 32oz" → "Insulated Bottle 32oz"
 `
 }
 
