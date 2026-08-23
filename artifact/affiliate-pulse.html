@@ -4,8 +4,8 @@
 <style>
   :root {
     color-scheme: light;
-    --bg: #f7f6f3;            /* page plane */
-    --surface: #fcfcfb;       /* cards / chart surface */
+    --bg: #f7f6f3;
+    --surface: #fcfcfb;
     --surface-2: #f0efec;
     --ink: #0b0b0b;
     --ink-2: #52514e;
@@ -15,9 +15,9 @@
     --border: rgba(11,11,11,0.10);
     --accent: #1c5cab;
     --accent-soft: #cde2fb;
-    --s1: #2a78d6;            /* series: Emerging */
-    --s2: #eb6834;            /* series: Established */
-    --s3: #1baf7a;            /* series: Power */
+    --s1: #2a78d6;            /* Emerging */
+    --s2: #eb6834;            /* Established */
+    --s3: #1baf7a;            /* Power */
     --seq-a: #86b6ef; --seq-b: #6da7ec; --seq-c: #5598e7; --seq-d: #3987e5;
     --seq-e: #2a78d6; --seq-f: #1c5cab; --seq-g: #104281;
     --up: #006300;
@@ -28,125 +28,95 @@
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       color-scheme: dark;
-      --bg: #0d0d0d;
-      --surface: #1a1a19;
-      --surface-2: #242422;
-      --ink: #ffffff;
-      --ink-2: #c3c2b7;
-      --muted: #898781;
-      --grid: #2c2c2a;
-      --baseline: #383835;
-      --border: rgba(255,255,255,0.10);
-      --accent: #3987e5;
-      --accent-soft: #10315c;
+      --bg: #0d0d0d; --surface: #1a1a19; --surface-2: #242422;
+      --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10);
+      --accent: #3987e5; --accent-soft: #10315c;
       --s1: #3987e5; --s2: #d95926; --s3: #199e70;
       --seq-a: #9ec5f4; --seq-b: #86b6ef; --seq-c: #5598e7; --seq-d: #3987e5;
       --seq-e: #2a78d6; --seq-f: #256abf; --seq-g: #184f95;
-      --up: #0ca30c;
-      --down: #e66767;
-      --warn: #fab219;
-      --shadow: none;
+      --up: #0ca30c; --down: #e66767; --warn: #fab219; --shadow: none;
     }
   }
   :root[data-theme="dark"] {
     color-scheme: dark;
-    --bg: #0d0d0d;
-    --surface: #1a1a19;
-    --surface-2: #242422;
-    --ink: #ffffff;
-    --ink-2: #c3c2b7;
-    --muted: #898781;
-    --grid: #2c2c2a;
-    --baseline: #383835;
-    --border: rgba(255,255,255,0.10);
-    --accent: #3987e5;
-    --accent-soft: #10315c;
+    --bg: #0d0d0d; --surface: #1a1a19; --surface-2: #242422;
+    --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10);
+    --accent: #3987e5; --accent-soft: #10315c;
     --s1: #3987e5; --s2: #d95926; --s3: #199e70;
     --seq-a: #9ec5f4; --seq-b: #86b6ef; --seq-c: #5598e7; --seq-d: #3987e5;
     --seq-e: #2a78d6; --seq-f: #256abf; --seq-g: #184f95;
-    --up: #0ca30c;
-    --down: #e66767;
-    --warn: #fab219;
-    --shadow: none;
+    --up: #0ca30c; --down: #e66767; --warn: #fab219; --shadow: none;
   }
 
   * { box-sizing: border-box; }
   body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--ink);
+    margin: 0; background: var(--bg); color: var(--ink);
     font-family: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-    font-size: 14px;
-    line-height: 1.5;
-    -webkit-font-smoothing: antialiased;
+    font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
   }
   .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 20px 72px; }
 
   h1, h2, h3, .fig { font-family: "Archivo", "IBM Plex Sans", system-ui, sans-serif; }
   h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
   h2 { font-size: 15px; font-weight: 700; margin: 0 0 2px; }
+  h3 { font-size: 13px; font-weight: 700; margin: 0; }
   .sub { color: var(--ink-2); font-size: 13px; }
   .eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 
-  /* ---------- header ---------- */
-  header.bar {
-    display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: flex-end;
-    justify-content: space-between; margin-bottom: 20px;
-  }
-  .brandline { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  header.bar { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: flex-end; justify-content: space-between; margin-bottom: 14px; }
   #brandName { color: var(--accent); }
   .controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  select, button.btn {
+  select, button.btn, input.goal {
     font: inherit; font-weight: 500; color: var(--ink);
     background: var(--surface); border: 1px solid var(--border);
-    border-radius: 8px; padding: 7px 10px; cursor: pointer;
+    border-radius: 8px; padding: 7px 10px;
   }
-  select:focus-visible, button:focus-visible, a:focus-visible, summary:focus-visible {
-    outline: 2px solid var(--accent); outline-offset: 2px;
-  }
+  select, button.btn { cursor: pointer; }
   button.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   button.btn[disabled] { opacity: 0.5; cursor: default; }
-
-  /* ---------- layout ---------- */
-  section { margin-top: 26px; }
-  .cards { display: grid; gap: 12px; }
-  .kpis { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
-  .card {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow);
+  select:focus-visible, button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
   }
+
+  nav.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--baseline); margin-bottom: 18px; overflow-x: auto; }
+  nav.tabs button {
+    font: inherit; font-weight: 600; font-size: 13.5px; color: var(--ink-2);
+    background: none; border: none; border-bottom: 2px solid transparent;
+    padding: 9px 14px; cursor: pointer; white-space: nowrap;
+  }
+  nav.tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+
+  section.block { margin-top: 22px; }
+  .cards { display: grid; gap: 12px; }
+  .kpis { grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow); }
   .kpi .lbl { font-size: 12px; color: var(--ink-2); }
   .kpi .fig { font-size: 24px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.15; margin: 2px 0; }
   .delta { font-size: 12px; font-weight: 600; }
-  .delta.up { color: var(--up); }
-  .delta.down { color: var(--down); }
-  .delta.flat { color: var(--muted); }
+  .delta.up { color: var(--up); } .delta.down { color: var(--down); } .delta.flat { color: var(--muted); }
 
   .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .multis { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
-  @media (max-width: 760px) { .duo { grid-template-columns: 1fr; } }
+  .trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .multis { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+  @media (max-width: 820px) { .duo, .trio { grid-template-columns: 1fr; } }
 
-  .chart-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px; }
-  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); margin: 4px 0 8px; }
+  .chart-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); margin: 2px 0 8px; }
   .legend .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
-
   svg text { font-family: "IBM Plex Sans", system-ui, sans-serif; }
 
-  /* ---------- tables ---------- */
   .tblwrap { overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; font-size: 13px; }
-  th {
-    text-align: left; font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
-    text-transform: uppercase; color: var(--muted); padding: 6px 10px;
-    border-bottom: 1px solid var(--baseline); white-space: nowrap;
-  }
+  th { text-align: left; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+       padding: 6px 10px; border-bottom: 1px solid var(--baseline); white-space: nowrap; }
   td { padding: 7px 10px; border-bottom: 1px solid var(--grid); vertical-align: middle; white-space: nowrap; }
   tr:last-child td { border-bottom: none; }
   td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   .handle { font-weight: 600; }
   .rankbar { display: inline-block; height: 6px; border-radius: 3px; background: var(--seq-e); vertical-align: middle; }
 
-  /* ---------- funnel ---------- */
   .fun-row { display: grid; grid-template-columns: 150px 1fr 130px; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--grid); }
   .fun-row:last-child { border-bottom: none; }
   .fun-lbl { font-size: 13px; color: var(--ink-2); }
@@ -155,40 +125,40 @@
   .fun-val { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
   .fun-val small { color: var(--muted); font-weight: 400; }
 
-  /* ---------- insights ---------- */
-  .insights li { margin: 6px 0; }
-  .insights { margin: 8px 0 0; padding-left: 20px; }
+  .tiercards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+  .tiercard .tc-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .tc-rows { display: grid; gap: 4px; font-size: 13px; }
+  .tc-rows > div { display: flex; justify-content: space-between; gap: 10px; }
+  .tc-rows b { font-variant-numeric: tabular-nums; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 999px; color: #fff; }
 
-  /* ---------- states ---------- */
-  .state-card { max-width: 640px; margin: 48px auto; text-align: left; }
+  .analysis-sec { margin-top: 16px; }
+  .analysis-sec p { max-width: 72ch; margin: 8px 0; }
+  .goalrow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0 4px; }
+  input.goal { width: 140px; }
+
+  .state-card { max-width: 640px; margin: 48px auto; }
   .state-card h2 { font-size: 18px; }
   .state-card ol { padding-left: 20px; }
   .state-card li { margin: 8px 0; }
   code { background: var(--surface-2); border-radius: 4px; padding: 1px 5px; font-size: 12.5px; }
-  .err {
-    background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
-    padding: 10px 12px; font-size: 13px; color: var(--ink-2); margin-top: 8px;
-  }
+  .err { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 13px; color: var(--ink-2); margin-top: 8px; }
   .err b { color: var(--ink); }
   .skel { position: relative; overflow: hidden; background: var(--surface-2); border-radius: 8px; min-height: 90px; }
   @media (prefers-reduced-motion: no-preference) {
-    .skel::after {
-      content: ""; position: absolute; inset: 0;
-      background: linear-gradient(90deg, transparent, rgba(137,135,129,0.15), transparent);
-      animation: shimmer 1.4s infinite;
-    }
+    .skel::after { content: ""; position: absolute; inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(137,135,129,0.15), transparent); animation: shimmer 1.4s infinite; }
     @keyframes shimmer { from { transform: translateX(-100%);} to { transform: translateX(100%);} }
   }
   .note { font-size: 12px; color: var(--muted); margin-top: 6px; }
   .statuschip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
     border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; }
+  .progress { height: 10px; border-radius: 5px; background: var(--surface-2); overflow: hidden; margin-top: 6px; max-width: 420px; }
+  .progress > div { height: 100%; border-radius: 5px; background: var(--seq-e); }
 
-  /* ---------- tooltip ---------- */
-  #tip {
-    position: fixed; z-index: 50; pointer-events: none; display: none;
-    background: var(--ink); color: var(--bg); border-radius: 8px;
-    padding: 6px 10px; font-size: 12px; line-height: 1.45; max-width: 260px; white-space: nowrap;
-  }
+  #tip { position: fixed; z-index: 50; pointer-events: none; display: none;
+    background: var(--ink); color: var(--bg); border-radius: 8px; padding: 6px 10px;
+    font-size: 12px; line-height: 1.45; max-width: 280px; white-space: nowrap; }
   #tip .t-head { font-weight: 600; }
 
   details.about { margin-top: 40px; color: var(--ink-2); }
@@ -205,69 +175,81 @@
 <script>
 "use strict";
 /* =====================================================================
-   Affiliate Pulse — weekly TikTok Shop affiliate growth report.
-   Reads the viewer's own Euka connector via the artifact `mcp`
-   capability. No data is stored or sent anywhere else.
+   Affiliate Pulse — weekly TikTok Shop affiliate report for any brand
+   on Euka. Four views: Last 30 Days, Week over Week (13 wks), Month
+   over Month (6 mo), and Analysis. Reads the viewer's own Euka
+   connector; stores nothing beyond local view preferences.
    ===================================================================== */
 
-const SERVER_ALIASES = ["Euka", "https_app_euka_ai_api_mcp", "https app euka ai api mcp"];
 const T = {
-  brands:   "list_accessible_brands",
+  brands: "list_accessible_brands",
   overview: "get_dashboard_performance_overview",
-  levels:   "get_dashboard_creator_level_breakdown",
+  levels: "get_dashboard_creator_level_breakdown",
   topCreators: "get_dashboard_top_creators_by_gmv",
-  topVideos:   "get_dashboard_top_videos_by_revenue",
-  funnel:   "get_dashboard_creator_outreach_funnel",
-  retention:"get_creator_retention_summary",
+  topVideos: "get_dashboard_top_videos_by_revenue",
+  funnel: "get_dashboard_creator_outreach_funnel",
+  retention: "get_creator_retention_summary",
+  ads: "get_dashboard_ads_overview",
 };
 const SEGMENTS = [
-  { key: "emerging",    label: "Emerging (< $25K)",          levels: ["L1","L2"],      colorVar: "--s1" },
-  { key: "established", label: "Established ($25K–$150K)",   levels: ["L3","L4"],      colorVar: "--s2" },
-  { key: "power",       label: "Power ($150K+)",             levels: ["L5","L6","L7"], colorVar: "--s3" },
+  { key: "emerging",    label: "Emerging",    range: "< $25K",       levels: ["L1","L2"],      colorVar: "--s1" },
+  { key: "established", label: "Established", range: "$25K–$150K",   levels: ["L3","L4"],      colorVar: "--s2" },
+  { key: "power",       label: "Power",       range: "$150K+",       levels: ["L5","L6","L7"], colorVar: "--s3" },
 ];
 const SEQ = ["--seq-a","--seq-b","--seq-c","--seq-d","--seq-e","--seq-f","--seq-g"];
+const RETENTION_BENCHMARK = 30, RETENTION_FLOOR = 28; /* % — monthly */
 
-let mcp = null, SERVER = null, BRANDS = [], state = {
-  brandId: null, weekEnd: null, trendN: 8, running: false,
-};
+let mcp = null, SERVER = null, BRANDS = [];
+const state = { brandId: null, tab: "d30", goal: null };
+const memo = { d30: {}, weekly: {}, monthly: {} };   /* per-brand promise caches */
 
-/* ---------------- helpers ---------------- */
+/* ---------------- utils ---------------- */
 const $ = (sel, el) => (el || document).querySelector(sel);
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-
 function store(key, val) { try { localStorage.setItem("ap." + key, JSON.stringify(val)); } catch (e) {} }
 function recall(key) { try { const v = localStorage.getItem("ap." + key); return v == null ? null : JSON.parse(v); } catch (e) { return null; } }
 
 function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
-function iso(d) {
-  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
-}
+function iso(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
 function fromIso(s) { const [y, m, dd] = s.split("-").map(Number); return new Date(y, m - 1, dd); }
 function mdy(s) { const d = fromIso(s); return (d.getMonth() + 1) + "/" + d.getDate(); }
-function rangeLabel(w) {
-  const a = fromIso(w.start), b = fromIso(w.end);
-  const f = d => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-  return f(a) + " – " + f(b) + ", " + b.getFullYear();
-}
-/* Most recent complete Sun–Sat week ending at least 2 days ago (attribution lag). */
-function latestCompleteWeekEnd() {
-  const anchor = addDays(new Date(), -2);
-  return addDays(anchor, -((anchor.getDay() + 1) % 7)); // back to Saturday
-}
-function weekFor(endDate) { return { start: iso(addDays(endDate, -6)), end: iso(endDate) }; }
-function trailingWeeks(endDate, n) {
-  const out = [];
-  for (let i = n - 1; i >= 0; i--) out.push(weekFor(addDays(endDate, -7 * i)));
-  return out;
+function nice(s) { return fromIso(s).toLocaleDateString(undefined, { month: "short", day: "numeric" }); }
+
+/* Canonical windows — mirror of the weekly report methodology:
+   attribution lag 2 days; 30d window; prior 30d; 13 Sun–Sat weeks; 6 months. */
+function windows() {
+  const gmvEnd = addDays(new Date(), -2);
+  const gmvStart = addDays(gmvEnd, -29);
+  const priorEnd = addDays(gmvStart, -1);
+  const priorStart = addDays(priorEnd, -29);
+  const weekEnd = addDays(gmvEnd, -((gmvEnd.getDay() + 1) % 7)); /* last Saturday ≤ gmvEnd */
+  const weeks = [];
+  for (let i = 12; i >= 0; i--) {
+    const e = addDays(weekEnd, -7 * i);
+    weeks.push({ start: iso(addDays(e, -6)), end: iso(e) });
+  }
+  const months = [];
+  for (let i = 5; i >= 0; i--) {
+    const first = new Date(gmvEnd.getFullYear(), gmvEnd.getMonth() - i, 1);
+    const isCur = i === 0;
+    const last = isCur ? gmvEnd : new Date(first.getFullYear(), first.getMonth() + 1, 0);
+    months.push({ start: iso(first), end: iso(last),
+      label: first.toLocaleDateString(undefined, { month: "short" }) + (isCur ? "*" : ""), partial: isCur });
+  }
+  return {
+    cur: { start: iso(gmvStart), end: iso(gmvEnd) },
+    prior: { start: iso(priorStart), end: iso(priorEnd) },
+    weeks, months,
+    thisWeek: weeks[weeks.length - 1],
+  };
 }
 
 const fmtInt = n => n == null ? "—" : Math.round(n).toLocaleString();
 function fmtMoney(n, compact) {
   if (n == null) return "—";
-  if (compact && Math.abs(n) >= 10000) {
+  if (compact && Math.abs(n) >= 10000)
     return "$" + (n / 1000).toLocaleString(undefined, { maximumFractionDigits: Math.abs(n) >= 100000 ? 0 : 1 }) + "K";
-  }
   return "$" + Math.round(n).toLocaleString();
 }
 const fmtNum = n => {
@@ -276,19 +258,18 @@ const fmtNum = n => {
   if (Math.abs(n) >= 1e4) return Math.round(n / 1e3) + "K";
   return Math.round(n).toLocaleString();
 };
-function deltaHtml(pct) {
-  if (pct == null || !isFinite(pct)) return '<span class="delta flat">— vs prior wk</span>';
+function pctChange(cur, prev) { return prev ? (cur - prev) / prev * 100 : null; }
+function deltaHtml(pct, suffix) {
+  if (pct == null || !isFinite(pct)) return '<span class="delta flat">—</span>';
   const cls = pct > 0.05 ? "up" : pct < -0.05 ? "down" : "flat";
   const arrow = cls === "up" ? "▲" : cls === "down" ? "▼" : "◦";
-  return '<span class="delta ' + cls + '">' + arrow + " " + Math.abs(pct).toFixed(1) + "% vs prior wk</span>";
+  return '<span class="delta ' + cls + '">' + arrow + " " + Math.abs(pct).toFixed(1) + "%" + (suffix || "") + "</span>";
 }
 
-/* one retry for errors stamped retryable */
 async function call(tool, input, opts) {
   const options = Object.assign({ cache: { staleTime: 300000, gcTime: 86400000 } }, opts || {});
-  try {
-    return await mcp.callTool(SERVER, tool, input, options);
-  } catch (e) {
+  try { return await mcp.callTool(SERVER, tool, input, options); }
+  catch (e) {
     if (e && e.retryable) {
       await new Promise(r => setTimeout(r, (e.retryAfterMs || 900) + Math.random() * 600));
       return mcp.callTool(SERVER, tool, input, options);
@@ -308,6 +289,7 @@ async function pool(tasks, limit) {
   await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, worker));
   return results;
 }
+const payloadOf = r => r && r.ok ? r.val.payload : null;
 
 function errCopy(e) {
   const code = e && e.code;
@@ -325,28 +307,25 @@ function errCopy(e) {
     default: return "This section couldn't load" + (e && e.message ? " (" + e.message + ")" : "") + ". Use Refresh to try again.";
   }
 }
-function errBox(e, what) {
-  return '<div class="err"><b>' + esc(what) + ":</b> " + esc(errCopy(e)) + "</div>";
-}
+const errBox = (e, what) => '<div class="err"><b>' + esc(what) + ":</b> " + esc(errCopy(e)) + "</div>";
 
 /* ---------------- tooltip ---------------- */
-const tip = () => $("#tip");
 function bindTips(root) {
   root.querySelectorAll("[data-tip]").forEach(el => {
-    el.addEventListener("mouseenter", () => { tip().innerHTML = el.dataset.tip; tip().style.display = "block"; });
+    el.addEventListener("mouseenter", () => { const t = $("#tip"); t.innerHTML = el.dataset.tip; t.style.display = "block"; });
     el.addEventListener("mousemove", ev => {
-      const t = tip(); const pad = 14;
+      const t = $("#tip"); const pad = 14;
       let x = ev.clientX + pad, y = ev.clientY + pad;
       const r = t.getBoundingClientRect();
       if (x + r.width > innerWidth - 8) x = ev.clientX - r.width - pad;
       if (y + r.height > innerHeight - 8) y = ev.clientY - r.height - pad;
       t.style.left = x + "px"; t.style.top = y + "px";
     });
-    el.addEventListener("mouseleave", () => { tip().style.display = "none"; });
+    el.addEventListener("mouseleave", () => { $("#tip").style.display = "none"; });
   });
 }
 
-/* ---------------- SVG charts ---------------- */
+/* ---------------- SVG chart builders ---------------- */
 function roundTopRect(x, y, w, h, r) {
   if (h <= 0) return "";
   r = Math.min(r, h, w / 2);
@@ -356,83 +335,40 @@ function roundTopRect(x, y, w, h, r) {
 function gridLines(w, padL, padR, innerH, padT, steps) {
   let s = "";
   for (let i = 0; i <= steps; i++) {
-    const y = padT + innerH - (innerH * i / steps);
+    const y = padT + innerH - innerH * i / steps;
     s += '<line x1="' + padL + '" x2="' + (w - padR) + '" y1="' + y + '" y2="' + y +
          '" stroke="' + (i === 0 ? css("--baseline") : css("--grid")) + '" stroke-width="1"/>';
   }
   return s;
 }
-/* single-series bar tile; values may contain nulls (missing weeks) */
-function barTile(labels, values, fmt, tipName) {
-  const W = 320, H = 120, padL = 6, padR = 6, padT = 8, padB = 18;
+function barChart(labels, values, fmt, name) {
+  const W = 460, H = 150, padL = 6, padR = 6, padT = 10, padB = 18;
   const innerW = W - padL - padR, innerH = H - padT - padB;
   const max = Math.max(1, ...values.filter(v => v != null));
-  const n = labels.length, slot = innerW / n, bw = Math.max(6, Math.min(26, slot - 4));
+  const n = labels.length, slot = innerW / n, bw = Math.max(6, Math.min(30, slot - 4));
   let bars = "", labs = "";
   const every = n > 8 ? 2 : 1;
   labels.forEach((lb, i) => {
-    const x = padL + slot * i + (slot - bw) / 2;
-    const v = values[i];
+    const x = padL + slot * i + (slot - bw) / 2, v = values[i];
     if (v != null) {
       const h = Math.max(v > 0 ? 2 : 0, innerH * v / max);
       bars += '<path d="' + roundTopRect(x, padT + innerH - h, bw, h, 4) + '" fill="' + css("--seq-e") + '"/>';
-    } else {
-      bars += '<rect x="' + x + '" y="' + (padT + innerH - 2) + '" width="' + bw + '" height="2" fill="' + css("--grid") + '"/>';
-    }
+    } else bars += '<rect x="' + x + '" y="' + (padT + innerH - 2) + '" width="' + bw + '" height="2" fill="' + css("--grid") + '"/>';
     bars += '<rect x="' + (padL + slot * i) + '" y="' + padT + '" width="' + slot + '" height="' + innerH +
-            '" fill="transparent" data-tip="<div class=\'t-head\'>Wk ending ' + lb + "</div>" + tipName + ": " +
-            (v == null ? "unavailable" : fmt(v)) + '"/>';
+      '" fill="transparent" data-tip="<div class=\'t-head\'>' + lb + "</div>" + name + ": " + (v == null ? "unavailable" : fmt(v)) + '"/>';
     if (i % every === 0) labs += '<text x="' + (padL + slot * i + slot / 2) + '" y="' + (H - 4) +
       '" font-size="10" fill="' + css("--muted") + '" text-anchor="middle">' + lb + "</text>";
   });
-  return '<svg viewBox="0 0 ' + W + " " + H + '" width="100%" role="img" aria-label="' + tipName + ' by week">' +
+  return '<svg viewBox="0 0 ' + W + " " + H + '" width="100%" role="img" aria-label="' + name + '">' +
          gridLines(W, padL, padR, innerH, padT, 2) + bars + labs + "</svg>";
 }
-/* stacked 3-segment weekly bars with 2px gaps */
-function stackedChart(labels, seriesArr) {
-  const W = 720, H = 240, padL = 8, padR = 8, padT = 10, padB = 20;
+function lineChart(labels, values, fmt, name, suffix) {
+  const W = 460, H = 150, padL = 8, padR = 12, padT = 12, padB = 18;
   const innerW = W - padL - padR, innerH = H - padT - padB;
-  const n = labels.length;
-  const totals = labels.map((_, i) => seriesArr.reduce((a, s) => a + (s.values[i] || 0), 0));
-  const max = Math.max(1, ...totals);
-  const slot = innerW / n, bw = Math.max(10, Math.min(44, slot - 8));
-  let out = "", labs = "";
-  const every = n > 9 ? 2 : 1;
-  labels.forEach((lb, i) => {
-    const x = padL + slot * i + (slot - bw) / 2;
-    let yCursor = padT + innerH;
-    const parts = seriesArr.map(s => ({ label: s.label, v: s.values[i] || 0, color: css(s.colorVar) }));
-    const visible = parts.filter(p => p.v > 0);
-    visible.forEach((p, idx) => {
-      const h = Math.max(2, innerH * p.v / max) - (idx < visible.length - 1 ? 2 : 0); /* 2px surface gap */
-      const isTop = idx === visible.length - 1;
-      const y = yCursor - h;
-      out += isTop
-        ? '<path d="' + roundTopRect(x, y, bw, h, 4) + '" fill="' + p.color + '"/>'
-        : '<rect x="' + x + '" y="' + y + '" width="' + bw + '" height="' + h + '" fill="' + p.color + '"/>';
-      yCursor = y - 2;
-    });
-    const rows = parts.map(p => p.label.split(" (")[0] + ": " + fmtMoney(p.v, true)).join("<br>");
-    out += '<rect x="' + (padL + slot * i) + '" y="' + padT + '" width="' + slot + '" height="' + innerH +
-           '" fill="transparent" data-tip="<div class=\'t-head\'>Wk ending ' + lb + " · " + fmtMoney(totals[i], true) + "</div>" + rows + '"/>';
-    if (i % every === 0) labs += '<text x="' + (padL + slot * i + slot / 2) + '" y="' + (H - 5) +
-      '" font-size="10" fill="' + css("--muted") + '" text-anchor="middle">' + lb + "</text>";
-    if (totals[i] > 0 && (n <= 9 || i % every === 0)) {
-      labs += '<text x="' + (padL + slot * i + slot / 2) + '" y="' + (padT + innerH - innerH * totals[i] / max - 5) +
-        '" font-size="10" font-weight="600" fill="' + css("--ink-2") + '" text-anchor="middle">' + fmtMoney(totals[i], true) + "</text>";
-    }
-  });
-  return '<svg viewBox="0 0 ' + W + " " + H + '" width="100%" role="img" aria-label="Affiliate GMV by creator segment per week">' +
-         gridLines(W, padL, padR, innerH, padT, 3) + out + labs + "</svg>";
-}
-function lineTile(labels, values, fmt, tipName) {
-  const W = 320, H = 120, padL = 6, padR = 10, padT = 10, padB = 18;
-  const innerW = W - padL - padR, innerH = H - padT - padB;
-  const pts = values.map(v => v).filter(v => v != null);
+  const pts = values.filter(v => v != null);
   const max = Math.max(1, ...pts), min = Math.min(0, ...pts);
   const n = labels.length, slot = innerW / Math.max(1, n - 1);
-  const xy = values.map((v, i) => v == null ? null :
-    [padL + slot * i, padT + innerH - innerH * (v - min) / (max - min || 1)]);
+  const xy = values.map((v, i) => v == null ? null : [padL + slot * i, padT + innerH - innerH * (v - min) / (max - min || 1)]);
   let path = "", started = false;
   xy.forEach(p => { if (!p) { started = false; return; } path += (started ? "L" : "M") + p[0] + "," + p[1]; started = true; });
   let dots = "", hits = "", labs = "";
@@ -441,42 +377,131 @@ function lineTile(labels, values, fmt, tipName) {
     if (p) {
       const last = i === n - 1;
       dots += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="' + (last ? 4 : 2.5) + '" fill="' + css("--seq-e") + '"' +
-              (last ? ' stroke="' + css("--surface") + '" stroke-width="2"' : "") + "/>";
+        (last ? ' stroke="' + css("--surface") + '" stroke-width="2"' : "") + "/>";
     }
     hits += '<rect x="' + (padL + slot * i - slot / 2) + '" y="0" width="' + slot + '" height="' + H +
-            '" fill="transparent" data-tip="<div class=\'t-head\'>Wk ending ' + labels[i] + "</div>" + tipName + ": " +
-            (values[i] == null ? "unavailable" : fmt(values[i])) + '"/>';
+      '" fill="transparent" data-tip="<div class=\'t-head\'>' + labels[i] + "</div>" + name + ": " +
+      (values[i] == null ? "unavailable" : fmt(values[i]) + (suffix || "")) + '"/>';
     if (i % every === 0) labs += '<text x="' + (padL + slot * i) + '" y="' + (H - 4) +
       '" font-size="10" fill="' + css("--muted") + '" text-anchor="middle">' + labels[i] + "</text>";
   });
-  return '<svg viewBox="0 0 ' + W + " " + H + '" width="100%" role="img" aria-label="' + tipName + ' by week">' +
+  return '<svg viewBox="0 0 ' + W + " " + H + '" width="100%" role="img" aria-label="' + name + '">' +
          gridLines(W, padL, padR, innerH, padT, 2) +
          '<path d="' + path + '" fill="none" stroke="' + css("--seq-e") + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
          dots + hits + labs + "</svg>";
 }
+/* stacked 3-segment bars; fmt formats values (money or count) */
+function stackedChart(labels, seriesArr, fmt, name) {
+  const W = 560, H = 190, padL = 8, padR = 8, padT = 12, padB = 20;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+  const n = labels.length;
+  const totals = labels.map((_, i) => seriesArr.reduce((a, s) => a + (s.values[i] || 0), 0));
+  const max = Math.max(1, ...totals);
+  const slot = innerW / n, bw = Math.max(8, Math.min(40, slot - 6));
+  let out = "", labs = "";
+  const every = n > 9 ? 2 : 1;
+  labels.forEach((lb, i) => {
+    const x = padL + slot * i + (slot - bw) / 2;
+    let yCursor = padT + innerH;
+    const parts = seriesArr.map(s => ({ label: s.label, v: s.values[i] || 0, color: css(s.colorVar) })).filter(p => p.v > 0);
+    parts.forEach((p, idx) => {
+      const h = Math.max(2, innerH * p.v / max) - (idx < parts.length - 1 ? 2 : 0);
+      const isTop = idx === parts.length - 1;
+      const y = yCursor - h;
+      out += isTop ? '<path d="' + roundTopRect(x, y, bw, h, 4) + '" fill="' + p.color + '"/>'
+                   : '<rect x="' + x + '" y="' + y + '" width="' + bw + '" height="' + h + '" fill="' + p.color + '"/>';
+      yCursor = y - 2;
+    });
+    const rows = seriesArr.map(s => s.label + ": " + fmt(s.values[i] || 0)).join("<br>");
+    out += '<rect x="' + (padL + slot * i) + '" y="' + padT + '" width="' + slot + '" height="' + innerH +
+      '" fill="transparent" data-tip="<div class=\'t-head\'>' + lb + " · " + fmt(totals[i]) + "</div>" + rows + '"/>';
+    if (i % every === 0) labs += '<text x="' + (padL + slot * i + slot / 2) + '" y="' + (H - 5) +
+      '" font-size="10" fill="' + css("--muted") + '" text-anchor="middle">' + lb + "</text>";
+  });
+  return '<svg viewBox="0 0 ' + W + " " + H + '" width="100%" role="img" aria-label="' + name + '">' +
+         gridLines(W, padL, padR, innerH, padT, 3) + out + labs + "</svg>";
+}
+const legendHtml = () => '<div class="legend">' + SEGMENTS.map(s =>
+  '<span><span class="sw" style="background:var(' + s.colorVar + ')"></span>' + s.label + " (" + s.range + ")</span>").join("") + "</div>";
+
+function segTotals(lv) {
+  const bySeg = {};
+  SEGMENTS.forEach(s => bySeg[s.key] = { gmv: 0, creators: 0, videos: 0, msgs: 0, sReq: 0, sApproved: 0, sDelivered: 0, sPosted: 0 });
+  (lv && lv.tiers || []).forEach(t => {
+    const seg = SEGMENTS.find(s => s.levels.includes(t.tier));
+    if (!seg) return;
+    const b = bySeg[seg.key];
+    b.gmv += t.totalGmv || 0; b.creators += t.creators || 0; b.videos += t.videos || 0;
+    b.msgs += t.invitesSent || 0; b.sReq += t.sampleRequests || 0; b.sApproved += t.samplesApproved || 0;
+    b.sDelivered += t.samplesDelivered || 0; b.sPosted += t.samplesPosted || 0;
+  });
+  return bySeg;
+}
+
+/* ---------------- data loaders (memoized per brand) ---------------- */
+function loadD30(brandId, fresh) {
+  if (!fresh && memo.d30[brandId]) return memo.d30[brandId];
+  const w = windows();
+  const opts = fresh ? { cache: { staleTime: 0, gcTime: 86400000, refresh: true } } : undefined;
+  memo.d30[brandId] = (async () => {
+    const r = await pool([
+      () => call(T.overview, { brandId, startDate: w.cur.start, endDate: w.cur.end }, opts),
+      () => call(T.levels, { brandId, postedDateRange: w.cur }, opts),
+      () => call(T.levels, { brandId, postedDateRange: w.prior }),
+      () => call(T.ads, { brandId, postedDateRange: w.cur }, opts),
+      () => call(T.funnel, { brandId, postedDateRange: w.cur }, opts),
+      () => call(T.retention, { brandId, startDate: w.cur.start, endDate: w.cur.end }, opts),
+      () => call(T.topCreators, { brandId, postedDateRange: w.cur, limit: 15 }, opts),
+      () => call(T.topVideos, { brandId, filter: { postedDateRange: w.cur } }, opts),
+      () => call(T.topCreators, { brandId, postedDateRange: w.thisWeek, limit: 10 }),
+      () => call(T.overview, { brandId, startDate: w.thisWeek.start, endDate: w.thisWeek.end }),
+    ], 4);
+    return { w,
+      overview: payloadOf(r[0]), overviewErr: r[0].ok ? null : r[0].err,
+      levels: payloadOf(r[1]), levelsErr: r[1].ok ? null : r[1].err,
+      levelsPrior: payloadOf(r[2]),
+      ads: payloadOf(r[3]), adsErr: r[3].ok ? null : r[3].err,
+      funnel: payloadOf(r[4]), funnelErr: r[4].ok ? null : r[4].err,
+      retention: payloadOf(r[5]), retentionErr: r[5].ok ? null : r[5].err,
+      topCreators: payloadOf(r[6]), topCreatorsErr: r[6].ok ? null : r[6].err,
+      topVideos: payloadOf(r[7]), topVideosErr: r[7].ok ? null : r[7].err,
+      weekTopCreators: payloadOf(r[8]),
+      weekOverview: payloadOf(r[9]),
+    };
+  })();
+  memo.d30[brandId].catch(() => { delete memo.d30[brandId]; });
+  return memo.d30[brandId];
+}
+function loadPeriods(kind, brandId, fresh) {
+  const bucket = memo[kind];
+  if (!fresh && bucket[brandId]) return bucket[brandId];
+  const w = windows();
+  const periods = kind === "weekly" ? w.weeks : w.months;
+  bucket[brandId] = (async () => {
+    const tasks = [];
+    periods.forEach((p, i) => {
+      const isLast = i === periods.length - 1;
+      const opts = (fresh && isLast) ? { cache: { staleTime: 0, gcTime: 86400000, refresh: true } } : undefined;
+      tasks.push(() => call(T.overview, { brandId, startDate: p.start, endDate: p.end }, opts));
+      tasks.push(() => call(T.levels, { brandId, postedDateRange: { start: p.start, end: p.end } }, opts));
+      tasks.push(() => call(T.retention, { brandId, startDate: p.start, endDate: p.end }, opts));
+    });
+    const res = await pool(tasks, 4);
+    const rows = periods.map((p, i) => ({
+      period: p,
+      label: kind === "weekly" ? mdy(p.end) : p.label,
+      overview: payloadOf(res[i * 3]),
+      levels: payloadOf(res[i * 3 + 1]),
+      retention: payloadOf(res[i * 3 + 2]),
+    }));
+    const failed = res.filter(r => !r.ok);
+    return { rows, failedCount: failed.length, firstErr: failed.length ? failed[0].err : null };
+  })();
+  bucket[brandId].catch(() => { delete bucket[brandId]; });
+  return bucket[brandId];
+}
 
 /* ---------------- top-level states ---------------- */
-function showState(kind, detail) {
-  const app = $("#app");
-  if (kind === "no-runtime") {
-    app.innerHTML = stateShell(
-      "Open this page in claude.ai",
-      "<p>Affiliate Pulse runs on claude.ai's artifact runtime, which connects it to your own Euka account. " +
-      "Open the artifact link directly in claude.ai (browser or app) rather than an embedded preview.</p>" + setupHtml());
-  } else if (kind === "not-connected") {
-    app.innerHTML = stateShell(
-      "Connect Euka to get started",
-      "<p>This report reads your TikTok Shop affiliate data from <b>Euka</b> using your own credentials. " +
-      "One-time setup:</p>" + setupHtml());
-  } else if (kind === "reauth") {
-    app.innerHTML = stateShell(
-      "Reconnect Euka",
-      "<p>Your Euka connector needs to be re-authenticated. Go to <b>claude.ai → Settings → Connectors</b>, " +
-      "reconnect <b>" + esc(detail || "Euka") + "</b>, then reload this page.</p>");
-  } else if (kind === "error") {
-    app.innerHTML = stateShell("Something went wrong", "<p>" + esc(errCopy(detail)) + "</p>" + setupHtml());
-  }
-}
 function stateShell(title, body) {
   return '<header class="bar"><div><div class="eyebrow">Weekly affiliate growth report</div>' +
     "<h1>Affiliate Pulse</h1></div></header>" +
@@ -486,332 +511,454 @@ function setupHtml() {
   return "<ol>" +
     "<li>In claude.ai, open <b>Settings → Connectors → Add custom connector</b>.</li>" +
     "<li>Name it <b>Euka</b> and use the URL <code>https://app.euka.ai/api/mcp</code>, then sign in with your Euka account (your TikTok Shop must already be connected in Euka).</li>" +
-    "<li>Reload this page and allow connector access when prompted.</li>" +
-    "</ol>" +
-    "<p class=\"note\">Requires an Euka plan with MCP/API access. Your data is read live with your own login — this page stores nothing and shares nothing.</p>";
+    "<li>Reload this page and allow connector access when prompted.</li></ol>" +
+    '<p class="note">Requires an Euka plan with MCP/API access. Your data is read live with your own login — this page stores nothing and shares nothing.</p>';
+}
+function showState(kind, detail) {
+  const app = $("#app");
+  if (kind === "no-runtime") app.innerHTML = stateShell("Open this page in claude.ai",
+    "<p>Affiliate Pulse runs on claude.ai's artifact runtime, which connects it to your own Euka account. Open the artifact link directly in claude.ai rather than an embedded preview.</p>" + setupHtml());
+  else if (kind === "not-connected") app.innerHTML = stateShell("Connect Euka to get started",
+    "<p>This report reads your TikTok Shop affiliate data from <b>Euka</b> using your own credentials. One-time setup:</p>" + setupHtml());
+  else if (kind === "reauth") app.innerHTML = stateShell("Reconnect Euka",
+    "<p>Your Euka connector needs to be re-authenticated. Go to <b>claude.ai → Settings → Connectors</b>, reconnect <b>" + esc(detail || "Euka") + "</b>, then reload this page.</p>");
+  else app.innerHTML = stateShell("Something went wrong", "<p>" + esc(errCopy(detail)) + "</p>" + setupHtml());
 }
 
-/* ---------------- app shell ---------------- */
+/* ---------------- shell + tabs ---------------- */
+const TABS = [
+  ["d30", "Last 30 Days"],
+  ["weekly", "Week over Week"],
+  ["monthly", "Month over Month"],
+  ["analysis", "Analysis"],
+];
+function currentBrand() { return BRANDS.find(b => b.brandId === state.brandId) || BRANDS[0]; }
 function shellHtml() {
+  const w = windows();
   const brandOpts = BRANDS.map(b =>
     '<option value="' + esc(b.brandId) + '"' + (b.brandId === state.brandId ? " selected" : "") + ">" + esc(b.brandName) + "</option>").join("");
-  const weekOpts = [];
-  const latest = latestCompleteWeekEnd();
-  for (let i = 0; i < 12; i++) {
-    const end = addDays(latest, -7 * i);
-    const w = weekFor(end);
-    weekOpts.push('<option value="' + w.end + '"' + (w.end === state.weekEnd ? " selected" : "") + ">Wk ending " +
-      fromIso(w.end).toLocaleDateString(undefined, { month: "short", day: "numeric" }) + (i === 0 ? " (latest)" : "") + "</option>");
-  }
-  const trendOpts = [4, 8, 13].map(n =>
-    '<option value="' + n + '"' + (n === state.trendN ? " selected" : "") + ">" + n + "-week trend</option>").join("");
   return '<header class="bar">' +
     '<div><div class="eyebrow">Weekly affiliate growth report</div>' +
-    '<div class="brandline"><h1><span id="brandName">' + esc(currentBrand().brandName) + "</span> · Affiliate Pulse</h1></div>" +
-    '<div class="sub" id="weekLabel"></div></div>' +
+    '<h1><span id="brandName">' + esc(currentBrand().brandName) + "</span> · Affiliate Pulse</h1>" +
+    '<div class="sub">Data window: ' + nice(w.cur.start) + " – " + nice(w.cur.end) + ", " + fromIso(w.cur.end).getFullYear() +
+    " · this week: " + nice(w.thisWeek.start) + " – " + nice(w.thisWeek.end) + "</div></div>" +
     '<div class="controls">' +
     (BRANDS.length > 1 ? '<select id="brandSel" aria-label="Brand">' + brandOpts + "</select>" : "") +
-    '<select id="weekSel" aria-label="Report week">' + weekOpts.join("") + "</select>" +
-    '<select id="trendSel" aria-label="Trend length">' + trendOpts + "</select>" +
-    '<button class="btn primary" id="refreshBtn">Refresh</button>' +
-    "</div></header>" +
-    '<div id="report"></div>' +
-    aboutHtml() +
-    '<footer class="pagefoot">Figures reflect TikTok Shop attribution, which can take 48–72 hours to settle — the default week already ends 2+ days back. Reads live from your Euka account; nothing is stored.</footer>';
+    '<button class="btn primary" id="refreshBtn">Refresh</button></div></header>' +
+    '<nav class="tabs" role="tablist">' + TABS.map(t =>
+      '<button role="tab" data-tab="' + t[0] + '" aria-selected="' + (state.tab === t[0]) + '">' + t[1] + "</button>").join("") + "</nav>" +
+    '<div id="view"></div>' + aboutHtml() +
+    '<footer class="pagefoot">Figures reflect TikTok Shop attribution, which can take 48–72 hours to settle — every window ends 2+ days back. Reads live from your Euka account; nothing is stored.</footer>';
 }
 function aboutHtml() {
   return '<details class="about"><summary>About this report & weekly routine</summary><div class="card">' +
-    "<p><b>How to run it weekly:</b> just open this page (say, every Monday). It auto-selects the most recent " +
-    "complete Sunday–Saturday week and pulls everything fresh from your Euka account.</p>" +
-    "<p><b>What it reads:</b> weekly performance (GMV, orders, videos, views, creators, outreach), creator-level " +
-    "segmentation (Euka levels L1–L7, grouped into Emerging / Established / Power by each creator's platform-wide 30-day GMV), " +
-    "the outreach funnel, creator retention, and your top creators and videos for the week.</p>" +
-    "<p><b>Reading segments:</b> Power creators typically produce several times the GMV per creator of Emerging ones — watch " +
-    "whether your GMV mix is shifting toward higher segments even when raw views dip; that usually signals improving audience quality, not a problem.</p>" +
-    "<p><b>Privacy:</b> every number is fetched with your own Euka login at view time. The page keeps only your last brand/trend selection in your browser.</p>" +
+    "<p><b>Weekly routine:</b> open this page every Monday. All four views recompute automatically — the 30-day window, the most recent complete Sunday–Saturday week, 13 weekly buckets, and 6 monthly buckets.</p>" +
+    "<p><b>Segments:</b> Euka levels L1–L7 (a creator's platform-wide 30-day TikTok Shop GMV) grouped as Emerging (L1–L2, under $25K), Established (L3–L4, $25K–$150K), Power (L5–L7, $150K+). The full L1–L7 table is on the Last 30 Days view.</p>" +
+    "<p><b>Reading the numbers:</b> lower views with higher GMV usually means the creator mix is shifting toward audiences that convert — an improvement, not a problem. New videos entering paid boosting have a 5–10 day learning phase before spend ramps, and recruiting outreach typically shows up as revenue 5–8 weeks after first contact.</p>" +
+    "<p><b>Privacy:</b> every number is fetched with your own Euka login at view time. The page keeps only your brand choice and GMV goal in your browser.</p>" +
     "</div></details>";
 }
-function currentBrand() { return BRANDS.find(b => b.brandId === state.brandId) || BRANDS[0]; }
-
-/* ---------------- report rendering ---------------- */
-function skeletonHtml() {
-  return ['kpis','trend','segments','funnel','tables','insights'].map(id =>
-    '<section id="sec-' + id + '"><div class="skel"></div></section>').join("");
+function switchTab(tab) {
+  state.tab = tab;
+  document.querySelectorAll("nav.tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
+  renderTab();
 }
+function skel(n) { return Array.from({ length: n }, () => '<section class="block"><div class="skel"></div></section>').join(""); }
 
-async function runReport() {
-  if (!state.running) state.running = true; else return;
-  const btn = $("#refreshBtn"); if (btn) btn.disabled = true;
-  $("#report").innerHTML = skeletonHtml();
-  const week = weekFor(fromIso(state.weekEnd));
-  $("#weekLabel").textContent = "Week of " + rangeLabel(week) + " · vs the week before";
-  const weeks = trailingWeeks(fromIso(state.weekEnd), state.trendN);
-  const labels = weeks.map(w => mdy(w.end));
-  const brandId = state.brandId;
-  const isLatest = state.weekEnd === iso(latestCompleteWeekEnd());
-
-  const tasks = [];
-  const idx = {};
-  weeks.forEach((w, i) => {
-    idx["ov" + i] = tasks.length;
-    tasks.push(() => call(T.overview, { brandId, startDate: w.start, endDate: w.end },
-      (i === weeks.length - 1 && isLatest) ? { cache: { staleTime: 0, gcTime: 86400000, refresh: state.forceFresh } } : undefined));
-    idx["lv" + i] = tasks.length;
-    tasks.push(() => call(T.levels, { brandId, postedDateRange: { start: w.start, end: w.end } }));
-  });
-  idx.creators = tasks.length; tasks.push(() => call(T.topCreators, { brandId, postedDateRange: { start: week.start, end: week.end }, limit: 10 }));
-  idx.videos = tasks.length; tasks.push(() => call(T.topVideos, { brandId, filter: { postedDateRange: { start: week.start, end: week.end } } }));
-  idx.funnel = tasks.length; tasks.push(() => call(T.funnel, { brandId, postedDateRange: { start: week.start, end: week.end } }));
-  idx.retention = tasks.length; tasks.push(() => call(T.retention, { brandId, startDate: week.start, endDate: week.end }));
-
-  const res = await pool(tasks, 4);
-  state.forceFresh = false;
-  const pay = k => res[idx[k]] && res[idx[k]].ok ? res[idx[k]].val.payload : null;
-  const err = k => res[idx[k]] && !res[idx[k]].ok ? res[idx[k]].err : null;
-
-  /* page-level condition: everything failed with the same code */
-  const fails = res.filter(r => !r.ok);
-  if (fails.length === res.length && fails.length) {
-    const code = fails[0].err && fails[0].err.code;
-    if (fails.every(f => (f.err && f.err.code) === code)) {
-      if (code === "needs_reauth") return showState("reauth", SERVER);
-      $("#report").innerHTML = '<div class="card state-card"><h2>Couldn’t load the report</h2><p>' +
-        esc(errCopy(fails[0].err)) + "</p></div>";
-      finishRun(); return;
+async function renderTab(fresh) {
+  const view = $("#view");
+  const tab = state.tab, brandId = state.brandId;
+  view.innerHTML = skel(tab === "analysis" ? 2 : 3);
+  try {
+    if (tab === "d30") {
+      const d = await loadD30(brandId, fresh);
+      if (state.tab !== "d30" || state.brandId !== brandId) return;
+      view.innerHTML = d30Html(d); bindTips(view);
+    } else if (tab === "weekly" || tab === "monthly") {
+      const d = await loadPeriods(tab, brandId, fresh);
+      if (state.tab !== tab || state.brandId !== brandId) return;
+      view.innerHTML = periodsHtml(tab, d); bindTips(view);
+    } else {
+      view.innerHTML = '<section class="block"><div class="skel"></div><div class="note">Building analysis — loading the 30-day, weekly, and monthly data…</div></section>';
+      const [d30, wk, mo] = await Promise.all([loadD30(brandId, fresh), loadPeriods("weekly", brandId, fresh), loadPeriods("monthly", brandId, fresh)]);
+      if (state.tab !== "analysis" || state.brandId !== brandId) return;
+      view.innerHTML = analysisHtml(d30, wk, mo); wireGoal(d30, wk, mo);
     }
+  } catch (e) {
+    if (e && e.code === "needs_reauth") return showState("reauth", SERVER);
+    view.innerHTML = '<div class="card state-card"><h2>Couldn’t load this view</h2><p>' + esc(errCopy(e)) + "</p></div>";
   }
-
-  const ovs = weeks.map((_, i) => pay("ov" + i));
-  const lvs = weeks.map((_, i) => pay("lv" + i));
-  const cur = ovs[ovs.length - 1];
-  const curErr = err("ov" + (weeks.length - 1));
-
-  renderKpis(cur, curErr, pay("retention"));
-  renderTrend(labels, ovs);
-  renderSegments(labels, lvs, err("lv" + (weeks.length - 1)));
-  renderFunnel(pay("funnel"), err("funnel"), pay("retention"), err("retention"));
-  renderTables(pay("creators"), err("creators"), pay("videos"), err("videos"));
-  renderInsights({ labels, ovs, lvs, funnel: pay("funnel"), retention: pay("retention") });
-  bindTips($("#report"));
-  finishRun();
-}
-function finishRun() {
-  state.running = false;
-  const btn = $("#refreshBtn"); if (btn) btn.disabled = false;
 }
 
-function renderKpis(cur, curErr, ret) {
-  const el = $("#sec-kpis");
-  if (!cur) { el.innerHTML = curErr ? errBox(curErr, "This week's totals") : ""; return; }
-  const items = [
-    ["Affiliate GMV", fmtMoney(cur.totalAffiliateGMV, true), cur.totalAffiliateGMVDifference],
-    ["Shop GMV", fmtMoney(cur.totalShopGMV, true), cur.totalShopGMVDifference],
-    ["Orders", fmtInt(cur.totalOrders), cur.totalOrdersDifference],
-    ["Videos posted", fmtInt(cur.videoConvRateTotalVideos), cur.videoConvRateTotalVideos && cur.videoConvRatePreviousTotalVideos
-      ? (cur.videoConvRateTotalVideos - cur.videoConvRatePreviousTotalVideos) / cur.videoConvRatePreviousTotalVideos * 100 : null],
-    ["Video views", fmtNum(cur.allAccountVideoViews), cur.allAccountVideoViewsDifference],
-    ["Active creators", fmtInt(cur.activeCreators), cur.activeCreatorsDifference],
-    ["Messages sent", fmtNum(cur.messagesSent), cur.messagesSentDifference],
-    ["Samples shipped", fmtInt(cur.samplesShippedTotal), cur.samplesShippedDifference],
-  ];
-  if (cur.totalAdSpend != null) items.push(["Ad spend", fmtMoney(cur.totalAdSpend, true), cur.totalAdSpendDifference]);
-  if (ret && ret.current) items.push(["Retention", (ret.current.retentionRate * 100).toFixed(1) + "%",
-    ret.previous && ret.previous.retentionRate ? (ret.current.retentionRate - ret.previous.retentionRate) * 100 / ret.previous.retentionRate : null]);
-  el.innerHTML = '<div class="cards kpis">' + items.map(it =>
-    '<div class="card kpi"><div class="lbl">' + it[0] + '</div><div class="fig">' + it[1] + "</div>" + deltaHtml(it[2]) + "</div>").join("") + "</div>";
-}
+/* ================= Last 30 Days ================= */
+function d30Html(d) {
+  let html = "";
+  const o = d.overview;
+  if (o) {
+    const roi = d.ads && d.ads.adKpis && d.ads.adKpis.currentSpend ? d.ads.adKpis.currentRevenue / d.ads.adKpis.currentSpend : null;
+    const items = [
+      ["Affiliate GMV", fmtMoney(o.totalAffiliateGMV, true), o.totalAffiliateGMVDifference],
+      ["Total shop GMV", fmtMoney(o.totalShopGMV, true), o.totalShopGMVDifference],
+      ["Orders", fmtInt(o.totalOrders), o.totalOrdersDifference],
+      ["Videos posted", fmtInt(o.videoConvRateTotalVideos), pctChange(o.videoConvRateTotalVideos, o.videoConvRatePreviousTotalVideos)],
+      ["Video views", fmtNum(o.allAccountVideoViews), o.allAccountVideoViewsDifference],
+      ["Active creators", fmtInt(o.activeCreators), o.activeCreatorsDifference],
+      ["New creators", d.retention && d.retention.current ? fmtInt(d.retention.current.newCreators) : "—", null],
+      ["Retention", d.retention && d.retention.current ? (d.retention.current.retentionRate * 100).toFixed(1) + "%" : "—",
+        d.retention && d.retention.previous && d.retention.previous.retentionRate
+          ? (d.retention.current.retentionRate - d.retention.previous.retentionRate) * 100 / d.retention.previous.retentionRate : null],
+      ["Messages sent", fmtNum(o.messagesSent), o.messagesSentDifference],
+      ["Samples shipped", fmtInt(o.samplesShippedTotal), o.samplesShippedDifference],
+    ];
+    html += '<section class="block"><div class="chart-head"><h2>Last 30 days</h2><span class="sub">vs the prior 30 days</span></div>' +
+      '<div class="cards kpis">' + items.map(it =>
+        '<div class="card kpi"><div class="lbl">' + it[0] + '</div><div class="fig">' + it[1] + "</div>" + deltaHtml(it[2], " vs prior") + "</div>").join("") + "</div></section>";
+  } else html += '<section class="block">' + errBox(d.overviewErr || {}, "30-day totals") + "</section>";
 
-function renderTrend(labels, ovs) {
-  const el = $("#sec-trend");
-  if (!ovs.some(Boolean)) { el.innerHTML = ""; return; }
-  const v = f => ovs.map(o => o ? f(o) : null);
-  const tiles = [
-    ["Affiliate GMV", barTile(labels, v(o => o.totalAffiliateGMV), x => fmtMoney(x, true), "Affiliate GMV")],
-    ["Orders", barTile(labels, v(o => o.totalOrders), fmtInt, "Orders")],
-    ["Active creators", lineTile(labels, v(o => o.activeCreators), fmtInt, "Active creators")],
-    ["Videos posted", barTile(labels, v(o => o.videoConvRateTotalVideos), fmtInt, "Videos posted")],
-  ];
-  const missing = ovs.filter(o => !o).length;
-  el.innerHTML = '<div class="chart-head"><h2>' + labels.length + "-week trend</h2>" +
-    '<span class="sub">week ending dates</span></div><div class="multis">' +
-    tiles.map(t => '<div class="card"><div class="eyebrow">' + t[0] + "</div>" + t[1] + "</div>").join("") + "</div>" +
-    (missing ? '<div class="note">' + missing + " week(s) couldn't be loaded and show as gaps.</div>" : "");
-}
+  /* GMV Max */
+  html += '<section class="block"><div class="chart-head"><h2>GMV Max (paid boosting)</h2><span class="sub">last 30 days</span></div>';
+  if (d.ads && d.ads.adKpis) {
+    const k = d.ads.adKpis, roi = k.currentSpend ? k.currentRevenue / k.currentSpend : null;
+    const prevRoi = k.previousSpend ? k.previousRevenue / k.previousSpend : null;
+    html += '<div class="cards kpis" style="max-width:760px">' + [
+      ["Ad spend", fmtMoney(k.currentSpend, true), pctChange(k.currentSpend, k.previousSpend)],
+      ["Attributed revenue", fmtMoney(k.currentRevenue, true), pctChange(k.currentRevenue, k.previousRevenue)],
+      ["Blended ROI", roi ? roi.toFixed(2) + "×" : "—", prevRoi && roi ? (roi - prevRoi) / prevRoi * 100 : null],
+      ["Ad orders", fmtInt(k.currentOrders), pctChange(k.currentOrders, k.previousOrders)],
+    ].map(it => '<div class="card kpi"><div class="lbl">' + it[0] + '</div><div class="fig">' + it[1] + "</div>" + deltaHtml(it[2], " vs prior") + "</div>").join("") + "</div>";
+  } else html += d.adsErr ? errBox(d.adsErr, "GMV Max") : '<div class="note">No ad data for this period.</div>';
+  html += "</section>";
 
-function segTotals(lv) {
-  const bySeg = {};
-  SEGMENTS.forEach(s => bySeg[s.key] = { gmv: 0, creators: 0, videos: 0 });
-  (lv && lv.tiers || []).forEach(t => {
-    const seg = SEGMENTS.find(s => s.levels.includes(t.tier));
-    if (!seg) return;
-    bySeg[seg.key].gmv += t.totalGmv || 0;
-    bySeg[seg.key].creators += t.creators || 0;
-    bySeg[seg.key].videos += t.videos || 0;
-  });
-  return bySeg;
-}
-
-function renderSegments(labels, lvs, curErr) {
-  const el = $("#sec-segments");
-  const anyTrend = lvs.some(Boolean);
-  const curLv = lvs[lvs.length - 1];
-  let html = '<div class="chart-head"><h2>Segmented growth — GMV by creator segment</h2>' +
-    '<span class="sub">segments = creator’s platform-wide 30-day GMV</span></div>';
-  if (anyTrend) {
-    const series = SEGMENTS.map(s => ({
-      label: s.label, colorVar: s.colorVar,
-      values: lvs.map(lv => lv ? segTotals(lv)[s.key].gmv : 0),
-    }));
-    html += '<div class="card"><div class="legend">' + SEGMENTS.map(s =>
-      '<span><span class="sw" style="background:var(' + s.colorVar + ')"></span>' + esc(s.label) + "</span>").join("") + "</div>" +
-      stackedChart(labels, series) + "</div>";
-  } else if (curErr) {
-    html += errBox(curErr, "Segment breakdown");
-  }
-  if (curLv && curLv.tiers && curLv.tiers.length) {
-    const maxG = Math.max(1, ...curLv.tiers.map(t => t.totalGmv || 0));
-    html += '<div class="card" style="margin-top:12px"><div class="eyebrow" style="margin-bottom:6px">This week by level</div>' +
-      '<div class="tblwrap"><table><thead><tr><th>Level</th><th>30d GMV band</th><th class="num">Creators posting</th>' +
-      '<th class="num">Videos</th><th class="num">GMV</th><th></th><th class="num">Invites</th><th class="num">Samples posted</th></tr></thead><tbody>' +
-      curLv.tiers.map((t, i) =>
+  /* Segment cards + level table */
+  html += '<section class="block"><div class="chart-head"><h2>Creator segments</h2><span class="sub">last 30 days, by the creator’s platform-wide 30-day GMV</span></div>';
+  if (d.levels && d.levels.tiers) {
+    const segs = segTotals(d.levels), prior = d.levelsPrior ? segTotals(d.levelsPrior) : null;
+    html += '<div class="tiercards">' + SEGMENTS.map(s => {
+      const b = segs[s.key], p = prior ? prior[s.key] : null;
+      return '<div class="card tiercard"><div class="tc-head"><span class="tag" style="background:var(' + s.colorVar + ')">' +
+        s.label + '</span><span class="sub">' + s.range + "</span></div>" +
+        '<div class="fig" style="font-size:22px;font-weight:800">' + fmtMoney(b.gmv, true) + '</div>' +
+        '<div class="sub" style="margin-bottom:8px">GMV ' + (p ? deltaHtml(pctChange(b.gmv, p.gmv), " vs prior") : "") + "</div>" +
+        '<div class="tc-rows">' +
+        "<div><span>Creators posting</span><b>" + fmtInt(b.creators) + "</b></div>" +
+        "<div><span>Videos</span><b>" + fmtInt(b.videos) + "</b></div>" +
+        "<div><span>GMV / creator</span><b>" + (b.creators ? fmtMoney(b.gmv / b.creators) : "—") + "</b></div>" +
+        "<div><span>Messages sent</span><b>" + fmtNum(b.msgs) + (p ? " " + deltaHtml(pctChange(b.msgs, p.msgs)) : "") + "</b></div>" +
+        "<div><span>Samples posted</span><b>" + fmtInt(b.sPosted) + (p ? " " + deltaHtml(pctChange(b.sPosted, p.sPosted)) : "") + "</b></div>" +
+        "</div></div>";
+    }).join("") + "</div>";
+    const maxG = Math.max(1, ...d.levels.tiers.map(t => t.totalGmv || 0));
+    html += '<div class="card" style="margin-top:12px"><div class="eyebrow" style="margin-bottom:6px">Full level breakdown (L1–L7)</div>' +
+      '<div class="tblwrap"><table><thead><tr><th>Level</th><th>30d GMV band</th><th class="num">Creators</th><th class="num">Videos</th>' +
+      '<th class="num">GMV</th><th></th><th class="num">Invites</th><th class="num">Sample req.</th><th class="num">Delivered</th><th class="num">Posted</th></tr></thead><tbody>' +
+      d.levels.tiers.map((t, i) =>
         "<tr><td><b>" + esc(t.tier) + "</b></td><td>" + esc(t.range) + '</td><td class="num">' + fmtInt(t.creators) +
         '</td><td class="num">' + fmtInt(t.videos) + '</td><td class="num">' + fmtMoney(t.totalGmv) +
-        '</td><td style="min-width:110px"><span class="rankbar" style="width:' + Math.max(2, 100 * (t.totalGmv || 0) / maxG) +
-        "px;background:var(" + SEQ[Math.min(i, SEQ.length - 1)] + ')"></span></td>' +
-        '<td class="num">' + fmtInt(t.invitesSent) + '</td><td class="num">' + fmtInt(t.samplesPosted) + "</td></tr>").join("") +
+        '</td><td style="min-width:100px"><span class="rankbar" style="width:' + Math.max(2, 92 * (t.totalGmv || 0) / maxG) +
+        "px;background:var(" + SEQ[Math.min(i, 6)] + ')"></span></td>' +
+        '<td class="num">' + fmtInt(t.invitesSent) + '</td><td class="num">' + fmtInt(t.sampleRequests) +
+        '</td><td class="num">' + fmtInt(t.samplesDelivered) + '</td><td class="num">' + fmtInt(t.samplesPosted) + "</td></tr>").join("") +
       "</tbody></table></div></div>";
-  }
-  el.innerHTML = html;
-}
+  } else html += errBox(d.levelsErr || {}, "Segment breakdown");
+  html += "</section>";
 
-function renderFunnel(fun, funErr, ret, retErr) {
-  const el = $("#sec-funnel");
-  let left = '<div class="card"><div class="chart-head"><h2>Outreach funnel</h2><span class="sub">this week</span></div>';
-  if (fun && fun.stages) {
-    const first = fun.stages[0] ? fun.stages[0].value : 0;
-    left += fun.stages.map((s, i) => {
+  /* Funnel + retention */
+  html += '<section class="block"><div class="duo">';
+  html += '<div class="card"><div class="chart-head"><h2>Outreach funnel</h2><span class="sub">last 30 days</span></div>';
+  if (d.funnel && d.funnel.stages) {
+    const first = d.funnel.stages[0] ? d.funnel.stages[0].value : 0;
+    html += d.funnel.stages.map((s, i) => {
       const pct = first ? Math.max(0.4, 100 * s.value / first) : 0;
-      const conv = s.convFromPrev != null && i > 0 && s.convFromPrev <= 100
-        ? " <small>(" + s.convFromPrev.toFixed(1) + "% of prev)</small>" : "";
-      return '<div class="fun-row"><div class="fun-lbl">' + esc(s.label) + "</div>" +
+      const conv = s.convFromPrev != null && i > 0 && s.convFromPrev <= 100 ? " <small>(" + s.convFromPrev.toFixed(1) + "% of prev)</small>" : "";
+      return '<div class="fun-row"><div class="fun-lbl">' + esc(s.label) + '</div>' +
         '<div class="fun-bar-track"><div class="fun-bar" style="width:' + pct + "%;background:var(" + SEQ[Math.min(i + 1, 6)] + ')"' +
         ' data-tip="<div class=\'t-head\'>' + esc(s.label) + "</div>" + fmtInt(s.value) +
         (s.pctOfFirst != null ? " · " + s.pctOfFirst.toFixed(2) + "% of contacted" : "") + '"></div></div>' +
         '<div class="fun-val">' + fmtInt(s.value) + conv + "</div></div>";
-    }).join("") +
-    '<div class="note">"Posted content" can exceed sample counts — organic affiliates post without a sample.</div>';
-  } else left += funErr ? errBox(funErr, "Outreach funnel") : '<div class="note">No funnel data for this week.</div>';
-  left += "</div>";
-
-  let right = '<div class="card"><div class="chart-head"><h2>Creator retention</h2><span class="sub">this week vs previous</span></div>';
-  if (ret && ret.current) {
-    const c = ret.current;
-    right += '<div class="kpi"><div class="fig">' + (c.retentionRate * 100).toFixed(1) + "%</div>" +
-      '<div class="sub">of last week’s active creators posted again</div></div>' +
+    }).join("") + '<div class="note">"Posted content" can exceed sample counts — organic affiliates post without a sample.</div>';
+  } else html += d.funnelErr ? errBox(d.funnelErr, "Outreach funnel") : '<div class="note">No funnel data.</div>';
+  html += "</div>";
+  html += '<div class="card"><div class="chart-head"><h2>Creator retention</h2><span class="sub">30 days vs the prior 30</span></div>';
+  if (d.retention && d.retention.current) {
+    const c = d.retention.current;
+    html += '<div class="kpi"><div class="fig">' + (c.retentionRate * 100).toFixed(1) + "%</div>" +
+      '<div class="sub">of the prior period’s active creators posted again</div></div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">' +
-      '<span class="statuschip">New ' + fmtInt(c.newCreators) + "</span>" +
-      '<span class="statuschip">Returning ' + fmtInt(c.returningCreators) + "</span>" +
-      '<span class="statuschip">Churned ' + fmtInt(c.churnedCreators) + "</span>" +
-      '<span class="statuschip">Active ' + fmtInt(c.activeCreators) + "</span></div>" +
+      '<span class="statuschip">New ' + fmtInt(c.newCreators) + '</span><span class="statuschip">Returning ' + fmtInt(c.returningCreators) +
+      '</span><span class="statuschip">Churned ' + fmtInt(c.churnedCreators) + '</span><span class="statuschip">Active ' + fmtInt(c.activeCreators) + "</span></div>" +
       '<div class="note" style="margin-top:10px">Avg revenue per active creator: <b>' + fmtMoney(c.avgRevenuePerCreator) +
-      "</b> · avg videos per creator: <b>" + (c.avgVideosPerCreator || 0).toFixed(1) + "</b></div>";
-  } else right += retErr ? errBox(retErr, "Retention") : '<div class="note">No retention data for this week.</div>';
-  right += "</div>";
-  el.innerHTML = '<div class="duo">' + left + right + "</div>";
-}
+      "</b> · avg videos per creator: <b>" + (c.avgVideosPerCreator || 0).toFixed(1) + "</b> · benchmark ≈ " + RETENTION_BENCHMARK + "% monthly</div>";
+  } else html += d.retentionErr ? errBox(d.retentionErr, "Retention") : '<div class="note">No retention data.</div>';
+  html += "</div></div></section>";
 
-function renderTables(cr, crErr, vid, vidErr) {
-  const el = $("#sec-tables");
-  let left = '<div class="card"><div class="chart-head"><h2>Top creators by GMV</h2><span class="sub">this week</span></div>';
+  /* Tables */
+  html += '<section class="block"><div class="duo">';
+  html += tableCard("Top creators by GMV", "last 30 days", d.topCreators, d.topCreatorsErr);
+  html += videosCard(d.topVideos, d.topVideosErr);
+  html += "</div>";
+  if (d.weekTopCreators && d.weekTopCreators.affiliates && d.weekTopCreators.affiliates.length) {
+    html += '<div style="margin-top:12px">' + tableCard("Top creators this week", "most recent complete Sun–Sat week", d.weekTopCreators, null) + "</div>";
+  }
+  html += "</section>";
+  return html;
+}
+function tableCard(title, sub, cr, crErr) {
+  let s = '<div class="card"><div class="chart-head"><h2>' + title + '</h2><span class="sub">' + sub + "</span></div>";
   const affs = cr && cr.affiliates;
   if (affs && affs.length) {
     const maxG = Math.max(1, ...affs.map(a => a.totalGmv || 0));
-    left += '<div class="tblwrap"><table><thead><tr><th>Creator</th><th class="num">GMV</th><th></th>' +
-      '<th class="num">Videos</th><th class="num">Δ GMV</th></tr></thead><tbody>' +
+    s += '<div class="tblwrap"><table><thead><tr><th>Creator</th><th class="num">GMV</th><th></th><th class="num">Videos</th><th class="num">Δ GMV</th></tr></thead><tbody>' +
       affs.map(a => {
-        const d = a.revenueDelta;
-        const dh = d == null || !isFinite(d) ? '<span class="delta flat">—</span>'
-          : '<span class="delta ' + (d >= 0 ? "up" : "down") + '">' + (d >= 0 ? "▲" : "▼") + Math.abs(d).toFixed(0) + "%</span>";
+        const dl = a.revenueDelta;
+        const dh = dl == null || !isFinite(dl) ? '<span class="delta flat">—</span>'
+          : '<span class="delta ' + (dl >= 0 ? "up" : "down") + '">' + (dl >= 0 ? "▲" : "▼") + Math.abs(dl).toFixed(0) + "%</span>";
         return '<tr><td class="handle">@' + esc(a.handle) + '</td><td class="num">' + fmtMoney(a.totalGmv) +
-          '</td><td style="min-width:80px"><span class="rankbar" style="width:' + Math.max(2, 76 * (a.totalGmv || 0) / maxG) + 'px"></span></td>' +
+          '</td><td style="min-width:76px"><span class="rankbar" style="width:' + Math.max(2, 72 * (a.totalGmv || 0) / maxG) + 'px"></span></td>' +
           '<td class="num">' + fmtInt(a.videoCount) + '</td><td class="num">' + dh + "</td></tr>";
       }).join("") + "</tbody></table></div>";
-  } else left += crErr ? errBox(crErr, "Top creators") : '<div class="note">No creator GMV recorded this week.</div>';
-  left += "</div>";
-
-  let right = '<div class="card"><div class="chart-head"><h2>Top videos by revenue</h2><span class="sub">posted this week</span></div>';
+  } else s += crErr ? errBox(crErr, title) : '<div class="note">No creator GMV recorded.</div>';
+  return s + "</div>";
+}
+function videosCard(vid, vidErr) {
+  let s = '<div class="card"><div class="chart-head"><h2>Top videos by revenue</h2><span class="sub">posted in the last 30 days</span></div>';
   const vids = vid && vid.videos;
   if (vids && vids.length) {
-    right += '<div class="tblwrap"><table><thead><tr><th>Creator / product</th><th class="num">Revenue</th>' +
-      '<th class="num">Views</th><th class="num">Units</th><th class="num">Ad ROI</th></tr></thead><tbody>' +
+    s += '<div class="tblwrap"><table><thead><tr><th>Creator / product</th><th class="num">Revenue</th><th class="num">Views</th>' +
+      '<th class="num">Units</th><th class="num">Ad ROI</th><th class="num">Posted</th></tr></thead><tbody>' +
       vids.map(v =>
         '<tr><td><span class="handle">@' + esc(v.creatorHandle) + '</span><br><span class="sub">' +
-        esc((v.productTitle || "").slice(0, 44)) + ((v.productTitle || "").length > 44 ? "…" : "") + "</span></td>" +
+        esc((v.productTitle || "").slice(0, 42)) + ((v.productTitle || "").length > 42 ? "…" : "") + "</span></td>" +
         '<td class="num">' + fmtMoney(v.revenue) + '</td><td class="num">' + fmtNum(v.viewsCount) +
         '</td><td class="num">' + fmtInt(v.itemsSoldCount) + '</td><td class="num">' +
-        (v.gmvMaxCost ? (v.gmvMaxRoi != null ? v.gmvMaxRoi.toFixed(1) + "×" : "—") : "organic") + "</td></tr>").join("") +
+        (v.gmvMaxCost ? (v.gmvMaxRoi != null ? v.gmvMaxRoi.toFixed(1) + "×" : "—") : "organic") +
+        '</td><td class="num">' + (v.postedDate ? mdy(v.postedDate.slice(0, 10)) : "—") + "</td></tr>").join("") +
       "</tbody></table></div>";
-  } else right += vidErr ? errBox(vidErr, "Top videos") : '<div class="note">No videos with revenue posted this week.</div>';
-  right += "</div>";
-  el.innerHTML = '<div class="duo">' + left + right + "</div>";
+  } else s += vidErr ? errBox(vidErr, "Top videos") : '<div class="note">No videos with revenue in this window.</div>';
+  return s + "</div>";
 }
 
-/* Deterministic, data-derived observations — computed in the page, not AI-written. */
-function renderInsights(d) {
-  const el = $("#sec-insights");
-  const notes = [];
-  const cur = d.ovs[d.ovs.length - 1];
-  const valid = d.ovs.filter(Boolean);
-  if (cur && valid.length >= 3) {
-    const prior = valid.slice(0, -1);
-    const avg = prior.reduce((a, o) => a + (o.totalAffiliateGMV || 0), 0) / prior.length;
-    if (avg > 0) {
-      const vsAvg = (cur.totalAffiliateGMV - avg) / avg * 100;
-      notes.push("Affiliate GMV of <b>" + fmtMoney(cur.totalAffiliateGMV, true) + "</b> is " +
-        (vsAvg >= 0 ? "▲ " : "▼ ") + Math.abs(vsAvg).toFixed(0) + "% vs your trailing " + prior.length + "-week average (" + fmtMoney(avg, true) + ").");
+/* ================= Weekly & Monthly ================= */
+function periodsHtml(kind, d) {
+  const rows = d.rows, labels = rows.map(r => r.label);
+  const title = kind === "weekly" ? "13-week trend (Sun–Sat weeks)" : "6-month trend";
+  const sub = kind === "weekly" ? "labels are week-ending dates" : "* = current partial month";
+  const ov = f => rows.map(r => r.overview ? f(r.overview) : null);
+  const segSeries = field => SEGMENTS.map(s => ({
+    label: s.label, colorVar: s.colorVar,
+    values: rows.map(r => r.levels ? segTotals(r.levels)[s.key][field] : 0),
+  }));
+  const ret = rows.map(r => r.retention && r.retention.current ? r.retention.current.retentionRate * 100 : null);
+  const newCr = rows.map(r => r.retention && r.retention.current ? r.retention.current.newCreators : null);
+
+  let html = '<section class="block"><div class="chart-head"><h2>' + title + '</h2><span class="sub">' + sub + "</span></div>";
+  if (d.failedCount) html += '<div class="err"><b>Partial data:</b> ' + d.failedCount +
+    " of the underlying reads failed (" + esc(errCopy(d.firstErr)) + ") — affected periods show as gaps or zeros.</div>";
+  html += '<div class="multis">' +
+    chartCard("Affiliate GMV", barChart(labels, ov(o => o.totalAffiliateGMV), x => fmtMoney(x, true), "Affiliate GMV")) +
+    chartCard("Video views", barChart(labels, ov(o => o.allAccountVideoViews), fmtNum, "Views")) +
+    chartCard("Videos posted", barChart(labels, ov(o => o.videoConvRateTotalVideos), fmtInt, "Videos")) +
+    chartCard("Orders", barChart(labels, ov(o => o.totalOrders), fmtInt, "Orders")) +
+    chartCard("Retention rate", lineChart(labels, ret, x => x.toFixed(1), "Retention", "%")) +
+    chartCard("New creators", lineChart(labels, newCr, fmtInt, "New creators")) +
+    "</div></section>";
+
+  html += '<section class="block"><div class="chart-head"><h2>By creator segment</h2></div>' + legendHtml() +
+    '<div class="multis">' +
+    chartCard("GMV by segment", stackedChart(labels, segSeries("gmv"), x => fmtMoney(x, true), "GMV by segment")) +
+    chartCard("Creators posting by segment", stackedChart(labels, segSeries("creators"), fmtInt, "Creators by segment")) +
+    chartCard("Videos by segment", stackedChart(labels, segSeries("videos"), fmtInt, "Videos by segment")) +
+    chartCard("Messages sent by segment", stackedChart(labels, segSeries("msgs"), fmtNum, "Messages by segment")) +
+    chartCard("Samples delivered by segment", stackedChart(labels, segSeries("sDelivered"), fmtInt, "Samples by segment")) +
+    chartCard("Samples posted by segment", stackedChart(labels, segSeries("sPosted"), fmtInt, "Samples posted by segment")) +
+    "</div>" +
+    '<div class="note">Segment GMV is attributed to videos posted in each period by that segment’s creators. New-creator counts come from the retention feed and are totals (Euka doesn’t expose them per level).</div></section>';
+  return html;
+}
+const chartCard = (title, svg) => '<div class="card"><div class="eyebrow" style="margin-bottom:4px">' + title + "</div>" + svg + "</div>";
+
+/* ================= Analysis ================= */
+function analysisHtml(d30, wk, mo) {
+  const secs = buildAnalysis(d30, wk, mo);
+  let html = '<section class="block"><div class="chart-head"><h2>Analysis</h2>' +
+    '<span class="sub">written from this report’s live numbers — anchored on the most recent complete week</span></div>' +
+    '<div class="card"><div class="goalrow"><label for="goalIn"><b>Monthly GMV goal</b> (optional, powers the pacing line):</label>' +
+    '<input class="goal" id="goalIn" type="number" min="0" step="1000" placeholder="e.g. 250000" value="' + (state.goal || "") + '">' +
+    '<button class="btn" id="goalBtn">Save</button></div>' +
+    (secs.pacing ? '<div style="margin-top:6px">' + secs.pacing + "</div>" : "") + "</div>";
+  [["Performance", secs.performance], ["Creator highlights", secs.creators],
+   ["Recruiting priorities", secs.recruiting], ["Growth outlook", secs.growth]].forEach(s => {
+    html += '<div class="card analysis-sec"><h2>' + s[0] + "</h2>" + s[1].map(p => "<p>" + p + "</p>").join("") + "</div>";
+  });
+  html += '<div class="note">Generated deterministically from your Euka data at view time. For a written narrative that goes deeper, run the companion weekly-report skill in Claude with your Euka connector.</div></section>';
+  return html;
+}
+function wireGoal() {
+  const btn = $("#goalBtn"), inp = $("#goalIn");
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    const v = Number(inp.value);
+    state.goal = v > 0 ? v : null;
+    store("goal." + state.brandId, state.goal);
+    renderTab();
+  });
+}
+function buildAnalysis(d30, wk, mo) {
+  const out = { performance: [], creators: [], recruiting: [], growth: [], pacing: "" };
+  const rows = wk.rows, last = rows[rows.length - 1];
+  const lw = last && last.overview, lwl = last && last.levels, lwr = last && last.retention;
+  const weekLbl = last ? "the week ending " + nice(last.period.end) : "this week";
+  const gmvSeries = rows.map(r => r.overview ? r.overview.totalAffiliateGMV : null);
+  const validG = gmvSeries.filter(v => v != null);
+
+  /* --- Performance --- */
+  if (lw) {
+    const dir = lw.totalAffiliateGMVDifference;
+    out.performance.push("<b>" + cap(weekLbl) + ":</b> affiliate GMV came in at <b>" + fmtMoney(lw.totalAffiliateGMV, true) +
+      "</b> on " + fmtInt(lw.totalOrders) + " orders from " + fmtInt(lw.videoConvRateTotalVideos) + " videos — " +
+      (dir == null ? "no prior week to compare." :
+        dir >= 5 ? "up " + dir.toFixed(0) + "% week over week, a genuinely strong week." :
+        dir <= -5 ? "down " + Math.abs(dir).toFixed(0) + "% week over week, worth understanding before reacting." :
+        "roughly flat week over week (" + dir.toFixed(1) + "%).") );
+    if (validG.length >= 5) {
+      const trail = validG.slice(0, -1);
+      const avg = trail.reduce((a, b) => a + b, 0) / trail.length;
+      if (avg > 0) out.performance.push("Against the trailing " + trail.length + "-week average of " + fmtMoney(avg, true) +
+        ", this week ran " + signedPct(lw.totalAffiliateGMV, avg) + ". " + momentumSentence(validG));
     }
-    const best = d.labels[d.ovs.reduce((bi, o, i) => (o && (!d.ovs[bi] || o.totalAffiliateGMV > d.ovs[bi].totalAffiliateGMV)) ? i : bi, 0)];
-    notes.push("Best week in this window: <b>wk ending " + best + "</b>.");
+    if (lw.allAccountVideoViewsDifference < -10 && lw.totalAffiliateGMVDifference > 0) {
+      out.performance.push("Views fell " + Math.abs(lw.allAccountVideoViewsDifference).toFixed(0) +
+        "% while GMV grew — read that as the creator mix shifting toward commercially-intent audiences, not a reach problem.");
+    }
+    const ads = d30.ads && d30.ads.adKpis;
+    if (ads && ads.currentSpend) {
+      const roi = ads.currentRevenue / ads.currentSpend;
+      out.performance.push("Paid boosting over the last 30 days: " + fmtMoney(ads.currentSpend, true) + " spend, " +
+        fmtMoney(ads.currentRevenue, true) + " attributed revenue, blended ROI <b>" + roi.toFixed(2) + "×</b>." +
+        (roi < 2 ? " That ROI is thin — review targets before scaling spend." :
+         roi > 3.5 ? " Note: pushing the ROI target much above ~3.5× tends to make the algorithm throttle spend within days, creating a GMV dip that looks organic but is a paid-ads setting." : ""));
+    }
+  } else out.performance.push("This week's totals couldn't be loaded — refresh to retry.");
+
+  /* pacing vs goal */
+  const curMonth = mo.rows[mo.rows.length - 1];
+  if (curMonth && curMonth.overview) {
+    const mtd = curMonth.overview.totalAffiliateGMV;
+    const end = fromIso(curMonth.period.end), daysIn = end.getDate();
+    const daysTotal = new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate();
+    const runRate = daysIn ? mtd / daysIn * daysTotal : null;
+    let line = "<b>Month to date:</b> " + fmtMoney(mtd, true) + " affiliate GMV through " + nice(curMonth.period.end) +
+      (runRate ? " — pacing to ~" + fmtMoney(runRate, true) + " for the month" : "") + ".";
+    if (state.goal) {
+      const pct = Math.min(100, 100 * mtd / state.goal);
+      line += " Goal: " + fmtMoney(state.goal, true) + " → <b>" + pct.toFixed(0) + "%</b> there" +
+        (runRate ? (runRate >= state.goal ? " and on track at the current run rate." :
+          " but the current run rate lands ~" + fmtMoney(state.goal - runRate, true) + " short — the gap has to come from new posting volume or paid boosting.") : ".");
+      line += '<div class="progress"><div style="width:' + pct + '%"></div></div>';
+    }
+    out.pacing = line;
+    out.performance.push(line.replace(/<div class="progress".*$/, ""));
   }
-  if (cur && cur.allAccountVideoViewsDifference < -10 && cur.totalAffiliateGMVDifference > 0) {
-    notes.push("Views fell " + Math.abs(cur.allAccountVideoViewsDifference).toFixed(0) +
-      "% while GMV grew — usually a sign your creator mix is shifting toward audiences that convert, not a reach problem.");
-  }
-  const curLv = d.lvs[d.lvs.length - 1];
-  if (curLv) {
-    const segs = segTotals(curLv);
-    const total = SEGMENTS.reduce((a, s) => a + segs[s.key].gmv, 0);
-    if (total > 0) {
-      const top = SEGMENTS.reduce((a, s) => segs[s.key].gmv > segs[a.key].gmv ? s : a, SEGMENTS[0]);
-      const ts = segs[top.key];
-      notes.push("<b>" + top.label + "</b> creators drove " + Math.round(100 * ts.gmv / total) + "% of segment GMV (" +
-        fmtMoney(ts.gmv, true) + " from " + fmtInt(ts.creators) + " creators" +
-        (ts.creators ? ", " + fmtMoney(ts.gmv / ts.creators) + "/creator" : "") + ").");
-      const em = segs.emerging, pw = segs.power;
-      if (pw.creators && em.creators && em.gmv > 0) {
-        const mult = (pw.gmv / pw.creators) / (em.gmv / em.creators);
-        if (isFinite(mult) && mult > 2) notes.push("A Power creator is worth ~<b>" + mult.toFixed(0) +
-          "×</b> an Emerging one this week — weigh your outreach and sample mix accordingly.");
-      }
+
+  /* --- Creators --- */
+  const tc = d30.weekTopCreators && d30.weekTopCreators.affiliates || [];
+  if (tc.length) {
+    const top = tc[0];
+    out.creators.push("Top creator " + weekLbl.replace("the week", "for the week") + ": <b>@" + esc(top.handle) + "</b> with " +
+      fmtMoney(top.totalGmv, true) + " across " + fmtInt(top.videoCount) + " video" + (top.videoCount === 1 ? "" : "s") +
+      (top.revenueDelta != null && isFinite(top.revenueDelta) ? " (" + (top.revenueDelta >= 0 ? "up " : "down ") + Math.abs(top.revenueDelta).toFixed(0) + "% vs their prior week)" : "") + ".");
+    const breakout = tc.find(a => a.revenueDelta != null && isFinite(a.revenueDelta) && a.revenueDelta > 100 && a.totalGmv > 500);
+    if (breakout && breakout.handle !== top.handle)
+      out.creators.push("Breakout to watch: <b>@" + esc(breakout.handle) + "</b> — " + fmtMoney(breakout.totalGmv, true) +
+        " this week, up " + breakout.revenueDelta.toFixed(0) + "% on the week before. Ship them more product and get their content into paid boosting while it's hot.");
+  } else out.creators.push("No creator drove attributable GMV this week — that itself is the headline if posting volume was normal.");
+  if (lwl) {
+    const segs = segTotals(lwl);
+    const active = SEGMENTS.filter(s => segs[s.key].creators > 0);
+    if (active.length) {
+      const mostActive = active.reduce((a, s) => segs[s.key].videos > segs[a.key].videos ? s : a, active[0]);
+      const mostProd = active.reduce((a, s) => perCreator(segs[s.key]) > perCreator(segs[a.key]) ? s : a, active[0]);
+      out.creators.push("Segment picture this week: <b>" + mostActive.label + "</b> creators were the most active (" +
+        fmtInt(segs[mostActive.key].videos) + " videos from " + fmtInt(segs[mostActive.key].creators) + " creators), while <b>" +
+        mostProd.label + "</b> was the most productive per creator at " + fmtMoney(perCreator(segs[mostProd.key])) + "/creator." +
+        (mostActive.key === "emerging" && mostProd.key === "power"
+          ? " Classic shape: volume from the bottom, dollars from the top — the growth lever is activating more Power creators, not more posts per Emerging creator." : ""));
     }
   }
-  if (d.funnel && d.funnel.stages) {
-    const posted = d.funnel.stages.find(s => s.key === "postedContent");
-    const sold = d.funnel.stages.find(s => s.key === "droveSales");
-    if (posted && sold && posted.value) {
-      notes.push(fmtInt(sold.value) + " of " + fmtInt(posted.value) + " posting creators drove sales (" +
-        (100 * sold.value / posted.value).toFixed(0) + "%) — the lever is usually more videos per proven creator, not just more creators.");
+
+  /* --- Recruiting --- */
+  const segs30 = d30.levels ? segTotals(d30.levels) : null;
+  if (segs30) {
+    const totMsgs = SEGMENTS.reduce((a, s) => a + segs30[s.key].msgs, 0);
+    const totGmv = SEGMENTS.reduce((a, s) => a + segs30[s.key].gmv, 0);
+    if (totMsgs && totGmv) {
+      const rows = SEGMENTS.map(s => ({ s, msgShare: 100 * segs30[s.key].msgs / totMsgs, gmvShare: 100 * segs30[s.key].gmv / totGmv }));
+      const mis = rows.reduce((a, r) => Math.abs(r.gmvShare - r.msgShare) > Math.abs(a.gmvShare - a.msgShare) ? r : a, rows[0]);
+      out.recruiting.push("Outreach mix vs results (last 30 days): " + rows.map(r =>
+        r.s.label + " gets " + r.msgShare.toFixed(0) + "% of messages and produces " + r.gmvShare.toFixed(0) + "% of GMV").join("; ") + "." +
+        (Math.abs(mis.gmvShare - mis.msgShare) > 12
+          ? " The biggest mismatch is <b>" + mis.s.label + "</b> — " + (mis.gmvShare > mis.msgShare
+              ? "it over-delivers relative to the attention it gets; shift more messages and samples there."
+              : "it absorbs more outreach than it returns; trim and reallocate upward.") : " The mix is broadly aligned with where GMV comes from."));
+    }
+    const samplesTotal = SEGMENTS.reduce((a, s) => a + segs30[s.key].sDelivered, 0);
+    const postedTotal = SEGMENTS.reduce((a, s) => a + segs30[s.key].sPosted, 0);
+    if (samplesTotal) out.recruiting.push("Sample-to-post: " + fmtInt(postedTotal) + " of " + fmtInt(samplesTotal) +
+      " delivered samples have produced content (" + (100 * postedTotal / samplesTotal).toFixed(0) +
+      "%). Chase the gap before shipping new units — a follow-up message to a sample-holder is the cheapest video you'll get.");
+  }
+  out.recruiting.push("Remember the lag: outreach sent today typically becomes posted content in 2–3 weeks and visible revenue in 5–8 weeks (posting lag plus the 5–10 day paid-boost learning phase). Judge this week's recruiting by what it seeds for next month, and credit this week's GMV to outreach from 4–6 weeks ago.");
+
+  /* --- Growth --- */
+  if (validG.length >= 6) {
+    const firstHalf = avg(validG.slice(0, Math.floor(validG.length / 2)));
+    const secondHalf = avg(validG.slice(Math.floor(validG.length / 2)));
+    const trendPct = firstHalf ? (secondHalf - firstHalf) / firstHalf * 100 : null;
+    const engine = dominantSegment(rows);
+    out.growth.push("<b>13-week shape:</b> the back half of the window averages " + fmtMoney(secondHalf, true) + "/week vs " +
+      fmtMoney(firstHalf, true) + " in the front half (" + (trendPct == null ? "n/a" : (trendPct >= 0 ? "+" : "") + trendPct.toFixed(0) + "%") + ")." +
+      (engine ? " <b>" + engine.label + "</b> creators are the primary growth engine right now, carrying " + engine.share.toFixed(0) + "% of recent segment GMV." : ""));
+    const last4 = validG.slice(-4), prior4 = validG.slice(-8, -4);
+    if (last4.length === 4 && prior4.length === 4) {
+      const m = avg(last4), p = avg(prior4);
+      const proj = m * 4 * (p ? Math.max(0.6, Math.min(1.4, m / p)) : 1);
+      out.growth.push("<b>4-week outlook:</b> the recent run rate of " + fmtMoney(m, true) + "/week projects roughly " + fmtMoney(proj, true) +
+        " over the next four weeks if momentum holds. Upside: converting this month's sample recipients into posters and keeping paid ROI healthy pushes that higher. Downside: if retention stays " +
+        retentionClause(d30) + " and top-creator concentration persists, one quiet creator-week takes a visible bite.");
     }
   }
-  if (d.retention && d.retention.current && d.retention.previous && d.retention.previous.retentionRate > 0) {
-    const r = d.retention.current.retentionRate, p = d.retention.previous.retentionRate;
-    if (r < p * 0.9) notes.push("Retention slipped to <b>" + (r * 100).toFixed(1) + "%</b> (from " + (p * 100).toFixed(1) +
-      "%) — churned creators outpaced returns; consider a reactivation pass on recent high-GMV posters.");
+  if (d30.retention && d30.retention.current) {
+    const r = d30.retention.current.retentionRate * 100;
+    out.growth.push("Retention over the 30-day window is <b>" + r.toFixed(1) + "%</b> — " +
+      (r >= RETENTION_BENCHMARK ? "at or above the ~" + RETENTION_BENCHMARK + "% healthy benchmark." :
+       r >= RETENTION_FLOOR ? "just under the ~" + RETENTION_BENCHMARK + "% benchmark; watch it, but the new-creator pipeline is covering churn." :
+       "below the ~" + RETENTION_FLOOR + "% floor, which means churn is outrunning the pipeline's value — a reactivation pass on lapsed high-GMV creators should outrank net-new outreach this week."));
   }
-  el.innerHTML = notes.length
-    ? '<div class="card"><h2>What the numbers say</h2><ul class="insights">' + notes.map(n => "<li>" + n + "</li>").join("") + "</ul>" +
-      '<div class="note">Computed from this report’s data. For deeper analysis, ask Claude about any number with your Euka connector attached.</div></div>'
-    : "";
+  ["performance","creators","recruiting","growth"].forEach(k => { if (!out[k].length) out[k].push("Not enough data loaded to write this section — refresh to retry."); });
+  return out;
+
+  function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+  function avg(a) { return a.reduce((x, y) => x + y, 0) / a.length; }
+  function perCreator(b) { return b.creators ? b.gmv / b.creators : 0; }
+  function signedPct(cur, base) { const p = (cur - base) / base * 100; return (p >= 0 ? "+" : "−") + Math.abs(p).toFixed(0) + "%"; }
+  function momentumSentence(g) {
+    const l3 = g.slice(-3);
+    if (l3.length === 3 && l3[2] > l3[1] && l3[1] > l3[0]) return "That's three consecutive weeks of growth.";
+    if (l3.length === 3 && l3[2] < l3[1] && l3[1] < l3[0]) return "That's three consecutive weeks of decline — check paid spend settings and top-creator posting before assuming demand softened.";
+    return "";
+  }
+  function dominantSegment(rows) {
+    const recent = rows.slice(-4);
+    const tot = {}; let all = 0;
+    SEGMENTS.forEach(s => tot[s.key] = 0);
+    recent.forEach(r => { if (r.levels) { const sg = segTotals(r.levels); SEGMENTS.forEach(s => { tot[s.key] += sg[s.key].gmv; all += sg[s.key].gmv; }); } });
+    if (!all) return null;
+    const top = SEGMENTS.reduce((a, s) => tot[s.key] > tot[a.key] ? s : a, SEGMENTS[0]);
+    return { label: top.label, share: 100 * tot[top.key] / all };
+  }
+  function retentionClause(d30) {
+    const r = d30.retention && d30.retention.current ? d30.retention.current.retentionRate * 100 : null;
+    return r == null ? "unknown" : r < RETENTION_FLOOR ? "below the healthy floor" : "around " + r.toFixed(0) + "%";
+  }
 }
 
 /* ---------------- boot ---------------- */
@@ -844,20 +991,22 @@ async function boot() {
 
   const remembered = recall("brand");
   state.brandId = BRANDS.some(b => b.brandId === remembered) ? remembered : BRANDS[0].brandId;
-  state.trendN = [4, 8, 13].includes(recall("trendN")) ? recall("trendN") : 8;
-  state.weekEnd = iso(latestCompleteWeekEnd());
+  state.goal = recall("goal." + state.brandId);
 
   $("#app").innerHTML = shellHtml();
-  wireControls();
-  runReport();
-}
-function wireControls() {
+  document.querySelectorAll("nav.tabs button").forEach(b => b.addEventListener("click", () => switchTab(b.dataset.tab)));
   const bs = $("#brandSel");
-  if (bs) bs.addEventListener("change", () => { state.brandId = bs.value; store("brand", bs.value);
-    $("#brandName").textContent = currentBrand().brandName; runReport(); });
-  $("#weekSel").addEventListener("change", ev => { state.weekEnd = ev.target.value; runReport(); });
-  $("#trendSel").addEventListener("change", ev => { state.trendN = Number(ev.target.value); store("trendN", state.trendN); runReport(); });
-  $("#refreshBtn").addEventListener("click", () => { state.forceFresh = true; runReport(); });
+  if (bs) bs.addEventListener("change", () => {
+    state.brandId = bs.value; store("brand", bs.value);
+    state.goal = recall("goal." + state.brandId);
+    $("#brandName").textContent = currentBrand().brandName;
+    renderTab();
+  });
+  $("#refreshBtn").addEventListener("click", () => {
+    delete memo.d30[state.brandId]; delete memo.weekly[state.brandId]; delete memo.monthly[state.brandId];
+    renderTab(true);
+  });
+  renderTab();
 }
 boot();
 </script>
