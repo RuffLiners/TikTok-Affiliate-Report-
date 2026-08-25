@@ -1,0 +1,8 @@
+✓ PARITY OK — auto (assemble) and manual (save-report mapping) rows are identical; only d30.meta.generatedAt/source/savedAt may differ.
+HARD GATE (V1-V13): ALL PASS
+REVIEW FLAGS: [
+  'round:tables.topVideos.ggmv:dealsfordayzz:150000 — tables.topVideos: dealsfordayzz has ggmv exactly $150,000 — a perfectly round multiple of $10,000; verify the value comes from an actual Euka result, not an estimate'
+]
+reconcileD30: clean
+TIER NOTE: Note: tier GMV sums to d30.gmv ($347,891 = SUM(creator_store_performance.gmv), video + livestream + showcase creator GMV) by design; d30.affiliateGmv ($314,842) is Euka's dashboard totalAffiliateGMV, a differently-attributed metric that is expected to be lower — the gap is not an error.
+wrote /dev/null
