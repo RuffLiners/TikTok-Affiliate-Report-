@@ -20,10 +20,34 @@ function within(a: number, b: number, pct: number): boolean {
 
 const f = (v: number) => Math.round(v).toLocaleString('en-US')
 
+// Every table the report contract requires. A required table that is empty —
+// or padded with placeholder rows whose handle is blank — is an extraction
+// failure that must never be published (the 2026-08-24 report shipped 15
+// blank topCreators rows because nothing checked this).
+export const REQUIRED_TABLES = [
+  'topCreators', 'topVideos', 'activeCreators',
+  'weeklyTopCreators', 'weeklyTopVideos', 'weeklyActiveCreators'
+] as const
+
 export function validateGeneratedReport(report: any): string[] {
   const issues: string[] = []
   const d = report?.d30 ?? {}
   const tiers = d.tiers ?? {}
+
+  // Required tables: present, non-empty, and every row carries a real handle.
+  // sanitizeRows converts null handles to '' — so blank means the extraction
+  // never had the handle, not that the store had no creators.
+  for (const t of REQUIRED_TABLES) {
+    const rows: any[] = Array.isArray(report?.tables?.[t]) ? report.tables[t] : []
+    if (rows.length === 0) {
+      issues.push(`table ${t}: is empty — this table is required; re-pull it (the query returned no usable rows or the response was placeholder-filled)`)
+      continue
+    }
+    const blank = rows.filter(r => !(typeof r?.h === 'string' && r.h.trim().length > 0)).length
+    if (blank > 0) {
+      issues.push(`table ${t}: ${blank} of ${rows.length} rows have an empty handle — every row must name a real creator; re-pull with the handle column included (never output placeholder rows)`)
+    }
+  }
   const tierSum = (field: string) => LVLS.reduce((a, k) => a + n(tiers[k]?.[field]), 0)
 
   // Tier breakdowns vs headline totals — GMV/views within 1%, counts exact
@@ -117,7 +141,15 @@ const SERIES_PREFIX_PHASE: [RegExp, number][] = [
   [/^monthly_charts\.(ml|sl|sal)\d$/, 18]
 ]
 
+// Table issues re-pull the phase that produced that table
+const TABLE_PHASE: Record<string, number> = {
+  topCreators: 9, topVideos: 10, activeCreators: 11,
+  weeklyTopCreators: 23, weeklyTopVideos: 24, weeklyActiveCreators: 25
+}
+
 export function phasesForIssue(issue: string): number[] {
+  const t = /^table (\w+):/.exec(issue)
+  if (t) return TABLE_PHASE[t[1]] !== undefined ? [TABLE_PHASE[t[1]]] : []
   if (issue.startsWith('tier ')) return [1, 3]
   if (issue.startsWith('GMV Max spend')) return [6, 7]
   // per-tier weekly sums reconcile against pinned totals — only the split re-runs

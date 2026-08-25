@@ -4,7 +4,7 @@ import { reconcileD30 } from '@/lib/reconcile'
 import { sanitizeRows, sanitizeTables } from '@/lib/sanitize'
 import { CANONICAL_METRIC_DEFS, PROMPT_VERSION } from '@/lib/canonicalDefs'
 import { validateGeneratedReport, phasesForIssue } from '@/lib/validateReport'
-import { sanityDiffVsPrior } from '@/lib/sanityDiff'
+import { collectReviewFlags, splitReviewed, tierDefinitionNote } from '@/lib/sanityDiff'
 import { format, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { request as httpsRequest } from 'https'
 
@@ -328,15 +328,29 @@ Respond with ONLY the JSON array. No prose, no markdown fences.
       const gmvChg = a2.gmv ? Math.round(((a1.gmv-a2.gmv)/a2.gmv)*100) : 0
       const goals = pd._goals || null
       const goalsBlock = goals ? `\nGOALS: ${JSON.stringify(goals).slice(0, 1200)}` : ''
+      // "This week" figures come from the LAST element of the already-pulled
+      // 13-week series — injected explicitly so the analysis can never pass a
+      // trailing-30-day total off as a weekly number (that exact mistake
+      // shipped in the 2026-08-24 report)
+      const c1: any[] = Array.isArray(pd.C1) ? pd.C1 : []
+      const wk = c1.length ? c1[c1.length - 1] : null
+      const weekLine = wk
+        ? `THIS WEEK — the most recent complete Sun–Sat week (${w.last7.start} to ${w.last7.end}): GMV $${wk.gmv||0}, Orders ${wk.orders||0}. These are the ONLY numbers that may be called "this week"; they equal the LAST element of the 13-week series.`
+        : `THIS WEEK — the most recent complete Sun–Sat week (${w.last7.start} to ${w.last7.end}): weekly totals are the LAST element of the 13-week series in FULL DATA (key C1).`
       return `Senior analyst writing the weekly TikTok Shop affiliate report for the Ruff Liners CEO. Be direct, specific, use real numbers from the data.
-DATA SUMMARY: Affiliate GMV $${a1.gmv||0} (${gmvChg>0?'+':''}${gmvChg}% vs prior), Shop GMV $${a1.shopGmv||0}, Orders ${a1.orders||0}, Videos ${a1.videos||0}, Creators ${a1.creators||0}, New ${a1.newCreators||0}, Retention ${a1.retention||0}%
-GMV Max: Spend $${pd.A6?.spend||0}, Revenue $${pd.A6?.revenue||0}, ROI ${pd.A6?.roi||0}x
-Most recent complete Sun–Sat week: ${w.last7.start} to ${w.last7.end}${goalsBlock}
+
+DATA WINDOWS — every figure below belongs to exactly one window; always say which:
+TRAILING 30 DAYS (${w.d30.start} to ${w.d30.end}): Affiliate GMV $${a1.gmv||0} (${gmvChg>0?'+':''}${gmvChg}% vs the prior 30 days), Shop GMV $${a1.shopGmv||0}, Orders ${a1.orders||0}, Videos ${a1.videos||0}, Creators ${a1.creators||0}, New ${a1.newCreators||0}, Retention ${a1.retention||0}%
+${weekLine}
+GMV Max (trailing 30 days): Spend $${pd.A6?.spend||0}, Revenue $${pd.A6?.revenue||0}, ROI ${pd.A6?.roi||0}x${goalsBlock}
 FULL DATA: ${JSON.stringify(pd).slice(0,7000)}
 
 FACT GUARDRAILS — these exact mistakes have shipped before; never repeat them:
+- NEVER present a trailing-30-day figure as "this week", "the week of ...", or any single-week superlative ("highest single-week GMV"). The d30/A1 numbers cover ${w.d30.start}–${w.d30.end} (30 days); the week of ${w.last7.start}–${w.last7.end} is ONLY the last element of the weekly series. When you cite any dollar or count figure, state the window it came from ("30-day GMV of $X", "this week's GMV of $Y").
 - NEVER conflate a % CHANGE with a % SHARE. Affiliate share of total shop GMV = affiliateGmv ÷ shopGmv × 100 (here ≈ ${a1.shopGmv ? Math.round((a1.gmv/a1.shopGmv)*1000)/10 : '?'}%). Growth-rate fields like affiliateGmvPct/shopGmvPct are changes vs the prior window — they are NOT shares, never present one as the other.
 - RETENTION (retention / ret series) = % of the PRIOR period's POSTING CREATORS who posted again in the current period. It says NOTHING about buyers, returning customers, repeat purchases, or customer LTV — never describe it in those terms.
+
+SELF-CHECK before answering: re-read your four sections and verify every dollar/count figure you quoted exists in the data above under the window your prose claims. Any figure described as weekly must match the last element of the corresponding weekly series (±rounding); any figure described as 30-day must match the d30/A1 totals. Fix mismatches before responding.
 
 Write 4 sections:
 1. "performance" (3-4 paragraphs): the most recent complete Sun–Sat week's headline numbers; month-to-date pacing vs the monthly GMV goal — state explicitly whether on or off track and by how much; quarter-to-date progress; name the creators/tiers/products driving results.
@@ -580,7 +594,7 @@ async function callClaude(prompt: string, apiKey: string, withMcp: boolean, maxT
       messages: [
         { role: 'user', content: prompt },
         { role: 'assistant', content: textBlocks.length ? textBlocks : [{ type: 'text', text: '(tool activity elided)' }] },
-        { role: 'user', content: 'Now output ONLY the JSON object with the exact structure I specified. Start your response with { and end with }. Nothing else. Use the data you already pulled; use 0 for anything you could not retrieve.' }
+        { role: 'user', content: 'Now output ONLY the JSON object with the exact structure I specified. Start your response with { and end with }. Nothing else. Use ONLY the data you already pulled. For a scalar metric you could not retrieve, use 0. For a table/array you could not retrieve, output an EMPTY array [] — NEVER emit placeholder rows with empty handles or all-zero fields, and NEVER estimate or invent a value.' }
       ]
     }
     const followUpData = await callClaudeRaw(followUpBody, apiKey, 90_000)
@@ -664,6 +678,8 @@ async function finalizeLive(supabase: any, jobId: string, pd: any, w: ReturnType
   // Live snapshots flag inconsistencies rather than re-pulling — the user can
   // simply refresh again, and the banner makes the state visible meanwhile
   const reconWarnings = reconcileD30(fullReport.d30)
+  const liveTierNote = tierDefinitionNote(fullReport.d30)
+  if (liveTierNote) reconWarnings.push(liveTierNote)
   if (reconWarnings.length) (fullReport.d30 as any).reconciliation = reconWarnings
   const liveData = {
     report_date: fullReport.report_date,
@@ -861,9 +877,11 @@ export async function POST(req: NextRequest) {
       const reconWarnings = reconcileD30(report.d30)
 
       // Sanity diff vs the prior report of the same type: implausible
-      // window-over-window swings, $0 GMV, or all-zero series flag the report
-      // needsReview — it saves with a visible banner but is held out of the
-      // live snapshot until a human confirms the numbers against Euka
+      // window-over-window swings, $0 GMV, all-zero series, a tier split that
+      // doesn't decompose d30.gmv to the dollar, or suspiciously round
+      // monetary values flag the report needsReview — it saves with a visible
+      // banner but is held out of the live snapshot until a human confirms
+      // the numbers against Euka
       let priorD30: any = null
       try {
         const { data: priors } = await supabase.from('weekly_reports')
@@ -873,10 +891,29 @@ export async function POST(req: NextRequest) {
           .limit(10)
         priorD30 = (priors ?? []).find(r => isMonthly === /-M$/.test(r.report_date))?.d30 ?? null
       } catch { /* first report ever — sanity diff runs without a prior */ }
-      const reviewFlags = sanityDiffVsPrior(report, priorD30)
-      if (reviewFlags.length) (report.d30 as any).needsReview = reviewFlags
 
-      const banner = [...reviewFlags.map(f => `NEEDS REVIEW: ${f}`), ...reconWarnings]
+      // Flags a human already marked reviewed/expected (app_config key
+      // 'reviewed_flags', managed via /api/admin/review-flags) demote to
+      // informational notes — a known one-time correction (e.g. a fixed data
+      // source legitimately moving a metric outside the ±60% band) must not
+      // re-fire needsReview on every subsequent run
+      let reviewedKeys: string[] = []
+      try {
+        const { data: rk } = await supabase.from('app_config').select('value').eq('key', 'reviewed_flags').single()
+        if (rk?.value) reviewedKeys = JSON.parse(rk.value)
+      } catch { /* no reviewed flags stored yet */ }
+      const allFlags = collectReviewFlags(report, priorD30)
+      const { active: reviewFlags, reviewed } = splitReviewed(allFlags, reviewedKeys)
+      if (reviewFlags.length) (report.d30 as any).needsReview = reviewFlags.map(f => f.text)
+      if (reviewFlags.length || reviewed.length) (report.d30 as any).reviewFlagKeys = allFlags.map(f => ({ key: f.key, reviewed: reviewedKeys.includes(f.key) }))
+
+      const tierNote = tierDefinitionNote(report.d30)
+      const banner = [
+        ...reviewFlags.map(f => `NEEDS REVIEW: ${f.text}`),
+        ...reviewed.map(f => `Reviewed/expected: ${f.text}`),
+        ...reconWarnings,
+        ...(tierNote ? [tierNote] : [])
+      ]
       if (banner.length) (report.d30 as any).reconciliation = banner
 
       if (isMonthly) {

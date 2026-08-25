@@ -1,4 +1,4 @@
-# Ruff Liners Weekly Report — Master Prompt Spec v3.0
+# Ruff Liners Weekly Report — Master Prompt Spec v3.1
 
 **This file is the single source of truth for the weekly Euka report.**
 Every other copy of the spec derives from it. If two copies disagree, this
@@ -49,8 +49,9 @@ Authoritative — never substitute another interpretation. (Executable copy:
 
 - **VIEWS** = `SUM(impressions)` from `creator_store_performance` rows dated in the window. NOT creator_videos view counts, NOT lifetime cumulative views.
 - **ORDERS** = `SUM(items_sold_count)` from `creator_store_performance` in the window, ALL attribution. Never scoped to videos posted in-window.
-- **AFFILIATE GMV** = bare `SUM(gmv)` from `creator_store_performance` in the window. Authoritative.
+- **AFFILIATE GMV (`d30.gmv`)** = bare `SUM(gmv)` from `creator_store_performance` in the window. Authoritative. Includes video + livestream + showcase creator GMV.
 - **SHOP GMV** = `get_dashboard_performance_overview` → `totalShopGMV`, **only when** `shopGmvError === null` AND `gmvFiltered === false` AND `filteredGmvUnavailable === false`; otherwise 0. (Same guardrail for `totalAffiliateGMV` → `affiliateGmv`.)
+- **`d30.gmv` vs `d30.affiliateGmv` — two different metrics by design.** `d30.gmv` is `SUM(creator_store_performance.gmv)`; `d30.affiliateGmv` is the dashboard overview's `totalAffiliateGMV`, a differently-attributed Euka dashboard metric that runs **lower** (e.g. 2026-08-24: $347,891 vs $314,842). The gap is expected, not a fan-out bug. **Tier GMV decomposes `d30.gmv`, never `d30.affiliateGmv`** — the reconciliation banner carries a standing note stating this relationship whenever the two differ.
 - **CREATORS** = DISTINCT handles that **posted a new video** in the window (publish date in window), deduped by handle — the creators table has duplicate-handle rows. Any-activity handles do NOT count. Handles with no match in the creators dimension STILL COUNT in every metric and bucket into L1 — LEFT JOIN, never drop them.
 - **NEW CREATORS** = handles whose first-ever post for this store falls in the window.
 - **VIDEOS** = videos published in the window, deduped by video id.
@@ -59,7 +60,8 @@ Authoritative — never substitute another interpretation. (Executable copy:
 - **GMV MAX header** (spend/revenue/roi) = the GMV Max ad tables ONLY — the same video-level source as the content-age buckets, so header spend === sum of bucket spends. **Never** `get_dashboard_ads_overview.totalAdSpend` (it includes non-GMV-Max spend). GMV Max data exists only from 2026-05-14; use 0 before that.
 - **MESSAGES** = INITIAL outreach messages only, deduped by message id — exclude follow-ups. Applies at every grain (30d, per-tier, weekly `ml*`, monthly `ml*`).
 - **SAMPLES** (shipped) and **SAMPLES APPROVED** = bucketed by the sample **request's CREATED date** (America/Los_Angeles) — never ship date. APPROVED = moved past "To Review" and not canceled.
-- **ggmv** in tables = the creator's **global** `gmv_30d_num` from the creators dimension (their overall TikTok GMV) — never this store's GMV, never the video's GMV.
+- **ggmv** in tables = the creator's **global** `gmv_30d_num` from the creators dimension (their overall TikTok GMV) — never this store's GMV, never the video's GMV. (Euka stores some creators' `gmv_30d_num` as a bucketed round figure — e.g. exactly 150000 — which the round-number spot-check flags once; mark it reviewed after verifying against the source.)
+- **NEVER estimate, interpolate, or fabricate a value.** If a field cannot be retrieved after retries, output null (nullable fields), `[]` (tables/arrays), or 0 (scalar metrics) plus a validation/reconciliation note — never a plausible-looking invented number, and never placeholder table rows: **every table row must carry a real creator handle taken from an actual query result.**
 - **eng** = engagement RATE percent ((likes+comments+shares) ÷ views × 100); null if only raw counts exist — never a raw count.
 - **vmgmv** = count of this creator's videos for this store with ANY GMV in the window regardless of publish date (evergreen counts; usually ≥ in-window video count).
 
@@ -95,12 +97,31 @@ read_sandbox_file".
 | 23 | Week top creators | `weeklyTopCreators` | last complete Sun–Sat week, top 10 by store GMV |
 | 24 | Week top videos | `weeklyTopVideos` | top 10 by GMV among videos POSTED in the week |
 | 25 | Week most active | `weeklyActiveCreators` | top 10 by videos posted in the week |
-| 19 | Analysis | `performance/creators/recruiting/growth` | four sections, strongest model, fact guardrails (share ≠ change; retention ≠ buyers) |
+| 19 | Analysis | `performance/creators/recruiting/growth` | four sections, strongest model, fact guardrails (window labeling; share ≠ change; retention ≠ buyers) |
 | 20 | Validate + save | — | assemble → validate → sanity-diff → upsert |
 
 Phases 21/22 run only after their pinned totals (12/14, 16) have landed.
 Phase 8 (agents) and 7 (content age) are optional — a failure records the
 error and continues rather than killing the run.
+
+### Analysis window-labeling rules (phase 19 and the skill's analysis phase)
+
+The 2026-08-24 report shipped prose calling the trailing-30-day GMV "the week
+of August 16–22" and "the highest single-week GMV". These rules are pinned
+into the analysis prompt to make that impossible:
+
+- **`d30.*` fields = the trailing 30 days** (`meta.d30Window`) — never
+  "this week", never "the week of …", never any single-week superlative.
+- **"This week" = the last element of each `weeklyCharts` series** — the most
+  recent complete Sun–Sat week (`meta.weekWindow`). The pipeline injects that
+  week's GMV/orders into the analysis prompt explicitly.
+- **Every dollar or count figure quoted in prose must state the window it
+  came from** ("30-day GMV of $X", "this week's GMV of $Y").
+- **Post-generation self-check:** before finalizing, re-read the four
+  sections and verify every quoted figure exists in the report JSON under the
+  window the prose claims; a figure described as weekly must match the last
+  element of the corresponding `weeklyCharts` array (±rounding), a 30-day
+  figure must match `d30.*`. Fix mismatches before responding.
 
 ## 4. Output contract
 
@@ -132,6 +153,10 @@ report; nothing is saved**:
 - **V7** every weekly series has exactly 13 items; every monthly series exactly 6
 - **V8** no negative values in any series or 30d total
 - **V9** retention on the percent scale (normalized at the boundary)
+- **V13** every required table (`topCreators`, `topVideos`, `activeCreators`,
+  `weeklyTopCreators`, `weeklyTopVideos`, `weeklyActiveCreators`) is non-empty
+  AND every row has a non-empty handle `h` — a table of blank/placeholder rows
+  is an extraction failure and the report must never publish with one
 
 Sanity diff vs the prior report of the same type (`src/lib/sanityDiff.ts`) —
 failure **saves the report flagged `needsReview`** with a banner and holds it
@@ -140,13 +165,33 @@ out of the live snapshot until a human confirms it:
 - **V10** 30d affiliate GMV = $0
 - **V11** any 30d metric (gmv, orders, videos, views, creators, newCreators, msgs, samples) moved more than ±60% vs the prior report
 - **V12** weekly GMV series all zeros
+- **V14** Σ `tiers.l1..l7 gmv` must equal `d30.gmv` within **$1** (the tier
+  query decomposes `d30.gmv` — see the two-metrics note in §2); off by more
+  flags NEEDS REVIEW
+- **V15** any monetary value that is an exact round multiple of $10,000
+  (d30 GMV fields, GMV Max spend/revenue, table `sgmv`/`ggmv`/`gmv`/`gmvN`/`gmvT`)
+  flags NEEDS REVIEW for a manual spot-check — fabricated values have shipped
+  before, and real extracted figures are almost never perfectly round
+
+**Reviewed/expected flags:** every sanity flag carries a stable key
+(`d30.reviewFlagKeys`). A human who verifies a flagged number against Euka
+marks the key reviewed via `POST /api/admin/review-flags {add:[key]}`
+(stored in `app_config.reviewed_flags`); future runs demote that warning to
+an informational "Reviewed/expected" reconciliation note instead of
+needsReview — so a known one-time correction (e.g. the 2026-08 views-source
+fix that legitimately moved 30d views +182%) never re-fires. The
+prior-report baseline for V11 is always the most recent SAVED report, so a
+corrected report automatically becomes next week's comparison base.
 
 Softer cross-checks (`src/lib/reconcile.ts`) still banner messages/samples
-drift on any saved or pasted report.
+drift on any saved or pasted report. The manual paste path
+(`/api/save-report`) runs the SAME hard gate and sanity flags as the auto
+pipeline — an invalid paste is rejected with the failure list, and a flagged
+paste saves as needsReview held out of the live snapshot.
 
 ## 6. Weekly run checklist (VA / Brandon)
 
-1. `d30.meta.promptVersion` = **3.0**
+1. `d30.meta.promptVersion` = **3.1**
 2. No `needsReview` banner — or review and confirm each flag against Euka
 3. Spot-check 3 numbers vs the Euka UI: 30d GMV, this week's top creator GMV, messages sent
 4. `weekly_charts.gmv` has 13 elements; last element = this week's GMV

@@ -48,14 +48,14 @@ TIMEZONE: ALL date bucketing — video publish dates, Sun–Sat week boundaries,
 CANONICAL METRIC DEFINITIONS — authoritative; never substitute another interpretation. query_store_data is a natural-language SQL agent that picks a different interpretation run-to-run unless each metric is pinned:
 - VIEWS = SUM(impressions) from creator_store_performance rows dated in the window. NOT creator_videos view counts, NOT lifetime cumulative views.
 - ORDERS = SUM(items_sold_count) from creator_store_performance in the window, ALL attribution — never scoped to videos posted in-window.
-- AFFILIATE GMV = bare SUM(gmv) from creator_store_performance in the window.
+- AFFILIATE GMV (d30.gmv) = bare SUM(gmv) from creator_store_performance in the window (includes video + livestream + showcase creator GMV). The separate d30.affiliateGmv field = the dashboard overview's totalAffiliateGMV, a differently-attributed dashboard metric that runs LOWER by design — the two are different metrics and are not expected to match. Tier GMV decomposes d30.gmv, never d30.affiliateGmv.
 - CREATORS = DISTINCT handles that POSTED a video in the window, deduped by handle (the creators table has duplicate-handle rows). Handles with NO match in the creators dimension STILL COUNT in every metric and bucket into L1 — LEFT JOIN, never drop them. NEW CREATORS = first-ever post for this store falls in the window.
 - RETENTION = (distinct handles that posted in BOTH windows) ÷ (distinct handles that posted in the prior window), as a PERCENT 0–100 (28.0, never 0.28).
 - TIER GMV/VIEWS (l1–l7) = ALL GMV/impressions earned in the period attributed to the earning creator's level — INCLUDING evergreen videos posted before the period. Dedup by handle before joining. L1+…+L7 MUST sum to the period totals — request a totals row and verify; re-run if off, never hand-patch. Same rule per week and per month for the chart series.
 - GMV MAX header = the GMV Max ad tables ONLY (same source as the content-age buckets, so header spend === sum of bucket spends). NEVER get_dashboard_ads_overview totalAdSpend — it includes non-GMV-Max spend.
 - MESSAGES = INITIAL outreach messages only, deduped by message id — EXCLUDE follow-ups. Applies at every grain.
 - SAMPLES (shipped) and SAMPLES APPROVED = bucketed by the sample REQUEST's CREATED date — never ship date.
-- NEVER fabricate a value. If a query fails after retries, output 0 (or []/null) and record it in validation.flags.
+- NEVER estimate, interpolate, or fabricate a value. If a query fails after retries, output 0 (or []/null) and record it in validation.flags. NEVER emit placeholder table rows with empty handles or all-zero fields — every table row must name a real creator handle from an actual query result; a table you could not retrieve is [] plus a flag.
 
 QUERIES TO RUN (read every CSV file Euka returns):
 1. Current 30d totals: (a) GMV, orders, videos posted, views, creators posted, new creators (first-ever post for this store), retention rate vs prior period from creator_store_performance; (b) call get_dashboard_performance_overview for the same window and read fields named exactly "totalShopGMV" → shopGmv and "totalAffiliateGMV" → affiliateGmv. GUARDRAIL: only use totalShopGMV when gmvFiltered === false AND filteredGmvUnavailable === false AND shopGmvError === null; otherwise set shopGmv to 0
@@ -82,15 +82,17 @@ QUERIES TO RUN (read every CSV file Euka returns):
 22. GMV Max spend current 30d ([START DATE]–[END DATE]) broken down by content age. Buckets by video publish date vs [END DATE]: "< 30 days" (posted in last 30 days), "1–2 months" (31–60 days old), "2–3 months" (61–90 days), "3–5 months" (91–150 days), "5+ months" (151+ days), "Unknown post date" (publish date missing). For each non-empty bucket: label, videos (count), spend, revenue, roi (revenue/spend, 0 if no spend), pct (spend % of total). Omit empty buckets. Output [] if GMV Max data unavailable.
 23. Outreach & CRM agents created in the last 30 days ([START DATE]–[END DATE]): call list_outreach_agents with agentType="outreach" and agentType="crm", multiple searchQuery values ("", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "Video Volume", "GMV Contest", "New Agent"), limit=25, archived=false. Merge and deduplicate by id, keep only agents with created_time >= [START DATE]. Call get_outreach_agent for each to enrich. Map to: id, name, agent_type ("outreach"/"crm"), campaign_type, status (bot_status), date_posted (YYYY-MM-DD from created_time), gmv_filter (target_gmvs joined ", "; "none" if empty), kw_filter (target_categories joined ", "; "none" if empty), other_filters (summary of other non-empty target_* fields; "none" if all empty), list_segment (lists/segments names; "none" if absent), commission_display (unique commission rate; "none" if absent), creators_reached (total_conversations), remaining (remaining_creators), total_invites, accepted_invites, total_replies, samples_requested (total_sample_request), samples_shipped, total_videos, total_revenue, product_count (length of products array), has_followups.
 
-ANALYSIS — write 4 focused sections after pulling all data:
+ANALYSIS — write 4 focused sections after pulling all data.
+WINDOW LABELING (mistakes here have shipped before): d30 fields cover the trailing 30 days — NEVER present one as "this week", "the week of …", or any single-week superlative. "This week" = the most recent complete Sun–Sat week = the LAST element of each weeklyCharts series. Every dollar or count figure the prose cites MUST state the window it came from ("30-day GMV of $X", "this week's GMV of $Y"). Never conflate a % CHANGE with a % SHARE, and retention is posting-creator retention (says nothing about buyers or repeat purchases).
 - "performance": 3–4 paragraphs — This week's headline numbers (last complete Sun–Sat week), MTD progress vs monthly goal (state if on/off track and by how much), QTD progress vs quarterly goal, what's driving results. Be specific: name the creators/products/tiers moving the numbers.
 - "creators": 2–3 paragraphs — New creator breakouts: any creator in their first 1–3 weeks already generating meaningful GMV (name them, their numbers, why they're exciting). Top performing content this week (specific video + creator + GMV). Which level is most active and most productive per creator. L6/L7 activation pace vs target.
 - "recruiting": 2–3 paragraphs — Top reactivation targets: inactive creators with high global GMV who haven't posted recently (name them, their global GMV, last post timing). Current outreach mix analysis (L3/L4 vs L5+ balance, is it aligned with where GMV comes from?). Sample allocation recommendations. Concrete next-week recruiting actions.
 - "growth": 2–3 paragraphs — 13-week GMV trend direction and momentum. Which tier/product/content format is the primary growth engine right now. 2–3 specific opportunities to pursue this week. 1–2 risks to monitor. 4-week forward outlook with upside and downside scenarios.
 
 SELF-VALIDATE before output (fix by re-querying, never by editing numbers):
-V1/V2 tier gmv and views sum to the 30d totals (±1%) · V3 tier creators/newCreators/videos sum exactly · V4 gmvMax.spend = Σ gmvMaxByAge spend (±1%) · V5/V6 weekly gl*/vwl* sum to each week's gmv/views (±1%) · V7 every weekly series has exactly 13 items, every monthly series 6 · V8 no negatives · V9 retention on the percent scale · V10 gmv > 0 · V11 no 30d metric moved more than ±60% vs prior without a known cause · V12 weekly gmv not all zeros.
-Set validation.passed = true only if all twelve hold; otherwise list each failure in validation.flags and still output the report.
+V1/V2 tier gmv and views sum to the 30d totals (±1%) · V3 tier creators/newCreators/videos sum exactly · V4 gmvMax.spend = Σ gmvMaxByAge spend (±1%) · V5/V6 weekly gl*/vwl* sum to each week's gmv/views (±1%) · V7 every weekly series has exactly 13 items, every monthly series 6 · V8 no negatives · V9 retention on the percent scale · V10 gmv > 0 · V11 no 30d metric moved more than ±60% vs prior without a known cause · V12 weekly gmv not all zeros · V13 every required table (topCreators, topVideos, activeCreators, weeklyTopCreators, weeklyTopVideos, weeklyActiveCreators) is non-empty AND every row has a non-empty handle h — the dashboard hard-rejects a report failing this · V14 Σ tier gmv = d30.gmv within $1 (tier GMV decomposes d30.gmv, never d30.affiliateGmv) · V15 flag any monetary value that is an exact round multiple of $10,000 for a manual spot-check.
+Set validation.passed = true only if all checks hold; otherwise list each failure in validation.flags and still output the report.
+POST-GENERATION SELF-CHECK: before finalizing, re-read the analysis sections and verify every dollar/count figure quoted appears in the JSON under the window the prose claims; a figure described as weekly must match the last element of the corresponding weeklyCharts array (±rounding).
 
 OUTPUT — respond with ONLY this JSON object, nothing before or after it. CRITICAL: include EVERY field shown below — never omit a field even if its query returned no data (use empty arrays [] or 0 as defaults). The fields gmvMaxByAge, agents, vwl1–vwl7, sal1–sal7, and level views are required even if empty:
 
@@ -99,9 +101,12 @@ OUTPUT — respond with ONLY this JSON object, nothing before or after it. CRITI
     "reportDate": "YYYY-MM-DD",
     "label": "Month D, YYYY",
     "dataWindow": "Mon D – Mon D, YYYY",
-    "promptVersion": "3.0",
+    "promptVersion": "3.1",
     "weekWindow": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" },
-    "d30Window": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" }
+    "d30Window": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" },
+    "priorWindow": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" },
+    "timezone": "America/Los_Angeles",
+    "generatedAt": "ISO-8601 timestamp"
   },
   "d30": {
     "gmv": 0, "gmvPct": 0, "shopGmv": 0, "shopGmvPct": 0, "affiliateGmv": 0, "affiliateGmvPct": 0,

@@ -9,13 +9,13 @@
 // Spec version, stamped into every saved report as d30.meta.promptVersion so
 // spec drift between the skill, the manual prompt, and this pipeline is
 // detectable from the output itself. Bump it whenever the definitions change.
-export const PROMPT_VERSION = '3.0'
+export const PROMPT_VERSION = '3.1'
 
 export const CANONICAL_METRIC_DEFS = `
 CANONICAL METRIC DEFINITIONS — authoritative; never substitute another interpretation:
 - VIEWS = SUM(impressions) from creator_store_performance rows dated in the window. NOT creator_videos view counts, NOT lifetime cumulative views.
 - ORDERS = SUM(items_sold_count) from creator_store_performance in the window, ALL attribution. Do NOT scope to videos posted in-window.
-- AFFILIATE GMV = bare SUM(gmv) from creator_store_performance in the window. This is authoritative.
+- AFFILIATE GMV (d30.gmv) = bare SUM(gmv) from creator_store_performance in the window. This is authoritative, and it includes video + livestream + showcase creator GMV. The separate d30.affiliateGmv field = the dashboard overview's totalAffiliateGMV, a differently-attributed dashboard metric that runs LOWER than SUM(gmv) by design — the two are DIFFERENT metrics from DIFFERENT sources and are not expected to match. Tier GMV decomposes d30.gmv (SUM(gmv)), never d30.affiliateGmv.
 - SHOP GMV = get_dashboard_performance_overview field "totalShopGMV", only when gmvFiltered === false AND filteredGmvUnavailable === false AND shopGmvError === null; else 0.
 - CREATORS = DISTINCT handles that POSTED a video in the window, deduped by handle (creators table has duplicate-handle rows). NEW CREATORS = first-ever post for this store falls in the window. NOT any-activity handles. Handles with NO match in the creators dimension (no gmv_30d) STILL COUNT in every metric — creators, new creators, videos, views, GMV — and bucket into L1; never drop them (LEFT JOIN, not inner join).
 - RETENTION = (distinct handles that posted in BOTH the prior 30d window and the current window) / (distinct handles that posted in the prior window). Delta is current minus prior retention, in points.
@@ -25,4 +25,5 @@ CANONICAL METRIC DEFINITIONS — authoritative; never substitute another interpr
 - SAMPLES (shipped) and SAMPLES APPROVED are both bucketed by the sample REQUEST's CREATED date in America/Los_Angeles — never ship date, never UTC — at every grain (30d, weekly sl*, monthly sl*, monthly sal*). APPROVED = the request moved past "To Review" and was not canceled.
 - TIMEZONE = ALL date bucketing (video publish dates, Sun–Sat week boundaries, month boundaries, message dates, sample request dates) uses America/Los_Angeles, never UTC.
 - HEAVY TIER QUERIES TIME OUT: run weekly-by-tier and monthly-by-tier as separate calls (posting columns, then views, then GMV; split GMV by month/half-range if needed).
-- If a query returns 0 rows or claims 2026 is "in the future," retry stating year 2026 explicitly — the data exists.`
+- If a query returns 0 rows or claims 2026 is "in the future," retry stating year 2026 explicitly — the data exists.
+- NEVER estimate, interpolate, or fabricate a value. If a field cannot be retrieved after retries, output null (for nullable fields like eng/clicks), [] (for tables/arrays), or 0 (for scalar metrics) — never a plausible-looking invented number, and NEVER placeholder table rows with empty handles or all-zero fields. Every table row must name a real creator handle taken from an actual query result.`

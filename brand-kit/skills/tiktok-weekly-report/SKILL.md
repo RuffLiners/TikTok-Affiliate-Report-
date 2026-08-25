@@ -31,7 +31,7 @@ State the computed windows before pulling data, and use them exactly.
 
 - **VIEWS** = SUM(impressions) from creator_store_performance rows dated in the window. NOT creator_videos view counts, NOT lifetime cumulative views.
 - **ORDERS** = SUM(items_sold_count) from creator_store_performance in the window, ALL attribution. Do NOT scope to videos posted in-window.
-- **AFFILIATE GMV** = bare SUM(gmv) from creator_store_performance in the window. This is authoritative.
+- **AFFILIATE GMV (d30.gmv)** = bare SUM(gmv) from creator_store_performance in the window. This is authoritative, and it includes video + livestream + showcase creator GMV. The separate **d30.affiliateGmv** field = the dashboard overview's totalAffiliateGMV, a differently-attributed dashboard metric that runs LOWER than SUM(gmv) by design — the two are DIFFERENT metrics from DIFFERENT sources and are not expected to match. Tier GMV decomposes d30.gmv, never d30.affiliateGmv.
 - **SHOP GMV** = get_dashboard_performance_overview field "totalShopGMV", only when gmvFiltered === false AND filteredGmvUnavailable === false AND shopGmvError === null; else 0.
 - **CREATORS** = DISTINCT handles that POSTED a video in the window, deduped by handle (creators table has duplicate-handle rows). NEW CREATORS = first-ever post for this store falls in the window. NOT any-activity handles. Handles with NO match in the creators dimension (no gmv_30d) STILL COUNT in every metric — creators, new creators, videos, views, GMV — and bucket into L1; never drop them (LEFT JOIN, not inner join).
 - **RETENTION** = (distinct handles that posted in BOTH the prior 30d window and the current window) / (distinct handles that posted in the prior window). Delta is current minus prior retention, in points.
@@ -42,7 +42,7 @@ State the computed windows before pulling data, and use them exactly.
 - **TIMEZONE** = ALL date bucketing (video publish dates, Sun–Sat week boundaries, month boundaries, message dates, sample request dates) uses America/Los_Angeles, never UTC.
 - **HEAVY TIER QUERIES TIME OUT**: run weekly-by-tier and monthly-by-tier as separate calls (posting columns, then views, then GMV; split GMV by month/half-range if needed).
 - If a query returns 0 rows or claims the current year is "in the future," retry stating the year explicitly — the data exists.
-- **NEVER fabricate a value.** If a query fails after retries, output 0 (or [] / null per the schema) and record it in `validation.flags` — a zero with a flag is recoverable; an invented number poisons the dashboard.
+- **NEVER estimate, interpolate, or fabricate a value.** If a query fails after retries, output 0 (or [] / null per the schema) and record it in `validation.flags` — a zero with a flag is recoverable; an invented number poisons the dashboard. NEVER emit placeholder table rows with empty handles or all-zero fields: every table row must name a real creator handle from an actual query result; a table you could not retrieve is [] plus a flag.
 
 ## Queries to run (read every CSV file Euka returns)
 
@@ -72,6 +72,9 @@ State the computed windows before pulling data, and use them exactly.
 
 ## Analysis — write 4 focused sections after pulling all data
 
+**WINDOW LABELING (mistakes here have shipped before):** d30 fields cover the trailing 30 days — NEVER present one as "this week", "the week of …", or any single-week superlative. "This week" = the most recent complete Sun–Sat week = the LAST element of each weeklyCharts series. Every dollar or count figure the prose cites MUST state the window it came from ("30-day GMV of $X", "this week's GMV of $Y").
+
+
 - **"performance"**: 3–4 paragraphs — this week's headline numbers (last complete Sun–Sat week), MTD progress vs monthly goal (state if on/off track and by how much), QTD progress vs quarterly goal, what's driving results. Be specific: name the creators/products/tiers moving the numbers. If the user hasn't shared goals, describe momentum vs prior periods instead.
 - **"creators"**: 2–3 paragraphs — new creator breakouts (creators in their first 1–3 weeks already generating meaningful GMV: name them, their numbers, why they're exciting); top performing content this week (specific video + creator + GMV); which level is most active and most productive per creator; high-tier (L6/L7) activation pace.
 - **"recruiting"**: 2–3 paragraphs — top reactivation targets (inactive creators with high global GMV who haven't posted recently: name them, their global GMV, last post timing); current outreach mix analysis (is the L3/L4 vs L5+ balance aligned with where GMV comes from?); sample allocation recommendations; concrete next-week recruiting actions.
@@ -79,7 +82,9 @@ State the computed windows before pulling data, and use them exactly.
 
 ## Self-validate before output
 
-Fix failures by re-querying, never by editing numbers: V1/V2 tier gmv and views sum to the 30d totals (±1%) · V3 tier creators/newCreators/videos sum exactly · V4 gmvMax.spend = Σ gmvMaxByAge spend (±1%) · V5/V6 weekly gl*/vwl* sum to each week's gmv/views (±1%) · V7 every weekly series has exactly 13 items, every monthly series 6 · V8 no negatives · V9 retention on the percent scale (38.1, not 0.381) · V10 gmv > 0 · V11 no 30d metric moved more than ±60% vs the prior report without a known cause · V12 weekly gmv not all zeros. Set `validation.passed = true` only if all twelve hold; otherwise list each failure in `validation.flags` and still output the report.
+Fix failures by re-querying, never by editing numbers: V1/V2 tier gmv and views sum to the 30d totals (±1%) · V3 tier creators/newCreators/videos sum exactly · V4 gmvMax.spend = Σ gmvMaxByAge spend (±1%) · V5/V6 weekly gl*/vwl* sum to each week's gmv/views (±1%) · V7 every weekly series has exactly 13 items, every monthly series 6 · V8 no negatives · V9 retention on the percent scale (38.1, not 0.381) · V10 gmv > 0 · V11 no 30d metric moved more than ±60% vs the prior report without a known cause · V12 weekly gmv not all zeros · V13 every required table (topCreators, topVideos, activeCreators, weeklyTopCreators, weeklyTopVideos, weeklyActiveCreators) is non-empty AND every row has a non-empty handle `h` — the dashboard hard-rejects a report failing this · V14 Σ tier gmv = d30.gmv within $1 (tier GMV decomposes d30.gmv, never d30.affiliateGmv) · V15 flag any monetary value that is an exact round multiple of $10,000 for a manual spot-check (real extracted figures are almost never perfectly round; some creators' global gmv_30d_num is genuinely stored as a round bucket — verify, note, and keep it). Set `validation.passed = true` only if all checks hold; otherwise list each failure in `validation.flags` and still output the report.
+
+**POST-GENERATION SELF-CHECK:** before finalizing, re-read the four analysis sections and verify every dollar/count figure quoted appears in the JSON under the window the prose claims; a figure described as weekly must match the last element of the corresponding weeklyCharts array (±rounding), a 30-day figure must match d30.*.
 
 ## Output
 
@@ -91,9 +96,12 @@ Respond with **ONLY this JSON object**, nothing before or after it. CRITICAL: in
     "reportDate": "YYYY-MM-DD",
     "label": "Month D, YYYY",
     "dataWindow": "Mon D – Mon D, YYYY",
-    "promptVersion": "3.0",
+    "promptVersion": "3.1",
     "weekWindow": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" },
-    "d30Window": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" }
+    "d30Window": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" },
+    "priorWindow": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" },
+    "timezone": "America/Los_Angeles",
+    "generatedAt": "ISO-8601 timestamp"
   },
   "d30": {
     "gmv": 0, "gmvPct": 0, "shopGmv": 0, "shopGmvPct": 0, "affiliateGmv": 0, "affiliateGmvPct": 0,

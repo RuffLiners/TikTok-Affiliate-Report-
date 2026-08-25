@@ -11,7 +11,7 @@ description: >
   this skill handles structured data extraction for the Vercel dashboard app.
 ---
 
-# Ruff Liners — Weekly Euka Report Skill (spec v3.0)
+# Ruff Liners — Weekly Euka Report Skill (spec v3.1)
 
 Pulls all KPI data from Euka across 23 queries, writes four business-focused
 analysis sections, and outputs a single JSON object for the Ruff Liners TikTok
@@ -20,7 +20,7 @@ Shop weekly dashboard (Vercel app backed by Supabase).
 **This file is generated from `tiktok-dashboard/prompts/master-prompt-v3.md`
 in the dashboard repo — the single source of truth. Never edit this copy
 directly; edit the master, bump its version, and regenerate.** The output
-stamps `meta.promptVersion: "3.0"` so the dashboard can detect stale copies.
+stamps `meta.promptVersion: "3.1"` so the dashboard can detect stale copies.
 
 **Output:** One JSON block — `meta`, `d30`, `weeklyCharts`, `monthlyCharts`,
 `tables`, `agents`, `analysis`, `validation`. Nothing before or after it
@@ -33,7 +33,7 @@ except the confirmation line.
 ```
 STORE_ID:       455ea4f9-a404-411b-b748-9ba1929efb93
 EUKA_MCP:       https://app.euka.ai/api/mcp
-PROMPT_VERSION: 3.0
+PROMPT_VERSION: 3.1
 TIMEZONE:       America/Los_Angeles  (syncs with TikTok Shop reporting)
 ```
 
@@ -56,8 +56,15 @@ never hand-patch.
   monthly).
 - **ORDERS** = `SUM(items_sold_count)` from `creator_store_performance` in the
   window, ALL attribution. Never scoped to videos posted in-window.
-- **AFFILIATE GMV** = bare `SUM(gmv)` from `creator_store_performance` in the
-  window. Authoritative.
+- **AFFILIATE GMV (`d30.gmv`)** = bare `SUM(gmv)` from `creator_store_performance`
+  in the window. Authoritative. Includes video + livestream + showcase creator
+  GMV.
+- **`d30.gmv` vs `d30.affiliateGmv` are two DIFFERENT metrics by design.**
+  `d30.affiliateGmv` = the dashboard overview's `totalAffiliateGMV`, a
+  differently-attributed Euka dashboard metric that runs LOWER than
+  `SUM(gmv)` (e.g. 2026-08-24: $347,891 vs $314,842). The gap is expected —
+  it is not a fan-out bug. **Tier GMV decomposes `d30.gmv`, never
+  `d30.affiliateGmv`.**
 - **SHOP GMV** = `get_dashboard_performance_overview` → `totalShopGMV` (and
   `totalAffiliateGMV` → `affiliateGmv`, `totalShopGMVDifference` → `shopGmvPct`,
   `totalAffiliateGMVDifference` → `affiliateGmvPct`). GUARDRAIL: only use these
@@ -101,7 +108,9 @@ never hand-patch.
   "To Review" and not canceled.
 - **ggmv** in tables = the creator's **global** `gmv_30d_num` from the creators
   dimension — never this store's GMV, never the video's GMV. Same column in
-  every table.
+  every table. (Euka stores some creators' `gmv_30d_num` as a bucketed round
+  figure — e.g. exactly 150000 — the V15 round-number check will flag it;
+  verify against the source and note it, don't "fix" it.)
 - **eng** = engagement RATE percent ((likes+comments+shares) ÷ views × 100);
   null if only raw counts exist — never a raw count.
 - **vmgmv** = count of this creator's videos for this store with ANY GMV in the
@@ -110,9 +119,13 @@ never hand-patch.
   claims 2026 is "in the future", retry stating 2026 — the data exists.
 - Read every CSV Euka returns with `read_sandbox_file` — never rely on summary
   text. Paginate truncated files with startLine/endLine.
-- **NEVER fabricate a value.** If a query fails after retries, output 0 (or []
-  / null per the schema) and record it in `validation.flags` — a zero with a
-  flag is recoverable; an invented number poisons the dashboard.
+- **NEVER estimate, interpolate, or fabricate a value.** If a query fails
+  after retries, output 0 (or [] / null per the schema) and record it in
+  `validation.flags` — a zero with a flag is recoverable; an invented number
+  poisons the dashboard. NEVER emit placeholder table rows with empty handles
+  or all-zero fields: every table row must name a real creator handle taken
+  from an actual query result, and a table you could not retrieve is `[]`
+  plus a flag, never rows of blanks.
 
 ---
 
@@ -251,7 +264,7 @@ weekly labels  = Sunday date, M/D, no zero-padding ('3/1' not '03/01')
 monthly labels = 3-letter month, asterisk on the partial ('Aug*')
 ```
 
-## Phase 4 — Self-validate (V1–V12) before writing the analysis
+## Phase 4 — Self-validate (V1–V15) before writing the analysis
 
 Check every one; fix by re-querying, never by editing numbers. Report the
 result in the output's `validation` object.
@@ -266,8 +279,21 @@ result in the output's `validation` object.
 - V9 retention values on the percent scale (38.1, not 0.381)
 - V10 d30.gmv > 0 · V11 no d30 metric moved more than ±60% vs the prior
   report without a known cause · V12 weeklyCharts.gmv is not all zeros
+- V13 **every required table is non-empty AND every row has a non-empty
+  handle `h`** — topCreators, topVideos, activeCreators, weeklyTopCreators,
+  weeklyTopVideos, weeklyActiveCreators. A table of blank/placeholder rows is
+  an extraction failure: re-query it; the dashboard HARD-REJECTS a report
+  that fails this.
+- V14 Σ tiers.gmv = d30.gmv within **$1** (tier GMV decomposes d30.gmv —
+  never compare against d30.affiliateGmv, a different metric by design). Off
+  by more than $1 → re-run the tier query; if it still won't reconcile, flag
+  it — the dashboard marks the report NEEDS REVIEW.
+- V15 flag any monetary value that is an exact round multiple of $10,000
+  (d30 GMV fields, gmvMax spend/revenue, table sgmv/ggmv/gmv/gmvN/gmvT) in
+  `validation.flags` for a manual spot-check — confirm it came from an
+  actual Euka result, never an estimate.
 
-`validation.passed = true` only if all twelve hold; otherwise list each
+`validation.passed = true` only if all checks hold; otherwise list each
 failure in `validation.flags` and still output the report.
 
 ## Phase 5 — Write four analysis sections
@@ -277,6 +303,13 @@ numbers, `\n\n` between paragraphs. Reference creators by handle, tiers as
 L1–L7.
 
 **FACT GUARDRAILS — these exact mistakes have shipped before:**
+- **Window labeling.** `d30.*` fields cover the trailing 30 days
+  (`meta.d30Window`) — NEVER present one as "this week", "the week of …", or
+  any single-week superlative ("highest single-week GMV"). "This week" =
+  the most recent complete Sun–Sat week (`meta.weekWindow`) = the LAST
+  element of each `weeklyCharts` series. Every dollar or count figure the
+  prose cites MUST state the window it came from ("30-day GMV of $X",
+  "this week's GMV of $Y").
 - Never conflate a % CHANGE with a % SHARE. Affiliate share of shop GMV =
   affiliateGmv ÷ shopGmv × 100. shopGmvPct/affiliateGmvPct are changes vs the
   prior window, never shares.
@@ -297,6 +330,13 @@ L1–L7.
    growth engine; 2–3 opportunities, 1–2 risks; 4-week outlook with upside
    and downside.
 
+**POST-GENERATION SELF-CHECK — mandatory before finalizing:** re-read the
+four sections and verify every dollar/count figure quoted appears in the
+report JSON under the window the prose claims. A figure described as weekly
+must match the last element of the corresponding `weeklyCharts` array
+(±rounding); a figure described as 30-day must match `d30.*`. Fix every
+mismatch before outputting.
+
 ## Phase 6 — Output JSON
 
 Output ONLY this JSON, fully populated. Include EVERY field — never omit one
@@ -310,9 +350,12 @@ weekly tables are required even if empty.
     "reportDate": "YYYY-MM-DD",
     "label": "Month D, YYYY",
     "dataWindow": "Mon D – Mon D, YYYY",
-    "promptVersion": "3.0",
+    "promptVersion": "3.1",
     "weekWindow": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" },
-    "d30Window": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" }
+    "d30Window": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" },
+    "priorWindow": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" },
+    "timezone": "America/Los_Angeles",
+    "generatedAt": "ISO-8601 timestamp"
   },
   "d30": {
     "gmv": 0, "gmvPct": 0, "shopGmv": 0, "shopGmvPct": 0,
@@ -388,7 +431,7 @@ Product name shortening:
 ## Confirmation line
 
 ```
-✅ Report ready: [LABEL] · GMV: $[formatted] · Week of [WEEK_START]–[WEEK_END] · spec v3.0 · validation [passed | N flags]
+✅ Report ready: [LABEL] · 30d GMV: $[formatted] · Week of [WEEK_START]–[WEEK_END] · spec v3.1 · validation [passed | N flags]
 ```
 
 ---
