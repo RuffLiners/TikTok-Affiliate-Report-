@@ -25,14 +25,28 @@ export function D30Content({ report }: Props) {
   const dateRef = isMonthlyReport ? ((d as any).windowEnd ?? '') : report.report_date
 
   const reconciliation: string[] = (d as any).reconciliation ?? []
+  // The pipeline mixes real drift warnings with informational lines (the
+  // by-design tier-GMV definition note, "Reviewed/expected" demoted flags) in
+  // the same array — only the former belong under an amber warning header
+  const isInfoNote = (s: string) => s.startsWith('Note:') || s.startsWith('Reviewed/expected:')
+  const reconWarnings = reconciliation.filter(s => !isInfoNote(s))
+  const reconNotes = reconciliation.filter(isInfoNote)
 
   return (
     <div className="space-y-6">
-      {reconciliation.length > 0 && (
+      {reconWarnings.length > 0 && (
         <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
           <p className="text-xs font-semibold text-amber-700 mb-1">Data reconciliation warnings</p>
-          {reconciliation.map((warning, i) => (
+          {reconWarnings.map((warning, i) => (
             <p key={i} className="text-xs text-amber-700">{warning}</p>
+          ))}
+        </div>
+      )}
+      {reconNotes.length > 0 && (
+        <div className="bg-gray-50 border border-gray-100 rounded-xl px-4 py-3">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Data notes</p>
+          {reconNotes.map((note, i) => (
+            <p key={i} className="text-xs text-gray-500">{note}</p>
           ))}
         </div>
       )}
