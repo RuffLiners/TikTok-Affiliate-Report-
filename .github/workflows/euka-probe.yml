@@ -1,0 +1,21 @@
+name: Euka auth probe
+on: workflow_dispatch
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      # Code lives on the production branch; this file lives on main only (cron/dispatch need the default branch).
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/friendly-gauss-AGnJ3
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm install
+        working-directory: pipeline
+      - run: npm run probe
+        working-directory: pipeline
+        env:
+          EUKA_MCP_URL: ${{ secrets.EUKA_MCP_URL }}
+          EUKA_BEARER_TOKEN: ${{ secrets.EUKA_BEARER_TOKEN }}
+          EUKA_STORE_ID: ${{ secrets.EUKA_STORE_ID }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
