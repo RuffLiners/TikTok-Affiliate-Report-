@@ -55,7 +55,7 @@
           {
             "type": "command",
             "if": "Bash(git push*)",
-            "command": "cmd=$(jq -r '.tool_input.command // empty'); if echo \"$cmd\" | grep -qE 'git push' && ! echo \"$cmd\" | grep -q 'claude/friendly-gauss-AGnJ3'; then echo '{\"decision\": \"block\", \"reason\": \"Only push to the production branch: claude/friendly-gauss-AGnJ3. Use: git push origin claude/friendly-gauss-AGnJ3\"}'; fi"
+            "command": "cmd=$(jq -r '.tool_input.command // empty'); if echo \"$cmd\" | grep -qE 'git push' && ! echo \"$cmd\" | grep -qE 'claude/friendly-gauss-AGnJ3|claude/dashboard-scorecard-widget-85tm2i'; then echo '{\"decision\": \"block\", \"reason\": \"Only push to the production branch claude/friendly-gauss-AGnJ3 or the scorecard feature branch claude/dashboard-scorecard-widget-85tm2i\"}'; fi"
           }
         ]
       }

@@ -6,10 +6,14 @@ import { WeeklyReport, Goals } from '@/lib/types'
 import { driveJob } from '@/lib/driveJob'
 import { ManualEntryPanel } from './ManualEntryPanel'
 import { D30Content } from './D30Content'
+import { ScorecardCard } from './ScorecardCard'
+import type { Scorecard } from '@/lib/scorecard'
 
 interface Props {
   report: WeeklyReport | null
   goals: Goals | null
+  scorecard?: Scorecard | null
+  scorecardMeta?: { publishedAt: string | null; audit: string } | null
 }
 
 function friendlyError(msg: string): string {
@@ -22,7 +26,7 @@ function friendlyError(msg: string): string {
   return msg.length > 120 ? msg.slice(0, 120) + '…' : msg
 }
 
-export default function LiveDashboard({ report, goals: _goals }: Props) {
+export default function LiveDashboard({ report, goals: _goals, scorecard = null, scorecardMeta = null }: Props) {
   const router = useRouter()
   const [refreshing, setRefreshing] = useState(false)
   const [phaseLabel, setPhaseLabel] = useState('')
@@ -78,6 +82,8 @@ export default function LiveDashboard({ report, goals: _goals }: Props) {
 
   return (
     <div className="space-y-6">
+      <ScorecardCard scorecard={scorecard} meta={scorecardMeta} />
+
       {showManual && (
         <ManualEntryPanel reportDate={report?.report_date ?? ''} onClose={() => setShowManual(false)} />
       )}

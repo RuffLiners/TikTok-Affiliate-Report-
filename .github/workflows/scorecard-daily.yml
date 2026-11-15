@@ -1,0 +1,44 @@
+# Daily: snapshot usage-rights creators (no dated source in Euka), then check the Monday run did not drift or never run.
+name: Scorecard daily snapshot and watchdog
+on:
+  schedule:
+    - cron: '5 8 * * *'      # 08:05 UTC = 00:05 PST / 01:05 PDT, the same Los Angeles date either way
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      EUKA_MCP_URL: ${{ secrets.EUKA_MCP_URL }}
+      EUKA_BEARER_TOKEN: ${{ secrets.EUKA_BEARER_TOKEN }}
+      EUKA_STORE_ID: ${{ secrets.EUKA_STORE_ID }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      DASHBOARD_URL: ${{ secrets.DASHBOARD_URL }}
+      REPORT_PUBLISH_TOKEN: ${{ secrets.REPORT_PUBLISH_TOKEN }}
+    steps:
+      # The code lives on the production branch; cron only runs from the default branch, so this file is also kept on main.
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/friendly-gauss-AGnJ3
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+        working-directory: pipeline
+      - run: npm run snapshot
+        working-directory: pipeline
+      - run: npm run watchdog
+        working-directory: pipeline
+      - name: Email on failure
+        if: failure() || cancelled()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "Scorecard snapshot or watchdog FAILED"
+          to: brandon@ruffliners.com
+          from: Ruff Liners reports <${{ secrets.SMTP_USERNAME }}>
+          body: "The daily scorecard snapshot or drift watchdog failed. The Monday scorecard may be late or missing. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

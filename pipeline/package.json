@@ -2,7 +2,20 @@
   "name": "ruff-liners-report-pipeline",
   "private": true,
   "type": "module",
-  "scripts": { "probe": "tsx src/probe.ts", "typecheck": "tsc --noEmit" },
-  "dependencies": { "@modelcontextprotocol/sdk": "^1.12.0" },
-  "devDependencies": { "tsx": "^4.19.0", "typescript": "^5.6.0", "@types/node": "^22.0.0" }
+  "scripts": {
+    "probe": "tsx src/probe.ts",
+    "typecheck": "tsc --noEmit",
+    "scorecard": "tsx src/run.ts",
+    "snapshot": "tsx src/snapshot.ts",
+    "watchdog": "tsx src/watchdog.ts",
+    "test": "tsx --test src/pull.test.ts src/plan.test.ts src/drift.test.ts src/contests.test.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "@types/node": "^22.0.0"
+  }
 }
