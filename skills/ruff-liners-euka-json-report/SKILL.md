@@ -24,7 +24,7 @@ brandId `b4ec897a-fb59-48e7-9320-873ea5e25155`, storeId `455ea4f9-a404-411b-b748
 | 10 | Creators posted (distinct) | overview `activeCreators` | retention window |
 | 11 | Affiliate videos posted | series `videoPosted.videos_posted` | 2025-10 |
 | 12 | Views | overview `allAccountVideoViews` | 2026-01 (Euka returns 0 earlier: shown as no data) |
-| 13 | Affiliates in monthly contest (distinct) | `list_contests` + `get_contest` participants, contests only | first contest month |
+| 13 | Affiliates in monthly contest (distinct per calendar month) | `list_contests` + `get_contest` participants, contests only, stored by month | first contest month |
 | 14 | Affiliates with usage rights (distinct creators) | `search_usage_rights_requests` states=active, archived=include, distinct `creator.id` | first daily snapshot |
 
 Also shown: **ROI vs shop GMV** = line 2 / line 4. Gross Revenue is on TikTok's co-funded basis, so it can exceed shop GMV; that is expected and is noted as an info issue, not an error.
@@ -47,6 +47,12 @@ Every completed week and month is stored in `scorecard_periods` (Supabase) after
 - **Every later run:** pulls about 4 periods.
 - **Repair:** run with `force_refresh` to ignore stored data. Changing a line definition: bump `RAW_VERSION`.
 - Stored data is a frozen copy. If TikTok restates a number after the 14-day window, use `force_refresh` to pick it up.
+
+## Restatement check (is the stored past still right?)
+TikTok can revise a settled period (refunds, late attribution). Every run re-pulls the 2 newest final weeks and the newest final month and compares them with what is stored (money tolerance: the larger of $1 or 0.1 percent; counts: 0.1 percent, so 572 vs 573 videos is a change). Clean: stop. Any change: re-pull the last 3 months and compare; still changing: the last 6 months; still changing: full history. Each stage is only reached if the one before found drift, and the run stops at the first clean stage. Changed values replace the stored ones and every change is logged in `scorecard_drift_log` and listed in the Slack message. Drift that reaches full history is a warning to review. Tolerances are in `pipeline/src/drift.ts`.
+
+## Contests
+A contest belongs to the month it starts in. A creator in several of that month's contests counts once for the month. Retainers and canceled contests are excluded. Finished months (all contests completed and ended 14+ days ago) are stored with their participant ids in `scorecard_contest_months` and never re-pulled; all-time is the distinct union across stored months. Months before the first contest show no data; a later month with no contest shows 0.
 
 ## Steps
 1. Windows: `weekRanges(asOf, 13)`, `monthRanges(dataThrough)` in `tiktok-dashboard/src/lib/scorecard/periods.ts`. dataThrough = yesterday.

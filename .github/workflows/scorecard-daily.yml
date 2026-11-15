@@ -18,7 +18,10 @@ jobs:
       DASHBOARD_URL: ${{ secrets.DASHBOARD_URL }}
       REPORT_PUBLISH_TOKEN: ${{ secrets.REPORT_PUBLISH_TOKEN }}
     steps:
+      # The code lives on the production branch; cron only runs from the default branch, so this file is also kept on main.
       - uses: actions/checkout@v4
+        with:
+          ref: claude/friendly-gauss-AGnJ3
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: npm ci

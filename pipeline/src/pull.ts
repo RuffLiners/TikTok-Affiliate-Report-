@@ -6,6 +6,7 @@ import {
 } from '../../tiktok-dashboard/src/lib/scorecard/index'
 import { DailyMap, mergeAds, mergeSeries, sumRange, chunks, snapshotOnOrAfter } from './daily.js'
 import { RAW_VERSION, StoredPeriod, Wanted, dailySpan, isSettled, planPulls, wantedPeriods } from './plan.js'
+import { ContestCounts, ContestInfo, ContestMonth, contestCounts, contestFor as contestForMonth, resolveContestMonths } from './contests.js'
 
 export const ADS_HISTORY_FROM = '2025-10-28'
 /** Euka returns 0 for views before this; that is "no data", not zero. */
@@ -48,28 +49,20 @@ export async function pullDaily(e: Euka, asOf: string, from: string, to: string)
   return daily
 }
 
-/** Distinct creators per calendar month across that month's contests (contests only; Retainers excluded). */
-export async function pullContests(e: Euka, asOf: string): Promise<{ byMonth: Record<string, number>; firstMonth: string | null; allTime: number }> {
+export async function listContests(e: Euka, asOf: string): Promise<ContestInfo[]> {
   const list = await cached(asOf, 'contests', () => e.call('list_contests', { brandId: BRAND_ID, limit: 100, offset: 0 }))
-  const contests = (list?.contests ?? []).filter((c: any) => c.type !== 'retainer' && c.status !== 'canceled')
-  const byMonthSet: Record<string, Set<string>> = {}, all = new Set<string>()
-  for (const c of contests) {
-    const ids: string[] = await cached(asOf, `contest_${c.id}`, async () => {
-      const out: string[] = []
-      for (let offset = 0; ; offset += 100) {
-        const r = await e.call('get_contest', { brandId: BRAND_ID, contestId: String(c.id), limit: 100, offset })
-        for (const p of r?.participants ?? []) out.push(String(p.creatorId))
-        if (!r?.pagination?.hasMoreParticipants) break
-      }
-      return out
-    })
-    const m = monthOf(c.startDate)
-    const set = (byMonthSet[m] ??= new Set<string>())
-    for (const id of ids) { set.add(id); all.add(id) }
-  }
-  const months = Object.keys(byMonthSet).sort()
-  return { byMonth: Object.fromEntries(months.map(m => [m, byMonthSet[m].size])), firstMonth: months[0] ?? null, allTime: all.size }
+  return (list?.contests ?? []).map((c: any) => ({ id: Number(c.id), type: String(c.type), status: String(c.status), startDate: String(c.startDate), endDate: String(c.endDate) }))
 }
+export const fetchContestIds = (e: Euka, asOf: string) => (contestId: number): Promise<string[]> =>
+  cached(asOf, `contest_${contestId}`, async () => {
+    const out: string[] = []
+    for (let offset = 0; ; offset += 100) {
+      const r = await e.call('get_contest', { brandId: BRAND_ID, contestId: String(contestId), limit: 100, offset })
+      for (const p of r?.participants ?? []) out.push(String(p.creatorId))
+      if (!r?.pagination?.hasMoreParticipants) break
+    }
+    return out
+  })
 
 /** Distinct creators with active usage rights right now. Euka has no dated source, so history comes from daily snapshots. */
 export async function pullUsageRightsNow(e: Euka, asOf: string): Promise<number> {
@@ -85,30 +78,19 @@ export async function pullUsageRightsNow(e: Euka, asOf: string): Promise<number>
   return ids.length
 }
 
-export interface PullResult { raw: ScorecardRaw; fresh: StoredPeriod[]; reusedCount: number; pulledCount: number; reasons: Record<string, string>; gaps: string[]; usageNow: number }
+export interface PullCtx { usageSnaps: Array<{ snap_date: string; value: number }>; usageNow: number; contestFor: (month: string) => number | null; latestWeekEnd: string }
 
-/**
- * Incremental pull. Stored final periods are reused as they are; only missing, unsettled or invalidated periods are
- * pulled from Euka. The daily series is fetched only for the span those periods cover.
- */
-export async function pullScorecardRaw(
-  e: Euka, asOf: string, dataThrough: string, yearStart: string,
-  usageSnaps: Array<{ snap_date: string; value: number }>, stored: StoredPeriod[], force = false,
-): Promise<PullResult> {
-  const gaps: string[] = []
-  const plan = planPulls(wantedPeriods(asOf, dataThrough, yearStart), stored, { force })
-  const span = dailySpan(plan.toPull)
-  const daily = span ? await pullDaily(e, asOf, span.from, span.to) : {}
-  const contests = await pullContests(e, asOf)
-  const usageNow = await pullUsageRightsNow(e, asOf)
-  const contestFor = (month: string) => (contests.firstMonth && month >= contests.firstMonth ? contests.byMonth[month] ?? 0 : null)
+/** Pull the given periods from Euka. The daily series is fetched only for the days they cover. */
+export async function pullPeriods(e: Euka, asOf: string, dataThrough: string, list: Wanted[], ctx: PullCtx, gaps: string[] = []): Promise<{ periods: StoredPeriod[]; daily: DailyMap }> {
+  const span = dailySpan(list)
+  if (!span) return { periods: [], daily: {} }
+  const daily = await pullDaily(e, asOf, span.from, span.to)
   const ads = { historyFrom: ADS_HISTORY_FROM }
-  const latestWeekEnd = weekRanges(asOf, 1)[0].end
-
-  async function pull(w: Wanted): Promise<StoredPeriod> {
+  const periods: StoredPeriod[] = []
+  for (const w of list) {
     const a = w.start, b = w.end
     const ov = await pullOverview(e, asOf, a, b)
-    const usageEnd = w.type === 'week' ? (b === latestWeekEnd ? 'now' : b) : (w.partial ? 'now' : b)
+    const usageEnd = w.type === 'week' ? (b === ctx.latestWeekEnd ? 'now' : b) : (w.partial ? 'now' : b)
     const raw: RangeRaw = {
       shopGmv: sumRange(daily, a, b, 'shopGmv', {}, gaps),
       gmvMaxSpend: sumRange(daily, a, b, 'spend', ads, gaps),
@@ -118,15 +100,37 @@ export async function pullScorecardRaw(
       eukaMessages: sumRange(daily, a, b, 'messages', {}, gaps),
       videos: sumRange(daily, a, b, 'videos', {}, gaps),
       samplesApproved: ov.samplesApproved, creatorsPosted: ov.creatorsPosted, views: ov.views,
-      contestAffiliates: contestFor(monthOf(b)),
-      usageRightsCreators: usageEnd === 'now' ? usageNow : snapshotOnOrAfter(usageSnaps, addDays(usageEnd, 1)),
+      contestAffiliates: ctx.contestFor(monthOf(b)),
+      usageRightsCreators: usageEnd === 'now' ? ctx.usageNow : snapshotOnOrAfter(ctx.usageSnaps, addDays(usageEnd, 1)),
     }
     // A pull that hit an error is never marked final, so it is retried next run instead of becoming permanent
-    return { period_type: w.type, period_key: w.key, start_date: a, end_date: b, raw, raw_version: RAW_VERSION, final: !ov.error && isSettled(b, dataThrough, w.partial) }
+    periods.push({ period_type: w.type, period_key: w.key, start_date: a, end_date: b, raw, raw_version: RAW_VERSION, final: !ov.error && isSettled(b, dataThrough, w.partial) })
   }
-  const fresh: StoredPeriod[] = []
-  for (const w of plan.toPull) fresh.push(await pull(w))
+  return { periods, daily }
+}
 
+export interface PullResult {
+  raw: ScorecardRaw; fresh: StoredPeriod[]; reused: StoredPeriod[]; pulledCount: number; reusedCount: number
+  reasons: Record<string, string>; gaps: string[]; usageNow: number; ctx: PullCtx
+  contestMonthsFresh: ContestMonth[]; contests: ContestCounts
+}
+
+/**
+ * Incremental pull. Stored final periods are reused as they are; only missing, unsettled or invalidated periods are
+ * pulled from Euka. Finished contest months come from the store; only open months are fetched.
+ */
+export async function pullScorecardRaw(
+  e: Euka, asOf: string, dataThrough: string, yearStart: string,
+  usageSnaps: Array<{ snap_date: string; value: number }>, stored: StoredPeriod[], storedContests: ContestMonth[], force = false,
+): Promise<PullResult> {
+  const gaps: string[] = []
+  const plan = planPulls(wantedPeriods(asOf, dataThrough, yearStart), stored, { force })
+  const { months: contestMonths, fresh: contestMonthsFresh } = await resolveContestMonths(await listContests(e, asOf), force ? [] : storedContests, dataThrough, fetchContestIds(e, asOf))
+  const contests = contestCounts(contestMonths)
+  const usageNow = await pullUsageRightsNow(e, asOf)
+  const ctx: PullCtx = { usageSnaps, usageNow, contestFor: m => contestForMonth(contests, m), latestWeekEnd: weekRanges(asOf, 1)[0].end }
+
+  const { periods: fresh, daily } = await pullPeriods(e, asOf, dataThrough, plan.toPull, ctx, gaps)
   const all = [...plan.reused, ...fresh]
   const weeks: ScorecardRaw['weeks'] = {}, months: ScorecardRaw['months'] = {}
   for (const p of all) (p.period_type === 'week' ? weeks : months)[p.period_key] = p.raw
@@ -141,10 +145,11 @@ export async function pullScorecardRaw(
   const notes = [
     'Videos, messages, Target Collab invites and emails come from the daily series of get_dashboard_performance_series; a period with any missing day shows no data rather than a partial sum.',
     'Affiliates with usage rights are distinct creators with an active request. Euka has no dated source, so history before the first daily snapshot shows no data.',
+    'Contest affiliates count each creator once per calendar month across all of that month\'s contests (Retainers excluded). A contest belongs to the month it starts in.',
     'Euka reports views as 0 before 2026-01-01; those periods show no data.',
-    `Stored periods are reused once final (${14} days after they end). This run pulled ${fresh.length} of ${all.length} periods.`,
+    `Stored periods are reused once final (14 days after they end). This run pulled ${fresh.length} of ${all.length} periods.`,
   ]
-  return { raw: { asOf, yearStart, dataThrough, weeks, months, allTime, daily: rawDaily, notes }, fresh, reusedCount: plan.reused.length, pulledCount: fresh.length, reasons: plan.reasons, gaps, usageNow }
+  return { raw: { asOf, yearStart, dataThrough, weeks, months, allTime, daily: rawDaily, notes }, fresh, reused: plan.reused, pulledCount: fresh.length, reusedCount: plan.reused.length, reasons: plan.reasons, gaps, usageNow, ctx, contestMonthsFresh, contests }
 }
 
 /** Independent range-level controls for the Python audit (overview + ads overview, not the daily series). */

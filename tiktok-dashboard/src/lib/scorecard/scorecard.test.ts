@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   buildScorecard, auditScorecard, computeRoi, projectValue, sumKnown, weekRanges, monthRanges, pctChange,
-  parseSellerCenterCsv, LINE_KEYS, ScorecardRaw, ManualEntry,
+  parseSellerCenterCsv, LINE_KEYS, ScorecardRaw, ManualEntry, buildTodo,
 } from './index'
 
 // Control week from Euka, Nov 1 to 7 2026 (typed tool results read in the build session)
@@ -251,6 +251,33 @@ describe('full-year weekly history', () => {
   it('without yearStart the report keeps exactly 13 weeks and no weeklyAll', () => {
     const s2 = buildScorecard(rawFor('2026-11-09', '2026-11-08'))
     expect(s2.weeklyAll).toBeUndefined(); expect(s2.weekly).toHaveLength(13)
+  })
+})
+
+describe('to-do for Seller Center entry', () => {
+  const raw = rawFor('2026-11-09', '2026-11-08'); raw.yearStart = '2026-01-01'
+  for (const w of weekRanges('2026-11-09', 60)) raw.weeks[w.key] ??= {}
+  it('lists every week and month still missing co-funded GMV, newest first within each kind', () => {
+    const t = buildTodo(buildScorecard(raw))
+    expect(t.cofunded.filter(c => c.period_type === 'week')).toHaveLength(45)
+    expect(t.cofunded[0]).toMatchObject({ period_type: 'month', period_key: '2026-11', partial: true })
+    expect(t.cofunded.find(c => c.period_type === 'week')!.period_key).toBe('2026-11-01')
+  })
+  it('drops an item once its value is entered', () => {
+    const e: ManualEntry[] = [{ period_type: 'week', period_key: '2026-11-01', line: 'gmvCofunded', value: 61492.68, source: 'manual' }]
+    const t = buildTodo(buildScorecard(raw, e))
+    expect(t.cofunded.some(c => c.period_key === '2026-11-01' && c.period_type === 'week')).toBe(false)
+    expect(t.cofunded.filter(c => c.period_type === 'week')).toHaveLength(44)
+  })
+  it('asks for the four spot-check values for the latest complete month, with the Euka value to compare', () => {
+    const t = buildTodo(buildScorecard(raw))
+    expect(t.spotCheck!.month).toBe('2026-10')
+    expect(t.spotCheck!.missing.map(m => m.line)).toEqual(['grossRevenue', 'gmv', 'gmvMaxSpend', 'gmvMaxRoi'])
+    expect(t.spotCheck!.missing.find(m => m.line === 'gmvMaxSpend')!.euka).toBe(50000)
+  })
+  it('spot-check disappears once all four are entered', () => {
+    const e: ManualEntry[] = (['grossRevenue', 'gmv', 'gmvMaxSpend', 'gmvMaxRoi'] as const).map(line => ({ period_type: 'month_check' as const, period_key: '2026-10', line, value: 1, source: 'manual' as const }))
+    expect(buildTodo(buildScorecard(raw, e)).spotCheck).toBeNull()
   })
 })
 

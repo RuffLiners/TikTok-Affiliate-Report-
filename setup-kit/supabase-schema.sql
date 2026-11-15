@@ -126,3 +126,28 @@ create table if not exists scorecard_periods (
   primary key (period_type, period_key)
 );
 alter table scorecard_periods disable row level security;
+
+-- Contest participation by calendar month. A contest belongs to the month it starts in; each creator counts once
+-- per month across all of that month's contests. Finished months are final and never re-pulled.
+create table if not exists scorecard_contest_months (
+  month text primary key,                     -- YYYY-MM
+  creator_ids jsonb not null,                 -- distinct creator ids, so all-time can be a distinct union
+  creator_count integer not null,
+  final boolean not null default false,
+  pulled_at timestamptz default now()
+);
+
+-- Every restated value the weekly check found (stored vs fresh), for review.
+create table if not exists scorecard_drift_log (
+  id bigserial primary key,
+  detected_at timestamptz default now(),
+  run_date date,
+  stage text,
+  period_type text,
+  period_key text,
+  field text,
+  stored_value numeric,
+  fresh_value numeric
+);
+alter table scorecard_contest_months disable row level security;
+alter table scorecard_drift_log      disable row level security;

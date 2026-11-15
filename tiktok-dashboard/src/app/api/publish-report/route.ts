@@ -41,7 +41,12 @@ export async function GET(req: NextRequest) {
     const { data } = await supabase.from('scorecard_periods').select('period_type, period_key, start_date, end_date, raw, raw_version, final, pulled_at').limit(2000)
     periods = data ?? []
   }
-  return NextResponse.json({ latest: latest ?? null, snapshots, periods })
+  let contestMonths: unknown = []
+  if (req.nextUrl.searchParams.get('contests')) {
+    const { data } = await supabase.from('scorecard_contest_months').select('month, creator_ids, final').limit(200)
+    contestMonths = data ?? []
+  }
+  return NextResponse.json({ latest: latest ?? null, snapshots, periods, contestMonths })
 }
 
 /**
@@ -73,15 +78,30 @@ export async function POST(req: NextRequest) {
   // Period store writes. Called only after the run's audits pass, so unaudited pulls never become permanent.
   if (report?.periodsOnly) {
     const list: any[] = Array.isArray(report.periods) ? report.periods : []
+    const cm: any[] = Array.isArray(report.contestMonths) ? report.contestMonths : []
+    const drift: any[] = Array.isArray(report.drift) ? report.drift : []
     const ok = list.filter(p => (p?.period_type === 'week' || p?.period_type === 'month') && /^\d{4}-\d{2}(-\d{2})?$/.test(String(p?.period_key))
       && /^\d{4}-\d{2}-\d{2}$/.test(String(p?.start_date)) && /^\d{4}-\d{2}-\d{2}$/.test(String(p?.end_date)) && p?.raw && typeof p.raw === 'object')
-    if (!ok.length || ok.length !== list.length) return NextResponse.json({ error: `periods invalid: ${ok.length} of ${list.length} usable` }, { status: 400 })
+    if (ok.length !== list.length) return NextResponse.json({ error: `periods invalid: ${ok.length} of ${list.length} usable` }, { status: 400 })
+    const cmOk = cm.filter(m => /^\d{4}-\d{2}$/.test(String(m?.month)) && Array.isArray(m?.creator_ids) && m.creator_ids.every((x: unknown) => typeof x === 'string'))
+    if (cmOk.length !== cm.length) return NextResponse.json({ error: `contestMonths invalid: ${cmOk.length} of ${cm.length} usable` }, { status: 400 })
+    if (!ok.length && !cm.length && !drift.length) return NextResponse.json({ error: 'nothing to save' }, { status: 400 })
     const rows = ok.map(p => ({ period_type: p.period_type, period_key: p.period_key, start_date: p.start_date, end_date: p.end_date, raw: p.raw, raw_version: Number(p.raw_version) || 1, final: !!p.final, pulled_at: new Date().toISOString() }))
     for (let i = 0; i < rows.length; i += 100) {
       const { error } = await supabaseAdmin().from('scorecard_periods').upsert(rows.slice(i, i + 100), { onConflict: 'period_type,period_key' })
       if (error) return NextResponse.json({ error: error.message, savedBeforeError: i }, { status: 500 })
     }
-    return NextResponse.json({ ok: true, saved: rows.length, final: rows.filter(r => r.final).length })
+    if (cmOk.length) {
+      const { error } = await supabaseAdmin().from('scorecard_contest_months').upsert(
+        cmOk.map(m => ({ month: m.month, creator_ids: m.creator_ids, creator_count: new Set(m.creator_ids).size, final: !!m.final, pulled_at: new Date().toISOString() })), { onConflict: 'month' })
+      if (error) return NextResponse.json({ error: 'contest months: ' + error.message }, { status: 500 })
+    }
+    if (drift.length) {
+      const dRows = drift.slice(0, 500).map(d => ({ run_date: report.runDate ?? null, stage: String(d.stage ?? ''), period_type: String(d.period_type ?? ''), period_key: String(d.period_key ?? ''), field: String(d.field ?? ''), stored_value: typeof d.stored === 'number' ? d.stored : null, fresh_value: typeof d.fresh === 'number' ? d.fresh : null }))
+      const { error } = await supabaseAdmin().from('scorecard_drift_log').insert(dRows)
+      if (error) return NextResponse.json({ error: 'drift log: ' + error.message }, { status: 500 })
+    }
+    return NextResponse.json({ ok: true, saved: rows.length, final: rows.filter(r => r.final).length, contestMonths: cmOk.length, drift: drift.length })
   }
   if (report?.audit?.status !== 'PASS') {
     return NextResponse.json({ error: `Rejected: audit.status is "${report?.audit?.status ?? 'missing'}", must be PASS`, failures: report?.audit?.failures ?? [] }, { status: 422 })
