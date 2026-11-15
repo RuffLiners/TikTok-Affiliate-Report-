@@ -10,7 +10,7 @@
 // report as d30.meta.promptVersion so spec drift between the master file,
 // the skill copies, and this pipeline is detectable from the output itself.
 // Bump it whenever the master prompt (or these definitions) changes.
-export const PROMPT_VERSION = '3.1'
+export const PROMPT_VERSION = '3.2'
 
 export const CANONICAL_METRIC_DEFS = `
 CANONICAL METRIC DEFINITIONS — authoritative; never substitute another interpretation:

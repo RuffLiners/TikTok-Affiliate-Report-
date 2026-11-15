@@ -146,6 +146,8 @@ export interface WeeklyReport {
     creators?: string
     recruiting?: string
     growth?: string
+    manualReengagement?: string   // spec v3.2: Alyssa's manual re-engagement lists
+    vipEngagement?: string        // spec v3.2: Rocio's VIP (L5+) list
     d30?: string
     weekly?: string
     monthly?: string

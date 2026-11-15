@@ -1,4 +1,4 @@
-# Ruff Liners Weekly Report — Master Prompt Spec v3.1
+# Ruff Liners Weekly Report — Master Prompt Spec v3.2
 
 **This file is the single source of truth for the weekly Euka report.**
 Every other copy of the spec derives from it. If two copies disagree, this
@@ -97,12 +97,25 @@ read_sandbox_file".
 | 23 | Week top creators | `weeklyTopCreators` | last complete Sun–Sat week, top 10 by store GMV |
 | 24 | Week top videos | `weeklyTopVideos` | top 10 by GMV among videos POSTED in the week |
 | 25 | Week most active | `weeklyActiveCreators` | top 10 by videos posted in the week |
+| 26 | Re-engagement results (v3.2, optional) | `reengagement` | read-only Euka tag reads for the Manual Re-engagement (Alyssa) and VIP (Rocio) lists; writes `analysis.manualReengagement` and `analysis.vipEngagement`; a failure skips the two sections, never the report |
 | 19 | Analysis | `performance/creators/recruiting/growth` | four sections, strongest model, fact guardrails (window labeling; share ≠ change; retention ≠ buyers) |
 | 20 | Validate + save | — | assemble → validate → sanity-diff → upsert |
 
 Phases 21/22 run only after their pinned totals (12/14, 16) have landed.
 Phase 8 (agents) and 7 (content age) are optional — a failure records the
 error and continues rather than killing the run.
+
+### Re-engagement sections (v3.2, phase 26)
+
+Re-engagement results (read only, never message anyone and never create or change tags, lists or agents). Two lists are tracked weekly with CRM tags in Euka. Tools: list_member_tags (include memberCount), list_member_lists, list_outreach_agents, count_members, list_members.
+A) Manual Re-engagements (Alyssa list). Tags "RE <ISO-week> G<n> <group name>" are the contacted creators of a weekly list and "RE <ISO-week> G<n> HOLDOUT" are creators deliberately not messaged. The ISO week label is YYYY-Www and the list date is the Monday of that ISO week. Use the most recent 4 list weeks that have tags. For each week and group G1 to G6: listed (member count of the group tag), heldOut (member count of the HOLDOUT tag), sent (true if an outreach or CRM agent has that week's member list in its audience with total_conversations above 0; false if none; null if unknown), posted (creators with the group tag whose last video posted date is after the list date), postedHoldout (same for the HOLDOUT tag). If no such tags exist yet, weeks is [].
+B) VIP Engagements (Rocio list). Tag "WATCH L5+ Silent" holds L5+ creators who were on Rocio's silent list; "WATCH first <ISO-week>" records the week first listed; "REACTIVATED <ISO-week>" marks creators who posted after being listed; "In Discord" marks creators known to be in Discord. onWatchList = members of the WATCH tag; reactivated = those whose last video posted date is after the Monday of their "WATCH first" week; stillSilent = the rest; l5Reactivated = up to 10 reactivated creators as {h, level, gmv30d, firstListedWeek}; inDiscord = WATCH members that also carry "In Discord". If the WATCH tag does not exist yet, onWatchList is 0.
+
+Two extra analysis sections are written from that pull:
+- "manualReengagement": 2-3 paragraphs on the manual lists: sizes and held out, whether each list was sent, reactivation rate against the holdout rate and the lift, what to change. A post after listing is credited to a message ONLY by comparing against the holdout; when a holdout has fewer than 20 creators say the sample is too small to read lift; when no list was sent say there are no results yet. State the list week each number came from. Never invent a number; say "not tracked yet" when data is missing.
+- "vipEngagement": 2-3 paragraphs on the VIP list: how many L5+ creators are on the watch list, how many started posting again (name them by handle), how long they took where known, how many are in Discord. A post after listing does not prove our outreach caused it because this list has no holdout. If the tags do not exist yet, say tracking has just started.
+
+The source of truth for both lists is Euka tags; nothing is written to any other store. Phase 26 is optional and skipped for monthly reports.
 
 ### Analysis window-labeling rules (phase 19 and the skill's analysis phase)
 
@@ -133,7 +146,7 @@ The assembled report row (`weekly_reports`):
 - `monthly_charts`: labels[6], gmv, shopGmv (+legacy totalGmv), affiliateGmv, views, crl/ncl/vl/gl/vwl 1–7, ret, ml/sl 1–7, **sal1–7** — every series exactly 6 items
 - `tables`: topCreators, topVideos, activeCreators, **weeklyTopCreators, weeklyTopVideos, weeklyActiveCreators**
 - `agents`: array from phase 8
-- `analysis`: `{performance, creators, recruiting, growth}` — paragraphs separated by `\n\n`
+- `analysis`: `{performance, creators, recruiting, growth}` plus, from v3.2, optional `manualReengagement` and `vipEngagement` — paragraphs separated by `\n\n`
 
 Percent-change fields are null (not 0) when the prior value is 0. Retention
 values arriving as fractions are normalized ×100 at the boundary.
@@ -191,7 +204,7 @@ paste saves as needsReview held out of the live snapshot.
 
 ## 6. Weekly run checklist (VA / Brandon)
 
-1. `d30.meta.promptVersion` = **3.1**
+1. `d30.meta.promptVersion` = **3.2**
 2. No `needsReview` banner — or review and confirm each flag against Euka
 3. Spot-check 3 numbers vs the Euka UI: 30d GMV, this week's top creator GMV, messages sent
 4. `weekly_charts.gmv` has 13 elements; last element = this week's GMV

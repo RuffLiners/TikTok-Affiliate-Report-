@@ -372,6 +372,32 @@ Output ONLY: {"performance":"para1\\n\\npara2","creators":"para1\\n\\npara2","re
     label: 'Pulling this week\'s most active creators…',
     mcp: true,
     prompt: w => BASE(w) + `\n\nQuery: This week's top 10 most active creators by videos POSTED in the most recent complete Sun–Sat week ${w.last7.start} to ${w.last7.end} (publish date in the week, America/Los_Angeles): handle, ggmv = the creator's GLOBAL gmv_30d_num from the creators dimension, store GMV this week, views this week, videos posted this week, orders, AOV. Sort by videos posted descending.\nOutput: {"weeklyActiveCreators":[{"h":"","ggmv":0,"gmv":0,"views":0,"vid":0,"ord":0,"aov":0}]}`
+  },
+  // Re-engagement results (added in spec v3.2). Optional: a failure records the
+  // error and the report ships without these two sections. The weekly lists for
+  // Alyssa (manual re-engagement) and Rocio (VIP / L5+) live in Euka as tags, so
+  // this phase reads those tags and writes the two analysis sections itself.
+  26: {
+    label: 'Pulling re-engagement results…',
+    mcp: true,
+    optional: true,
+    maxTokens: 6000,
+    prompt: w => {
+      // Monthly reports do not carry these sections; skip the Euka calls.
+      if ((w as any).monthName) return 'Output exactly this JSON and nothing else: {"reengagement":null}'
+      return BASE(w) + `\n\nQuery: Re-engagement results for the week ending ${w.last7.end}. Two lists are tracked weekly with CRM TAGS in Euka. Use list_member_tags (include memberCount), list_member_lists, list_outreach_agents, count_members and list_members. Never message anyone, never create or change tags, lists or agents: READ ONLY.
+
+A) MANUAL RE-ENGAGEMENTS (Alyssa list). Tags named "RE <ISO-week> G<n> <group name>" are the contacted creators of a weekly list, and "RE <ISO-week> G<n> HOLDOUT" are creators deliberately NOT messaged. The ISO week label is YYYY-Www and the list date is the MONDAY of that ISO week. Use the most recent 4 list weeks that have tags. For each week and group G1..G6: listed = member count of the group tag; heldOut = member count of the HOLDOUT tag; sent = true if an outreach/CRM agent exists whose audience (member_group_ids) contains that week's member list for the group and has total_conversations above 0, false if none, null if you cannot tell; posted = how many creators with the group tag have a last video posted date AFTER the list date; postedHoldout = the same for the HOLDOUT tag. If a tag family does not exist yet, output weeks as [].
+
+B) VIP ENGAGEMENTS (Rocio list). The tag "WATCH L5+ Silent" holds L5+ creators who were on Rocio's silent list. "WATCH first <ISO-week>" records the week a creator was first listed. "REACTIVATED <ISO-week>" marks creators who posted after being listed. "In Discord" marks creators known to be in Discord. Output: onWatchList = members with the WATCH tag; reactivated = those whose last video posted date is after the Monday of their "WATCH first" week; stillSilent = onWatchList minus reactivated; l5Reactivated = up to 10 reactivated creators as {h (TikTok handle), level, gmv30d, firstListedWeek}; inDiscord = members of the WATCH list that also carry "In Discord". If the WATCH tag does not exist yet, set onWatchList to 0 and say so in the text.
+
+C) WRITE TWO SECTIONS of analysis text for the CEO, paragraphs separated by \\n\\n, plain and specific:
+- "manualReengagement" (2-3 paragraphs): what the manual lists were this week and last (sizes, held out), whether they were sent, reactivation rate against the holdout rate and the lift, and what to change. RULES: a post after listing is credited to a message ONLY by comparing against the holdout; when a holdout has fewer than 20 creators say the sample is too small to read lift; when no list has been sent say there are no results yet. State the window each number came from (list week).
+- "vipEngagement" (2-3 paragraphs): how many L5+ creators are on the watch list, how many started posting again and who (by handle), how long they took where known, how many are in Discord. RULES: a post after listing does not prove our outreach caused it because this list has no holdout; if tags do not exist yet say tracking has just started.
+Every figure in the prose must come from the numbers you output. If data is missing say "not tracked yet" and never invent a number.
+
+Output ONLY: {"reengagement":{"manual":{"weeks":[{"week":"2026-W46","groups":[{"group":"G1","name":"","listed":0,"heldOut":0,"sent":null,"posted":0,"postedHoldout":0}]}]},"vip":{"onWatchList":0,"reactivated":0,"stillSilent":0,"inDiscord":0,"l5Reactivated":[{"h":"","level":"","gmv30d":0,"firstListedWeek":""}]},"manualReengagement":"para1\\n\\npara2","vipEngagement":"para1\\n\\npara2"}}`
+    }
   }
 }
 
@@ -499,7 +525,7 @@ const IN_FLIGHT_MS = 10 * 60 * 1000
 const dataPhasesFor = (isLive: boolean) =>
   isLive
     ? Array.from({ length: 11 }, (_, i) => i + 1)
-    : [...Array.from({ length: 18 }, (_, i) => i + 1), 21, 22, 23, 24, 25]
+    : [...Array.from({ length: 18 }, (_, i) => i + 1), 21, 22, 23, 24, 25, 26]
 
 // Jobs created before parallel orchestration tracked progress via the phase
 // counter + label suffixes; derive _ph from that so they resume seamlessly.
@@ -690,6 +716,14 @@ export async function POST(req: NextRequest) {
       const analysis = (pd.performance !== undefined || pd.recruiting !== undefined || isMonthly)
         ? { performance: pd.performance||'', creators: pd.creators||'', recruiting: pd.recruiting||'', growth: pd.growth||'' }
         : { d30: pd.d30||'', weekly: pd.weekly||'', monthly: pd.monthly||'' }
+      // Re-engagement sections (spec v3.2, optional phase 26). Added only when
+      // the phase produced text; the report is otherwise unchanged.
+      if (!isMonthly && pd.reengagement && typeof pd.reengagement === 'object') {
+        const mr = String(pd.reengagement.manualReengagement || '').trim()
+        const ve = String(pd.reengagement.vipEngagement || '').trim()
+        if (mr) (analysis as any).manualReengagement = mr
+        if (ve) (analysis as any).vipEngagement = ve
+      }
       // Fallback: if agents weren't fetched in Phase 8, pull from most recent live_report
       if (!pd.agents || pd.agents.length === 0) {
         try {

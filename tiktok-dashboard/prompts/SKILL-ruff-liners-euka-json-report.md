@@ -11,7 +11,7 @@ description: >
   this skill handles structured data extraction for the Vercel dashboard app.
 ---
 
-# Ruff Liners — Weekly Euka Report Skill (spec v3.1)
+# Ruff Liners — Weekly Euka Report Skill (spec v3.2)
 
 Pulls all KPI data from Euka across 23 queries, writes four business-focused
 analysis sections, and outputs a single JSON object for the Ruff Liners TikTok
@@ -20,7 +20,7 @@ Shop weekly dashboard (Vercel app backed by Supabase).
 **This file is generated from `tiktok-dashboard/prompts/master-prompt-v3.md`
 in the dashboard repo — the single source of truth. Never edit this copy
 directly; edit the master, bump its version, and regenerate.** The output
-stamps `meta.promptVersion: "3.1"` so the dashboard can detect stale copies.
+stamps `meta.promptVersion: "3.2"` so the dashboard can detect stale copies.
 
 **Output:** One JSON block — `meta`, `d30`, `weeklyCharts`, `monthlyCharts`,
 `tables`, `agents`, `analysis`, `validation`. Nothing before or after it
@@ -33,7 +33,7 @@ except the confirmation line.
 ```
 STORE_ID:       455ea4f9-a404-411b-b748-9ba1929efb93
 EUKA_MCP:       https://app.euka.ai/api/mcp
-PROMPT_VERSION: 3.1
+PROMPT_VERSION: 3.2
 TIMEZONE:       America/Los_Angeles  (syncs with TikTok Shop reporting)
 ```
 
@@ -296,7 +296,13 @@ result in the output's `validation` object.
 `validation.passed = true` only if all checks hold; otherwise list each
 failure in `validation.flags` and still output the report.
 
-## Phase 5 — Write four analysis sections
+## Phase 4b — Re-engagement pull (v3.2)
+
+Re-engagement results (read only, never message anyone and never create or change tags, lists or agents). Two lists are tracked weekly with CRM tags in Euka. Tools: list_member_tags (include memberCount), list_member_lists, list_outreach_agents, count_members, list_members.
+A) Manual Re-engagements (Alyssa list). Tags "RE <ISO-week> G<n> <group name>" are the contacted creators of a weekly list and "RE <ISO-week> G<n> HOLDOUT" are creators deliberately not messaged. The ISO week label is YYYY-Www and the list date is the Monday of that ISO week. Use the most recent 4 list weeks that have tags. For each week and group G1 to G6: listed (member count of the group tag), heldOut (member count of the HOLDOUT tag), sent (true if an outreach or CRM agent has that week's member list in its audience with total_conversations above 0; false if none; null if unknown), posted (creators with the group tag whose last video posted date is after the list date), postedHoldout (same for the HOLDOUT tag). If no such tags exist yet, weeks is [].
+B) VIP Engagements (Rocio list). Tag "WATCH L5+ Silent" holds L5+ creators who were on Rocio's silent list; "WATCH first <ISO-week>" records the week first listed; "REACTIVATED <ISO-week>" marks creators who posted after being listed; "In Discord" marks creators known to be in Discord. onWatchList = members of the WATCH tag; reactivated = those whose last video posted date is after the Monday of their "WATCH first" week; stillSilent = the rest; l5Reactivated = up to 10 reactivated creators as {h, level, gmv30d, firstListedWeek}; inDiscord = WATCH members that also carry "In Discord". If the WATCH tag does not exist yet, onWatchList is 0.
+
+## Phase 5 — Write four analysis sections, then two re-engagement sections
 
 Senior analyst briefing the CEO before Monday review — direct, specific, real
 numbers, `\n\n` between paragraphs. Reference creators by handle, tiers as
@@ -329,6 +335,9 @@ L1–L7.
 4. **growth** (2–3 paragraphs): 13-week trend direction and momentum; current
    growth engine; 2–3 opportunities, 1–2 risks; 4-week outlook with upside
    and downside.
+5. **manualReengagement** and 6. **vipEngagement** (v3.2), from the Phase 4b pull:
+- "manualReengagement": 2-3 paragraphs on the manual lists: sizes and held out, whether each list was sent, reactivation rate against the holdout rate and the lift, what to change. A post after listing is credited to a message ONLY by comparing against the holdout; when a holdout has fewer than 20 creators say the sample is too small to read lift; when no list was sent say there are no results yet. State the list week each number came from. Never invent a number; say "not tracked yet" when data is missing.
+- "vipEngagement": 2-3 paragraphs on the VIP list: how many L5+ creators are on the watch list, how many started posting again (name them by handle), how long they took where known, how many are in Discord. A post after listing does not prove our outreach caused it because this list has no holdout. If the tags do not exist yet, say tracking has just started.
 
 **POST-GENERATION SELF-CHECK — mandatory before finalizing:** re-read the
 four sections and verify every dollar/count figure quoted appears in the
@@ -350,7 +359,7 @@ weekly tables are required even if empty.
     "reportDate": "YYYY-MM-DD",
     "label": "Month D, YYYY",
     "dataWindow": "Mon D – Mon D, YYYY",
-    "promptVersion": "3.1",
+    "promptVersion": "3.2",
     "weekWindow": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" },
     "d30Window": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" },
     "priorWindow": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" },
@@ -415,7 +424,9 @@ weekly tables are required even if empty.
     "performance": "3–4 paragraphs. Use \\n\\n between paragraphs.",
     "creators":    "2–3 paragraphs. Use \\n\\n between paragraphs.",
     "recruiting":  "2–3 paragraphs. Use \\n\\n between paragraphs.",
-    "growth":      "2–3 paragraphs. Use \\n\\n between paragraphs."
+    "growth":      "2–3 paragraphs. Use \\n\\n between paragraphs.",
+    "manualReengagement": "2–3 paragraphs. Manual Re-engagements (Alyssa list). Use \\n\\n between paragraphs.",
+    "vipEngagement": "2–3 paragraphs. VIP Engagements (Rocio list). Use \\n\\n between paragraphs."
   },
   "validation": { "passed": true, "flags": [] }
 }
@@ -431,7 +442,7 @@ Product name shortening:
 ## Confirmation line
 
 ```
-✅ Report ready: [LABEL] · 30d GMV: $[formatted] · Week of [WEEK_START]–[WEEK_END] · spec v3.1 · validation [passed | N flags]
+✅ Report ready: [LABEL] · 30d GMV: $[formatted] · Week of [WEEK_START]–[WEEK_END] · spec v3.2 · validation [passed | N flags]
 ```
 
 ---

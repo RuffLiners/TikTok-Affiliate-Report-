@@ -461,6 +461,8 @@ export default async function ReportPage({ params }: Props) {
             <AnalysisCard text={report.analysis?.creators ?? ''} title="Creator & Content Highlights" variant="purple" />
             <AnalysisCard text={report.analysis?.recruiting ?? ''} title="Recruiting Priorities" variant="orange" />
             <AnalysisCard text={report.analysis?.growth ?? ''} title="Growth Opportunities" variant="blue" />
+            <AnalysisCard text={report.analysis?.manualReengagement ?? ''} title="Manual Re-engagements (Alyssa List)" variant="orange" />
+            <AnalysisCard text={report.analysis?.vipEngagement ?? ''} title="VIP Engagements (Rocio List)" variant="purple" />
 
             {/* Fallback: show legacy analysis if no new-format content */}
             {!report.analysis?.performance && !report.analysis?.creators && !report.analysis?.recruiting && !report.analysis?.growth && (

@@ -89,6 +89,12 @@ WINDOW LABELING (mistakes here have shipped before): d30 fields cover the traili
 - "recruiting": 2–3 paragraphs — Top reactivation targets: inactive creators with high global GMV who haven't posted recently (name them, their global GMV, last post timing). Current outreach mix analysis (L3/L4 vs L5+ balance, is it aligned with where GMV comes from?). Sample allocation recommendations. Concrete next-week recruiting actions.
 - "growth": 2–3 paragraphs — 13-week GMV trend direction and momentum. Which tier/product/content format is the primary growth engine right now. 2–3 specific opportunities to pursue this week. 1–2 risks to monitor. 4-week forward outlook with upside and downside scenarios.
 
+Re-engagement results (read only, never message anyone and never create or change tags, lists or agents). Two lists are tracked weekly with CRM tags in Euka. Tools: list_member_tags (include memberCount), list_member_lists, list_outreach_agents, count_members, list_members.
+A) Manual Re-engagements (Alyssa list). Tags "RE <ISO-week> G<n> <group name>" are the contacted creators of a weekly list and "RE <ISO-week> G<n> HOLDOUT" are creators deliberately not messaged. The ISO week label is YYYY-Www and the list date is the Monday of that ISO week. Use the most recent 4 list weeks that have tags. For each week and group G1 to G6: listed (member count of the group tag), heldOut (member count of the HOLDOUT tag), sent (true if an outreach or CRM agent has that week's member list in its audience with total_conversations above 0; false if none; null if unknown), posted (creators with the group tag whose last video posted date is after the list date), postedHoldout (same for the HOLDOUT tag). If no such tags exist yet, weeks is [].
+B) VIP Engagements (Rocio list). Tag "WATCH L5+ Silent" holds L5+ creators who were on Rocio's silent list; "WATCH first <ISO-week>" records the week first listed; "REACTIVATED <ISO-week>" marks creators who posted after being listed; "In Discord" marks creators known to be in Discord. onWatchList = members of the WATCH tag; reactivated = those whose last video posted date is after the Monday of their "WATCH first" week; stillSilent = the rest; l5Reactivated = up to 10 reactivated creators as {h, level, gmv30d, firstListedWeek}; inDiscord = WATCH members that also carry "In Discord". If the WATCH tag does not exist yet, onWatchList is 0.
+- "manualReengagement": 2-3 paragraphs on the manual lists: sizes and held out, whether each list was sent, reactivation rate against the holdout rate and the lift, what to change. A post after listing is credited to a message ONLY by comparing against the holdout; when a holdout has fewer than 20 creators say the sample is too small to read lift; when no list was sent say there are no results yet. State the list week each number came from. Never invent a number; say "not tracked yet" when data is missing.
+- "vipEngagement": 2-3 paragraphs on the VIP list: how many L5+ creators are on the watch list, how many started posting again (name them by handle), how long they took where known, how many are in Discord. A post after listing does not prove our outreach caused it because this list has no holdout. If the tags do not exist yet, say tracking has just started.
+
 SELF-VALIDATE before output (fix by re-querying, never by editing numbers):
 V1/V2 tier gmv and views sum to the 30d totals (±1%) · V3 tier creators/newCreators/videos sum exactly · V4 gmvMax.spend = Σ gmvMaxByAge spend (±1%) · V5/V6 weekly gl*/vwl* sum to each week's gmv/views (±1%) · V7 every weekly series has exactly 13 items, every monthly series 6 · V8 no negatives · V9 retention on the percent scale · V10 gmv > 0 · V11 no 30d metric moved more than ±60% vs prior without a known cause · V12 weekly gmv not all zeros · V13 every required table (topCreators, topVideos, activeCreators, weeklyTopCreators, weeklyTopVideos, weeklyActiveCreators) is non-empty AND every row has a non-empty handle h — the dashboard hard-rejects a report failing this · V14 Σ tier gmv = d30.gmv within $1 (tier GMV decomposes d30.gmv, never d30.affiliateGmv) · V15 flag any monetary value that is an exact round multiple of $10,000 for a manual spot-check.
 Set validation.passed = true only if all checks hold; otherwise list each failure in validation.flags and still output the report.
@@ -101,7 +107,7 @@ OUTPUT — respond with ONLY this JSON object, nothing before or after it. CRITI
     "reportDate": "YYYY-MM-DD",
     "label": "Month D, YYYY",
     "dataWindow": "Mon D – Mon D, YYYY",
-    "promptVersion": "3.1",
+    "promptVersion": "3.2",
     "weekWindow": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" },
     "d30Window": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" },
     "priorWindow": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" },
@@ -165,7 +171,9 @@ OUTPUT — respond with ONLY this JSON object, nothing before or after it. CRITI
     "performance": "",
     "creators": "",
     "recruiting": "",
-    "growth": ""
+    "growth": "",
+    "manualReengagement": "",
+    "vipEngagement": ""
   },
   "validation": { "passed": true, "flags": [] }
 }
