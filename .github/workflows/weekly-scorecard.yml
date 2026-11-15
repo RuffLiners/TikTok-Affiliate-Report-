@@ -1,0 +1,40 @@
+# Monday scorecard run. Cron workflows only fire from the default branch: this file must exist there.
+name: Weekly scorecard
+on:
+  schedule:
+    - cron: '7 15 * * 1'   # Monday 15:07 UTC = 07:07 PST / 08:07 PDT, after Sunday's data is complete
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency: { group: weekly-scorecard, cancel-in-progress: false }
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45          # a hung run is cancelled, which counts as a failure and triggers the email below
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+        working-directory: pipeline
+      - run: npm run scorecard
+        working-directory: pipeline
+        env:
+          EUKA_MCP_URL: ${{ secrets.EUKA_MCP_URL }}
+          EUKA_BEARER_TOKEN: ${{ secrets.EUKA_BEARER_TOKEN }}
+          EUKA_STORE_ID: ${{ secrets.EUKA_STORE_ID }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}   # webhook bound to #social-media
+          DASHBOARD_URL: ${{ secrets.DASHBOARD_URL }}
+          REPORT_PUBLISH_TOKEN: ${{ secrets.REPORT_PUBLISH_TOKEN }}
+      - name: Email on failure, stuck or cancelled
+        if: failure() || cancelled()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "Weekly scorecard run FAILED or STUCK"
+          to: brandon@ruffliners.com
+          from: Ruff Liners reports <${{ secrets.SMTP_USERNAME }}>
+          body: "The weekly scorecard run did not complete and nothing was published. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

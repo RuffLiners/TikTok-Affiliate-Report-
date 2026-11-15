@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Audit a Ruff Liners weekly Euka report JSON against source control totals.
+"""Audit a Ruff Liners weekly Euka report JSON against source control totals (legacy sections and the scorecard).
 
 Usage: python3 audit_report.py report.json controls.json
 
@@ -38,9 +38,155 @@ def lvl_sum(block, prefix, i):
     return sum(vals)
 
 
+SC_LINES = ["grossRevenue", "gmv", "gmvCofunded", "gmvMaxSpend", "gmvMaxRoi", "targetInvites", "eukaMessages", "emails",
+            "samplesApproved", "creatorsPosted", "videos", "views", "contestAffiliates", "usageRightsCreators"]
+SC_DISTINCT = {"creatorsPosted", "contestAffiliates", "usageRightsCreators"}
+SC_MONEY = {"grossRevenue", "gmv", "gmvCofunded", "gmvMaxSpend"}
+SC_FILLABLE = {"grossRevenue", "gmv", "gmvCofunded", "views", "eukaMessages"}
+# controls.scorecard.ranges field -> scorecard line
+SC_CONTROL_MAP = {"gmvMaxRevenue": "grossRevenue", "shopGmv": "gmv", "gmvMaxSpend": "gmvMaxSpend", "eukaMessages": "eukaMessages",
+                  "samplesApproved": "samplesApproved", "creatorsPosted": "creatorsPosted", "videos": "videos", "views": "views",
+                  "targetInvites": "targetInvites", "emails": "emails"}
+
+
+def sc_round(line, v):
+    return round(v + 0.0, 2) if line in SC_MONEY else float(round(v))
+
+
+def audit_scorecard(sc, ctl):
+    """Independent re-implementation of the scorecard rules in tiktok-dashboard/src/lib/scorecard/audit.ts.
+    Controls come from range-level Euka tools, not from the daily series the report was built from."""
+    weekly, monthly, allt = sc.get("weekly", []), sc.get("monthly", []), sc.get("allTime")
+    if len(weekly) != 13:
+        fail(f"scorecard.weekly has {len(weekly)} weeks, expected 13")
+    if not monthly or not allt:
+        fail("scorecard.monthly or scorecard.allTime missing")
+        return
+    periods = [("allTime", allt)] + [(f"week:{p['key']}", p) for p in weekly] + [(f"month:{p['key']}", p) for p in monthly]
+    byname = dict(periods)
+
+    for name, p in periods:
+        L = p["lines"]
+        for k in SC_LINES:
+            c = L.get(k)
+            if c is None:
+                fail(f"scorecard {name}: line {k} missing")
+                continue
+            if (c["value"] is None) != (c["source"] == "none"):
+                fail(f"scorecard {name}.{k}: value {c['value']} but source {c['source']}")
+            if c["source"] not in ("euka", "seller_center", "manual", "none") or not isinstance(c["confirmed"], bool):
+                fail(f"scorecard {name}.{k}: bad source/confirmed")
+        # ROI = Gross Revenue / GMV Max spend, null when either is missing
+        rev, spend = p.get("gmvMaxRevenue"), L["gmvMaxSpend"]["value"]
+        want = round(rev / spend, 2) if rev is not None and spend not in (None, 0) else None
+        if not close(L["gmvMaxRoi"]["value"], want, 0.0051) and not (want is None and L["gmvMaxRoi"]["value"] is None):
+            fail(f"scorecard {name}: ROI {L['gmvMaxRoi']['value']} != revenue/spend {want}")
+        shop = L["gmv"]["value"]
+        wantv = round(shop / spend, 2) if shop is not None and spend not in (None, 0) else None
+        if not close(p.get("roiVsShopGmv"), wantv, 0.0051) and not (wantv is None and p.get("roiVsShopGmv") is None):
+            fail(f"scorecard {name}: roiVsShopGmv {p.get('roiVsShopGmv')} != shop GMV/spend {wantv}")
+
+    # Projections: (mtd / days elapsed) x days in month, rates from projected numerator and denominator
+    for m in monthly:
+        n = f"month:{m['key']}"
+        de, dim = m["daysElapsed"], m["daysInMonth"]
+        if not (1 <= de <= dim):
+            fail(f"scorecard {n}: daysElapsed {de} outside 1..{dim}")
+        if not m["partial"]:
+            if m.get("projected"):
+                fail(f"scorecard {n}: complete month carries a projection")
+            continue
+        pr = m.get("projected")
+        if not pr:
+            fail(f"scorecard {n}: partial month has no projection")
+            continue
+        for k in SC_LINES:
+            mtd = m["mtd"][k]
+            if k in SC_DISTINCT:
+                if pr[k] is not None:
+                    fail(f"scorecard {n}: distinct-people line {k} must not be projected")
+            elif k == "gmvMaxRoi":
+                continue
+            else:
+                exp = None if mtd is None else sc_round(k, mtd / de * dim)
+                if not close(pr[k], exp, 0.0051 if k in SC_MONEY else 0) and not (exp is None and pr[k] is None):
+                    fail(f"scorecard {n}: projected {k} {pr[k]} != formula {exp}")
+        want = None
+        if pr["grossRevenue"] is not None and pr["gmvMaxSpend"]:
+            want = round(pr["grossRevenue"] / pr["gmvMaxSpend"], 2)
+        if not close(pr["gmvMaxRoi"], want, 0.0051) and not (want is None and pr["gmvMaxRoi"] is None):
+            fail(f"scorecard {n}: projected ROI {pr['gmvMaxRoi']} != projected revenue/spend {want}")
+
+    # All-time equals the sum of its months for additive lines Euka returns directly
+    for k in SC_LINES:
+        if k in SC_DISTINCT or k in SC_FILLABLE or k == "gmvMaxRoi":
+            continue
+        vals = [m["lines"][k]["value"] for m in monthly]
+        a = allt["lines"][k]["value"]
+        if a is not None and all(v is not None for v in vals) and abs(sum(vals) - a) > (1 if k in SC_MONEY else 0):
+            fail(f"scorecard allTime.{k} {a} != sum of months {sum(vals)}")
+
+    # Weekly percent changes recomputed
+    for i, w in enumerate(weekly[:-1]):
+        for k in SC_LINES:
+            cur, prior = w["lines"][k]["value"], weekly[i + 1]["lines"][k]["value"]
+            exp = None if cur is None or prior in (None, 0) else round((cur - prior) / abs(prior) * 100, 1)
+            got = w["changes"][k]
+            if exp is None and got is not None or exp is not None and (got is None or abs(got - exp) > 0.11):
+                fail(f"scorecard week:{w['key']} change {k} {got} != recomputed {exp}")
+
+    # Source controls. A control of null means the source had no data: the cell must be null, never 0.
+    for name, fields in ctl.get("ranges", {}).items():
+        p = byname.get(name)
+        if p is None:
+            warn(f"scorecard control {name} not found in report (period out of range)")
+            continue
+        for f, v in fields.items():
+            k = SC_CONTROL_MAP.get(f)
+            if not k:
+                continue
+            cell = p["lines"][k]
+            if v is None:
+                if cell["value"] is not None and cell["source"] == "euka":
+                    fail(f"scorecard {name}.{k}: source returned null but report has {cell['value']}")
+            elif cell["source"] != "euka":
+                fail(f"scorecard {name}.{k}: source returned {v} but cell is {cell['source']} {cell['value']}")
+            elif not close(cell["value"], v, 0.01 if k in SC_MONEY else 0):
+                fail(f"scorecard {name}.{k}: {cell['value']} != source {v}")
+    for name, v in ctl.get("roi", {}).items():
+        p = byname.get(name)
+        if p and not close(p["lines"]["gmvMaxRoi"]["value"], v, 0.0051):
+            fail(f"scorecard {name}: ROI {p['lines']['gmvMaxRoi']['value']} != control {v}")
+    for name, v in ctl.get("roiVsShopGmv", {}).items():
+        p = byname.get(name)
+        if p and not close(p.get("roiVsShopGmv"), v, 0.0051):
+            fail(f"scorecard {name}: roiVsShopGmv {p.get('roiVsShopGmv')} != control {v}")
+    # Seller Center spot-check flags over 2 percent must be present as issues
+    for row in sc.get("sellerCenterCheck", {}).get("rows", []):
+        if row.get("flag") and not any(row["line"] in i.get("text", "") for i in sc.get("issues", [])):
+            fail(f"scorecard spot-check flagged {row['line']} but no issue was raised")
+
+
+def report_result():
+    print("AUDIT:", "PASS" if not fails else "FAIL")
+    print(f"  failures: {len(fails)}  warnings: {len(warns)}")
+    for f in fails:
+        print("  FAIL -", f)
+    for w in warns:
+        print("  WARN -", w)
+    return 0 if not fails else 1
+
+
 def main(rp, cp):
     r = json.load(open(rp))
     c = json.load(open(cp))
+    # A scorecard-only report (the scheduled Monday publish) has no legacy d30 sections
+    if "scorecard" in r:
+        audit_scorecard(r["scorecard"], c.get("scorecard", {}))
+    if "d30" not in r:
+        if "scorecard" not in r:
+            fail("report has neither d30 nor scorecard")
+        return report_result()
     d, W, M, T = r["d30"], r["weeklyCharts"], r["monthlyCharts"], r["tables"]
 
     # 1. Schema and lengths
@@ -229,13 +375,7 @@ def main(rp, cp):
         warn("dollar figures in analysis not traced to data (check by hand or add to derived_numbers): "
              + ", ".join(sorted(set(unverified))))
 
-    print("AUDIT:", "PASS" if not fails else "FAIL")
-    print(f"  failures: {len(fails)}  warnings: {len(warns)}")
-    for f in fails:
-        print("  FAIL -", f)
-    for w in warns:
-        print("  WARN -", w)
-    return 0 if not fails else 1
+    return report_result()
 
 
 if __name__ == "__main__":

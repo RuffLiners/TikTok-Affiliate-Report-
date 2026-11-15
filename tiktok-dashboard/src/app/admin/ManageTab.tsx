@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { ScorecardManual } from '@/components/ScorecardManual'
 
 interface ReportMeta {
   report_date: string
@@ -777,6 +778,9 @@ export function ManageTab() {
           </button>
         </div>
       </div>
+
+
+      <ScorecardManual />
 
     </div>
   )

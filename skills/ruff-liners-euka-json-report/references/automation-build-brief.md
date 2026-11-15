@@ -39,3 +39,6 @@ In the Oct 12, 2026 chat run, the GMV Max creative report had 1,000+ rows: 600 r
 - 31 outreach and 8 CRM agents in the window, all fully enriched.
 - The audit prints PASS (only the partial-month retention warning is allowed).
 - The report saves to the dashboard with no manual step.
+
+## Scorecard (added)
+The scorecard run replaces the `query_store_data` / `get_gmv_max_creative_report` / `read_sandbox_file` pulls with typed tools. See `SKILL.md` in the parent folder for line-by-line sources, rules and controls. Code: `pipeline/src/run.ts` (Monday), `pipeline/src/snapshot.ts` and `pipeline/src/watchdog.ts` (daily), `tiktok-dashboard/src/lib/scorecard/` (shared rules). Workflows: `.github/workflows/weekly-scorecard.yml`, `scorecard-daily.yml`. Required secrets: EUKA_MCP_URL, EUKA_BEARER_TOKEN, EUKA_STORE_ID, SLACK_WEBHOOK_URL, DASHBOARD_URL, REPORT_PUBLISH_TOKEN, SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD. Vercel env var: REPORT_PUBLISH_TOKEN (same value).
