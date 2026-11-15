@@ -148,8 +148,13 @@ describe('buildScorecard', () => {
     expect(s2.weekly[0].lines.views).toMatchObject({ value: 2400982, source: 'euka' })
     expect(s2.monthly.find(m => m.key === '2025-11')!.lines.views).toMatchObject({ value: 5000, source: 'seller_center' })
   })
-  it('all-time ROI uses Euka all-time revenue and spend only', () => {
-    expect(sc.allTime.lines.gmvMaxRoi.value).toBe(2.96)
+  it('all-time is the sum of its stored months, and its ROI is revenue / spend over those same months', () => {
+    expect(sc.allTime.lines.gmvMaxSpend.value).toBe(80000)
+    expect(sc.allTime.gmvMaxRevenue).toBe(240000)
+    expect(sc.allTime.lines.gmvMaxRoi.value).toBe(3)
+  })
+  it('an all-time total built from partial history says so', () => {
+    expect(sc.allTime.lines.videos.value).toBe(3400)
   })
   it('weekly change is vs the prior week', () => {
     const raw = rawFor('2026-11-09', '2026-11-08')
@@ -209,10 +214,12 @@ describe('audit', () => {
     expect(auditScorecard(s).failures.join()).toMatch(/value null must match source none/)
   })
   it('fails when all-time does not equal the sum of its months', () => {
-    const raw = rawFor('2026-11-15', '2026-11-14')
-    for (const k of Object.keys(raw.months)) raw.months[k] = { ...raw.months[k], videos: 10 }
-    const s = buildScorecard(raw); s.allTime.lines.videos = { value: 1, source: 'euka', confirmed: true }
-    expect(auditScorecard(s).failures.join()).toMatch(/allTime.videos/)
+    const s = good(); s.allTime.lines.videos = { value: 1, source: 'euka', confirmed: true }
+    expect(auditScorecard(s).failures.join()).toMatch(/allTime.videos=1 but months sum to 3400/)
+  })
+  it('fails when an all-time line is built from no months but still shows a number', () => {
+    const s = good(); s.allTime.lines.emails = { value: 5, source: 'euka', confirmed: true }
+    expect(auditScorecard(s).failures.join()).toMatch(/allTime.emails/)
   })
   it('fails when weekly spend disagrees with the daily series', () => {
     const raw = rawFor('2026-11-09', '2026-11-08')
@@ -223,6 +230,27 @@ describe('audit', () => {
   })
   it('fails when the structure is wrong', () => {
     const s = good(); s.weekly.pop(); expect(auditScorecard(s).status).toBe('FAIL')
+  })
+})
+
+describe('full-year weekly history', () => {
+  const raw = rawFor('2026-11-09', '2026-11-08'); raw.yearStart = '2026-01-01'
+  for (const w of weekRanges('2026-11-09', 60)) raw.weeks[w.key] ??= {}
+  const sc = buildScorecard(raw)
+  it('covers every complete week from the one containing Jan 1, newest first', () => {
+    expect(sc.weeklyAll![0].start).toBe('2026-11-01')
+    expect(sc.weeklyAll![sc.weeklyAll!.length - 1].start).toBe('2025-12-28')
+    expect(sc.weeklyAll!.length).toBe(45)
+  })
+  it('weekly stays the first 13 and the 13th week now has a prior-week change', () => {
+    expect(sc.weekly.map(w => w.key)).toEqual(sc.weeklyAll!.slice(0, 13).map(w => w.key))
+    expect(sc.weekly[12].prior.videos).toBeNull()   // no data in the older week, but the prior week exists
+    expect(sc.weeklyAll![12].key).toBe(sc.weekly[12].key)
+  })
+  it('passes the audit', () => { expect(auditScorecard(sc).failures).toEqual([]) })
+  it('without yearStart the report keeps exactly 13 weeks and no weeklyAll', () => {
+    const s2 = buildScorecard(rawFor('2026-11-09', '2026-11-08'))
+    expect(s2.weeklyAll).toBeUndefined(); expect(s2.weekly).toHaveLength(13)
   })
 })
 

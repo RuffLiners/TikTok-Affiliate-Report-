@@ -109,3 +109,20 @@ alter table scorecards            disable row level security;
 alter table scorecard_manual      disable row level security;
 alter table scorecard_manual_log  disable row level security;
 alter table scorecard_snapshots   disable row level security;
+
+-- Period store for the scorecard. Each completed week and month is pulled once and kept; a period is marked
+-- final once it is 14 days past its end (TikTok's numbers settle: refunds, late orders). Only missing or
+-- non-final periods are pulled on later runs. raw_version bumps when a line definition changes, which
+-- invalidates stored rows so they are re-pulled.
+create table if not exists scorecard_periods (
+  period_type text not null check (period_type in ('week','month')),
+  period_key text not null,
+  start_date date not null,
+  end_date date not null,
+  raw jsonb not null,
+  raw_version integer not null default 1,
+  final boolean not null default false,
+  pulled_at timestamptz default now(),
+  primary key (period_type, period_key)
+);
+alter table scorecard_periods disable row level security;

@@ -5,13 +5,14 @@ import {
   ScorecardRaw, RangeRaw, weekRanges, monthRanges, addDays, monthOf, LAUNCH_DATE, computeRoi, round2,
 } from '../../tiktok-dashboard/src/lib/scorecard/index'
 import { DailyMap, mergeAds, mergeSeries, sumRange, chunks, snapshotOnOrAfter } from './daily.js'
+import { RAW_VERSION, StoredPeriod, Wanted, dailySpan, isSettled, planPulls, wantedPeriods } from './plan.js'
 
 export const ADS_HISTORY_FROM = '2025-10-28'
 /** Euka returns 0 for views before this; that is "no data", not zero. */
 export const VIEWS_FROM = '2026-01-01'
 const nz = (v: any): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
 
-export interface Overview { shopGmv: number | null; messages: number | null; samplesApproved: number | null; creatorsPosted: number | null; videos: number | null; views: number | null; truncated: boolean }
+export interface Overview { error: boolean; shopGmv: number | null; messages: number | null; samplesApproved: number | null; creatorsPosted: number | null; videos: number | null; views: number | null; truncated: boolean }
 
 /** Range-level performance overview. A truncated range (outside TikTok's retention) yields nulls, never partial numbers. */
 export async function pullOverview(e: Euka, asOf: string, a: string, b: string): Promise<Overview> {
@@ -22,6 +23,7 @@ export async function pullOverview(e: Euka, asOf: string, a: string, b: string):
   const truncated = !!r?.performanceRangeCoverage?.isTruncated
   const perf = (v: any) => (truncated || r?._error ? null : nz(v))
   return {
+    error: !!r?._error,
     shopGmv: perf(r?.totalShopGMV), messages: perf(r?.messagesSent), samplesApproved: perf(r?.samplesApproved),
     creatorsPosted: perf(r?.activeCreators), videos: perf(r?.videoConvRateTotalVideos),
     views: b < VIEWS_FROM || r?._error ? null : nz(r?.allAccountVideoViews), truncated,
@@ -83,19 +85,31 @@ export async function pullUsageRightsNow(e: Euka, asOf: string): Promise<number>
   return ids.length
 }
 
-export interface PullResult { raw: ScorecardRaw; gaps: string[]; usageNow: number }
+export interface PullResult { raw: ScorecardRaw; fresh: StoredPeriod[]; reusedCount: number; pulledCount: number; reasons: Record<string, string>; gaps: string[]; usageNow: number }
 
-export async function pullScorecardRaw(e: Euka, asOf: string, dataThrough: string, usageSnaps: Array<{ snap_date: string; value: number }>): Promise<PullResult> {
+/**
+ * Incremental pull. Stored final periods are reused as they are; only missing, unsettled or invalidated periods are
+ * pulled from Euka. The daily series is fetched only for the span those periods cover.
+ */
+export async function pullScorecardRaw(
+  e: Euka, asOf: string, dataThrough: string, yearStart: string,
+  usageSnaps: Array<{ snap_date: string; value: number }>, stored: StoredPeriod[], force = false,
+): Promise<PullResult> {
   const gaps: string[] = []
-  const daily = await pullDaily(e, asOf, LAUNCH_DATE, dataThrough)
+  const plan = planPulls(wantedPeriods(asOf, dataThrough, yearStart), stored, { force })
+  const span = dailySpan(plan.toPull)
+  const daily = span ? await pullDaily(e, asOf, span.from, span.to) : {}
   const contests = await pullContests(e, asOf)
   const usageNow = await pullUsageRightsNow(e, asOf)
   const contestFor = (month: string) => (contests.firstMonth && month >= contests.firstMonth ? contests.byMonth[month] ?? 0 : null)
   const ads = { historyFrom: ADS_HISTORY_FROM }
+  const latestWeekEnd = weekRanges(asOf, 1)[0].end
 
-  async function range(a: string, b: string, usageEnd: string | null): Promise<RangeRaw> {
+  async function pull(w: Wanted): Promise<StoredPeriod> {
+    const a = w.start, b = w.end
     const ov = await pullOverview(e, asOf, a, b)
-    return {
+    const usageEnd = w.type === 'week' ? (b === latestWeekEnd ? 'now' : b) : (w.partial ? 'now' : b)
+    const raw: RangeRaw = {
       shopGmv: sumRange(daily, a, b, 'shopGmv', {}, gaps),
       gmvMaxSpend: sumRange(daily, a, b, 'spend', ads, gaps),
       gmvMaxRevenue: sumRange(daily, a, b, 'revenue', ads, gaps),
@@ -105,27 +119,32 @@ export async function pullScorecardRaw(e: Euka, asOf: string, dataThrough: strin
       videos: sumRange(daily, a, b, 'videos', {}, gaps),
       samplesApproved: ov.samplesApproved, creatorsPosted: ov.creatorsPosted, views: ov.views,
       contestAffiliates: contestFor(monthOf(b)),
-      usageRightsCreators: usageEnd == null ? null : usageEnd === 'now' ? usageNow : snapshotOnOrAfter(usageSnaps, addDays(usageEnd, 1)),
+      usageRightsCreators: usageEnd === 'now' ? usageNow : snapshotOnOrAfter(usageSnaps, addDays(usageEnd, 1)),
     }
+    // A pull that hit an error is never marked final, so it is retried next run instead of becoming permanent
+    return { period_type: w.type, period_key: w.key, start_date: a, end_date: b, raw, raw_version: RAW_VERSION, final: !ov.error && isSettled(b, dataThrough, w.partial) }
   }
+  const fresh: StoredPeriod[] = []
+  for (const w of plan.toPull) fresh.push(await pull(w))
+
+  const all = [...plan.reused, ...fresh]
   const weeks: ScorecardRaw['weeks'] = {}, months: ScorecardRaw['months'] = {}
-  for (const w of weekRanges(asOf, 13)) weeks[w.key] = await range(w.start, w.end, w.end === weekRanges(asOf, 1)[0].end ? 'now' : w.end)
-  const mr = monthRanges(dataThrough)
-  for (const m of mr) months[m.key] = await range(m.start, m.end, m.partial ? 'now' : m.end)
-  const all = await range(LAUNCH_DATE, dataThrough, 'now')
-  all.creatorsPosted = (await pullOverview(e, asOf, LAUNCH_DATE, dataThrough)).creatorsPosted
-  all.contestAffiliates = contests.allTime || null
-  // For all-time, spend and revenue are the full daily sums so ROI covers one window
-  const rawDaily: NonNullable<ScorecardRaw['daily']> = {}
-  for (let d = addDays(dataThrough, -400); d <= dataThrough; d = addDays(d, 1)) {
-    const x = daily[d]; if (x && (x.spend !== undefined || x.revenue !== undefined)) rawDaily[d] = { gmvMaxSpend: x.spend ?? null, gmvMaxRevenue: x.revenue ?? null }
+  for (const p of all) (p.period_type === 'week' ? weeks : months)[p.period_key] = p.raw
+  const allTime: RangeRaw = {
+    creatorsPosted: (await pullOverview(e, asOf, LAUNCH_DATE, dataThrough)).creatorsPosted,
+    contestAffiliates: contests.allTime || null,
+    usageRightsCreators: usageNow,
   }
+  // Daily rows exist only for pulled periods; stored periods were audited when they were stored
+  const rawDaily: NonNullable<ScorecardRaw['daily']> = {}
+  for (const [d, x] of Object.entries(daily)) if (x.spend !== undefined || x.revenue !== undefined) rawDaily[d] = { gmvMaxSpend: x.spend ?? null, gmvMaxRevenue: x.revenue ?? null }
   const notes = [
     'Videos, messages, Target Collab invites and emails come from the daily series of get_dashboard_performance_series; a period with any missing day shows no data rather than a partial sum.',
     'Affiliates with usage rights are distinct creators with an active request. Euka has no dated source, so history before the first daily snapshot shows no data.',
     'Euka reports views as 0 before 2026-01-01; those periods show no data.',
+    `Stored periods are reused once final (${14} days after they end). This run pulled ${fresh.length} of ${all.length} periods.`,
   ]
-  return { raw: { asOf, dataThrough, weeks, months, allTime: all, daily: rawDaily, notes }, gaps, usageNow }
+  return { raw: { asOf, yearStart, dataThrough, weeks, months, allTime, daily: rawDaily, notes }, fresh, reusedCount: plan.reused.length, pulledCount: fresh.length, reasons: plan.reasons, gaps, usageNow }
 }
 
 /** Independent range-level controls for the Python audit (overview + ads overview, not the daily series). */

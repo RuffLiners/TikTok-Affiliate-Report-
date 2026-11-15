@@ -72,6 +72,8 @@ export interface RangeRaw {
 
 export interface ScorecardRaw {
   asOf: string          // report date, YYYY-MM-DD, America/Los_Angeles
+  /** When set, weekly history covers every complete week back to the week containing this date (e.g. 2026-01-01). */
+  yearStart?: string
   dataThrough: string   // last day with complete data
   weeks: Record<string, RangeRaw>   // keyed by week start (Sunday)
   months: Record<string, RangeRaw>  // keyed by YYYY-MM, month to date for the current one
@@ -154,6 +156,8 @@ export interface Scorecard {
   dataThrough: string
   allTime: AllTimePeriod
   weekly: WeekPeriod[]
+  /** Every complete week from yearStart, newest first. The first 13 equal `weekly`. Present when raw.yearStart is set. */
+  weeklyAll?: WeekPeriod[]
   monthly: MonthPeriod[]
   issues: Issue[]
   sellerCenterCheck: { period: string; thresholdPct: number; rows: SellerCenterCheckRow[]; flagged: number }

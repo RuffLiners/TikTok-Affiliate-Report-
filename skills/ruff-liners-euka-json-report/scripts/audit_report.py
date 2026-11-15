@@ -62,7 +62,10 @@ def audit_scorecard(sc, ctl):
     if not monthly or not allt:
         fail("scorecard.monthly or scorecard.allTime missing")
         return
-    periods = [("allTime", allt)] + [(f"week:{p['key']}", p) for p in weekly] + [(f"month:{p['key']}", p) for p in monthly]
+    wk = sc.get("weeklyAll") or weekly
+    if sc.get("weeklyAll") and [p["key"] for p in wk[:13]] != [p["key"] for p in weekly]:
+        fail("scorecard.weekly is not the first 13 weeks of weeklyAll")
+    periods = [("allTime", allt)] + [(f"week:{p['key']}", p) for p in wk] + [(f"month:{p['key']}", p) for p in monthly]
     byname = dict(periods)
 
     for name, p in periods:
@@ -117,19 +120,20 @@ def audit_scorecard(sc, ctl):
         if not close(pr["gmvMaxRoi"], want, 0.0051) and not (want is None and pr["gmvMaxRoi"] is None):
             fail(f"scorecard {n}: projected ROI {pr['gmvMaxRoi']} != projected revenue/spend {want}")
 
-    # All-time equals the sum of its months for additive lines Euka returns directly
+    # All-time is exactly the sum of its monthly cells (a month with no data adds nothing); all-time of nothing is null
     for k in SC_LINES:
-        if k in SC_DISTINCT or k in SC_FILLABLE or k == "gmvMaxRoi":
+        if k in SC_DISTINCT or k == "gmvMaxRoi":
             continue
-        vals = [m["lines"][k]["value"] for m in monthly]
+        vals = [m["lines"][k]["value"] for m in monthly if m["lines"][k]["value"] is not None]
+        exp = sc_round(k, sum(vals)) if vals else None
         a = allt["lines"][k]["value"]
-        if a is not None and all(v is not None for v in vals) and abs(sum(vals) - a) > (1 if k in SC_MONEY else 0):
-            fail(f"scorecard allTime.{k} {a} != sum of months {sum(vals)}")
+        if not close(a, exp, 0.011 if k in SC_MONEY else 0) and not (a is None and exp is None):
+            fail(f"scorecard allTime.{k} {a} != sum of months {exp}")
 
     # Weekly percent changes recomputed
-    for i, w in enumerate(weekly[:-1]):
+    for i, w in enumerate(wk[:-1]):
         for k in SC_LINES:
-            cur, prior = w["lines"][k]["value"], weekly[i + 1]["lines"][k]["value"]
+            cur, prior = w["lines"][k]["value"], wk[i + 1]["lines"][k]["value"]
             exp = None if cur is None or prior in (None, 0) else round((cur - prior) / abs(prior) * 100, 1)
             got = w["changes"][k]
             if exp is None and got is not None or exp is not None and (got is None or abs(got - exp) > 0.11):

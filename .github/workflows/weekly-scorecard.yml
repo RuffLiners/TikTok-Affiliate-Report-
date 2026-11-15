@@ -4,13 +4,22 @@ on:
   schedule:
     - cron: '7 15 * * 1'   # Monday 15:07 UTC = 07:07 PST / 08:07 PDT, after Sunday's data is complete
   workflow_dispatch:
+    inputs:
+      force_refresh:
+        description: 'Ignore stored periods and re-pull everything (use after a definition change or to repair data)'
+        type: boolean
+        default: false
+      year_start:
+        description: 'First day the weekly history reaches back to, YYYY-MM-DD (default: Jan 1 of this year)'
+        type: string
+        default: ''
 permissions:
   contents: read
 concurrency: { group: weekly-scorecard, cancel-in-progress: false }
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 45          # a hung run is cancelled, which counts as a failure and triggers the email below
+    timeout-minutes: 60          # a hung run is cancelled, which counts as a failure and triggers the email below
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,6 +35,8 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}   # webhook bound to #social-media
           DASHBOARD_URL: ${{ secrets.DASHBOARD_URL }}
           REPORT_PUBLISH_TOKEN: ${{ secrets.REPORT_PUBLISH_TOKEN }}
+          FORCE_REFRESH: ${{ inputs.force_refresh && '1' || '0' }}
+          YEAR_START: ${{ inputs.year_start }}
       - name: Email on failure, stuck or cancelled
         if: failure() || cancelled()
         uses: dawidd6/action-send-mail@v3

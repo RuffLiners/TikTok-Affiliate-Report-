@@ -49,8 +49,8 @@ function AllTime({ sc }: { sc: Scorecard }) {
   )
 }
 
-function Weekly({ sc }: { sc: Scorecard }) {
-  const w = sc.weekly
+function Weekly({ sc, all }: { sc: Scorecard; all: boolean }) {
+  const w = all && sc.weeklyAll ? sc.weeklyAll : sc.weekly
   return (
     <div className="overflow-x-auto"><table className="w-full"><thead><tr>
       <th className={`${th} sticky left-0 bg-white`}>Line</th>
@@ -98,6 +98,7 @@ function Monthly({ sc }: { sc: Scorecard }) {
 
 export function ScorecardCard({ scorecard, meta }: { scorecard: Scorecard | null; meta: { publishedAt: string | null; audit: string } | null }) {
   const [tab, setTab] = useState<Tab>('weekly')
+  const [showAll, setShowAll] = useState(false)
   if (!scorecard) {
     return (
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
@@ -123,7 +124,15 @@ export function ScorecardCard({ scorecard, meta }: { scorecard: Scorecard | null
       </div>
       <div className="px-2 py-3">
         {tab === 'all' && <AllTime sc={scorecard} />}
-        {tab === 'weekly' && <Weekly sc={scorecard} />}
+        {tab === 'weekly' && (
+          <>
+            {scorecard.weeklyAll && (
+              <div className="px-3 pb-2"><button onClick={() => setShowAll(v => !v)} className="text-xs text-gray-500 underline">
+                {showAll ? 'Show last 13 weeks' : `Show full year (${scorecard.weeklyAll.length} weeks)`}</button></div>
+            )}
+            <Weekly sc={scorecard} all={showAll} />
+          </>
+        )}
         {tab === 'monthly' && <Monthly sc={scorecard} />}
       </div>
       {scorecard.issues.length > 0 && (

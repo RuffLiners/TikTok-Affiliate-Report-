@@ -3,7 +3,7 @@ import {
   ManualEntry, MonthPeriod, ScorecardRaw, RangeRaw, Scorecard, SellerCenterCheckRow, WeekPeriod, SELLER_CENTER_KEYS,
 } from './types'
 import { computeRoi, pctChange, projectValue, round2, roundFor, sumKnown } from './calc'
-import { monthRanges, weekRanges } from './periods'
+import { monthRanges, weekRanges, weekRangesSince } from './periods'
 
 export const CHECK_THRESHOLD_PCT = 2
 
@@ -58,7 +58,7 @@ const valuesOf = (l: Lines) => Object.fromEntries(LINE_KEYS.map(k => [k, l[k].va
 export function buildScorecard(raw: ScorecardRaw, manualEntries: ManualEntry[] = []): Scorecard {
   const manual = indexManual(manualEntries)
   const mRanges = monthRanges(raw.dataThrough)
-  const wRanges = weekRanges(raw.asOf, 13)
+  const wRanges = raw.yearStart ? weekRangesSince(raw.asOf, raw.yearStart) : weekRanges(raw.asOf, 13)
 
   const monthly: MonthPeriod[] = mRanges.map(r => {
     const rr = raw.months[r.key] ?? {}
@@ -87,7 +87,7 @@ export function buildScorecard(raw: ScorecardRaw, manualEntries: ManualEntry[] =
     const { lines, revenue } = resolveLines('week', r.key, raw.weeks[r.key] ?? {}, manual)
     return { r, lines, revenue }
   })
-  const weekly: WeekPeriod[] = weeklyBase.map((w, i) => {
+  const weeklyAll: WeekPeriod[] = weeklyBase.map((w, i) => {
     const prev = weeklyBase[i + 1]
     const prior = Object.fromEntries(LINE_KEYS.map(k => [k, prev ? prev.lines[k].value : null])) as Record<LineKey, number | null>
     const changes = Object.fromEntries(LINE_KEYS.map(k => [k, pctChange(w.lines[k].value, prior[k])])) as Record<LineKey, number | null>
@@ -97,12 +97,14 @@ export function buildScorecard(raw: ScorecardRaw, manualEntries: ManualEntry[] =
     }
   })
 
-  // All time. Lines that can be filled by hand sum their monthly cells, so Euka months and filled history add up
-  // consistently. Distinct-people lines come straight from the all-time pull and are never summed.
-  // ROI uses the Euka all-time revenue and spend only, so both sides cover the same window.
+  const weekly = weeklyAll.slice(0, 13)
+
+  // All time. Every additive line is the sum of its monthly cells, so stored months add up exactly and nothing is
+  // pulled twice. A month with no data adds nothing and the line says so ("Partial"). Distinct-people lines come from
+  // the all-time pull and are never summed. ROI uses Euka-sourced revenue and spend only, so both sides cover one window.
   const atRaw = raw.allTime
   const { lines: atLines } = resolveLines('month', '__all__', atRaw, new Map())
-  const summed: LineKey[] = ['grossRevenue', 'gmv', 'gmvCofunded', 'views', 'eukaMessages']
+  const summed: LineKey[] = ADDITIVE_KEYS
   for (const k of summed) {
     const cells = monthly.map(m => m.lines[k])
     const { value, missing } = sumKnown(cells.map(c => c.value))
@@ -116,7 +118,11 @@ export function buildScorecard(raw: ScorecardRaw, manualEntries: ManualEntry[] =
       note: missing ? `Partial: ${missing} of ${cells.length} months have no data` : undefined,
     }
   }
-  const atRev = atRaw.gmvMaxRevenue ?? null
+  const eukaSum = (k: LineKey) => sumKnown(monthly.filter(m => m.lines[k].source === 'euka').map(m => m.lines[k].value)).value
+  const atRev = eukaSum('grossRevenue')
+  const atSpend = eukaSum('gmvMaxSpend')
+  const atRoi = computeRoi(atRev, atSpend)
+  atLines.gmvMaxRoi = atRoi == null ? none('No data') : { value: atRoi, source: 'euka', confirmed: true }
   const allTime: AllTimePeriod = {
     key: 'all-time', label: 'All time since launch', start: '2025-10-01', end: raw.dataThrough,
     lines: atLines, gmvMaxRevenue: atRev, roiVsShopGmv: roiVs(atLines),
@@ -124,7 +130,7 @@ export function buildScorecard(raw: ScorecardRaw, manualEntries: ManualEntry[] =
 
   const sellerCenterCheck = buildCheck(raw, manual, monthly)
   const sc: Scorecard = {
-    version: 1, asOf: raw.asOf, dataThrough: raw.dataThrough, allTime, weekly, monthly,
+    version: 1, asOf: raw.asOf, dataThrough: raw.dataThrough, allTime, weekly, ...(raw.yearStart ? { weeklyAll } : {}), monthly,
     issues: [], sellerCenterCheck, ...(raw.daily ? { daily: raw.daily } : {}),
   }
   sc.issues = [...buildIssues(sc), ...(raw.notes ?? []).map((text, i) => ({ id: `note:${i}`, severity: 'info' as const, text }))]

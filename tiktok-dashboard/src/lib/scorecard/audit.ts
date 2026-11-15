@@ -1,5 +1,5 @@
 import { ADDITIVE_KEYS, LINE_BY_KEY, LINE_KEYS, Lines, Scorecard } from './types'
-import { computeRoi, projectValue } from './calc'
+import { computeRoi, projectValue, roundFor } from './calc'
 import { addDays } from './periods'
 
 export interface AuditResult { status: 'PASS' | 'FAIL'; failures: string[]; warnings: string[] }
@@ -30,7 +30,7 @@ export function auditScorecard(sc: Scorecard): AuditResult {
 
   const periods = [
     { name: 'allTime', p: sc.allTime },
-    ...sc.weekly.map(p => ({ name: `weekly[${p.key}]`, p })),
+    ...(sc.weeklyAll ?? sc.weekly).map(p => ({ name: `weekly[${p.key}]`, p })),
     ...sc.monthly.map(p => ({ name: `monthly[${p.key}]`, p })),
   ]
   for (const { name, p } of periods) {
@@ -60,28 +60,34 @@ export function auditScorecard(sc: Scorecard): AuditResult {
     if (!near(m.projected.gmvMaxRoi, computeRoi(m.projectedGmvMaxRevenue, m.projected.gmvMaxSpend))) f.push(`${n}: projected ROI is not projected revenue / projected spend`)
   }
 
-  // Additive lines: all-time must equal the sum of its months wherever every month has data
+  if (sc.weeklyAll) {
+    const a = sc.weeklyAll.slice(0, 13).map(p => p.key).join(), b = sc.weekly.map(p => p.key).join()
+    if (a !== b) f.push('weekly is not the first 13 weeks of weeklyAll')
+    for (let i = 1; i < sc.weeklyAll.length; i++) if (sc.weeklyAll[i].end >= sc.weeklyAll[i - 1].start) f.push(`weeklyAll[${i}] overlaps the next week`)
+  }
+
+  // Additive lines: all-time is exactly the sum of its monthly cells (months with no data add nothing)
   for (const k of ADDITIVE_KEYS) {
-    if (['views', 'eukaMessages', 'grossRevenue', 'gmv', 'gmvCofunded'].includes(k)) continue
-    const vals = sc.monthly.map(m => m.lines[k].value)
-    if (vals.some(v => v == null) || sc.allTime.lines[k].value == null) continue
-    const sum = vals.reduce((a, b) => a! + b!, 0)!
-    const tol = LINE_BY_KEY[k].kind === 'money' ? 1 : 0
-    if (Math.abs(sum - sc.allTime.lines[k].value!) > tol) f.push(`allTime.${k}=${sc.allTime.lines[k].value} but months sum to ${sum}`)
+    const vals = sc.monthly.map(m => m.lines[k].value).filter((v): v is number => v != null)
+    const exp = vals.length ? roundFor(k, vals.reduce((a, b) => a + b, 0)) : null
+    if (!near(sc.allTime.lines[k].value, exp, LINE_BY_KEY[k].kind === 'money' ? 0.011 : 0)) f.push(`allTime.${k}=${sc.allTime.lines[k].value} but months sum to ${exp}`)
   }
 
   // Weekly and monthly from the same daily series must agree with it
   if (sc.daily) {
+    // undefined = this period has no daily rows at all (a stored, previously audited period): nothing to cross-check
     const sumDays = (a: string, b: string, field: 'gmvMaxSpend' | 'gmvMaxRevenue' | 'views') => {
-      let t = 0
-      for (let d = a; d <= b; d = addDays(d, 1)) { const v = sc.daily![d]?.[field]; if (v == null) return null; t += v }
-      return t
+      let t = 0, have = 0
+      for (let d = a; d <= b; d = addDays(d, 1)) { const v = sc.daily![d]?.[field]; if (v != null) { t += v; have++ } }
+      if (have === 0) return undefined
+      return have === Math.round((Date.parse(b) - Date.parse(a)) / 86400000) + 1 ? t : null
     }
     for (const p of [...sc.weekly, ...sc.monthly]) {
       for (const [field, cell] of [['gmvMaxSpend', p.lines.gmvMaxSpend.value], ['views', p.lines.views.value]] as const) {
         if (cell == null || p.lines[field].source !== 'euka') continue
         const s = sumDays(p.start, p.end, field)
-        if (s == null) { w.push(`${p.key}: daily series incomplete for ${field}, cannot cross-check`); continue }
+        if (s === undefined) continue
+        if (s === null) { w.push(`${p.key}: daily series incomplete for ${field}, cannot cross-check`); continue }
         if (Math.abs(s - cell) > (field === 'views' ? 0 : 0.05)) f.push(`${p.key}: ${field} ${cell} != sum of daily ${s}`)
       }
       if (p.gmvMaxRevenue != null) {

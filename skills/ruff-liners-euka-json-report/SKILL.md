@@ -41,6 +41,13 @@ Also shown: **ROI vs shop GMV** = line 2 / line 4. Gross Revenue is on TikTok's 
 Week Nov 1 to 7 2026: shop GMV 51,830.97 | affiliate GMV 43,690.29 | LIVE GMV 729.09 | orders 400 | GMV Max spend 18,083.48 | GMV Max revenue 59,831.31 | ROI 3.31 | ROI vs shop GMV 2.87 | messages 68,180 | samples approved 30 | creators posted 108 | videos 572 | views 2,400,982. Seller Center co-funded GMV for that week: 61,492.68 (manual line).
 Controls for the audit are built from range-level tools (`get_dashboard_performance_overview`, `get_dashboard_ads_overview`), independent of the daily series the report is assembled from. See `pipeline/py/controls.example.json`.
 
+## Storage: pull once, keep it
+Every completed week and month is stored in `scorecard_periods` (Supabase) after both audits pass. A period is **final** 14 days after it ends (TikTok's numbers settle); final periods are reused and never pulled again. A run pulls only: periods not stored yet, periods inside the 14-day settle window, the current month to date, and anything invalidated by a bump of `RAW_VERSION` in `pipeline/src/plan.ts`. The daily series is fetched only for the days those periods cover. A pull that hit an error is never marked final. All-time is the sum of the stored months. Usage-rights history comes from daily snapshots in `scorecard_snapshots`.
+- **First run (backfill):** nothing is stored, so it pulls the whole year plus every month since launch. Run "Weekly scorecard" by hand; set `year_start` to reach further back than Jan 1.
+- **Every later run:** pulls about 4 periods.
+- **Repair:** run with `force_refresh` to ignore stored data. Changing a line definition: bump `RAW_VERSION`.
+- Stored data is a frozen copy. If TikTok restates a number after the 14-day window, use `force_refresh` to pick it up.
+
 ## Steps
 1. Windows: `weekRanges(asOf, 13)`, `monthRanges(dataThrough)` in `tiktok-dashboard/src/lib/scorecard/periods.ts`. dataThrough = yesterday.
 2. Pull (`pipeline/src/pull.ts`): daily series in 31-day chunks, range-level overview per week and month, contests, usage rights.

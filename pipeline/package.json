@@ -8,7 +8,7 @@
     "scorecard": "tsx src/run.ts",
     "snapshot": "tsx src/snapshot.ts",
     "watchdog": "tsx src/watchdog.ts",
-    "test": "tsx --test src/pull.test.ts"
+    "test": "tsx --test src/pull.test.ts src/plan.test.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0"

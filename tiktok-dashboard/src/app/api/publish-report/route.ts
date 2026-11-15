@@ -21,6 +21,7 @@ function tokenOk(req: NextRequest): 'ok' | 'unconfigured' | 'bad' {
 /**
  * GET (token): what the scheduled jobs need to read back without holding the Supabase service key.
  *   ?key=usageRightsCreators  -> daily snapshots of that counter
+ *   ?periods=1                -> every stored week and month (the period store), so a run only pulls what is missing
  *   (always) latest           -> as_of and created_at of the newest published scorecard, for the watchdog
  */
 export async function GET(req: NextRequest) {
@@ -35,7 +36,12 @@ export async function GET(req: NextRequest) {
     const { data } = await supabase.from('scorecard_snapshots').select('snap_date, value').eq('key', key).order('snap_date', { ascending: false }).limit(800)
     snapshots = (data ?? []).map(r => ({ snap_date: r.snap_date, value: Number(r.value) }))
   }
-  return NextResponse.json({ latest: latest ?? null, snapshots })
+  let periods: unknown = []
+  if (req.nextUrl.searchParams.get('periods')) {
+    const { data } = await supabase.from('scorecard_periods').select('period_type, period_key, start_date, end_date, raw, raw_version, final, pulled_at').limit(2000)
+    periods = data ?? []
+  }
+  return NextResponse.json({ latest: latest ?? null, snapshots, periods })
 }
 
 /**
@@ -63,6 +69,19 @@ export async function POST(req: NextRequest) {
     const { error } = await supabaseAdmin().from('scorecard_snapshots').upsert(rows, { onConflict: 'snap_date,key' })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ ok: true, saved: rows.length })
+  }
+  // Period store writes. Called only after the run's audits pass, so unaudited pulls never become permanent.
+  if (report?.periodsOnly) {
+    const list: any[] = Array.isArray(report.periods) ? report.periods : []
+    const ok = list.filter(p => (p?.period_type === 'week' || p?.period_type === 'month') && /^\d{4}-\d{2}(-\d{2})?$/.test(String(p?.period_key))
+      && /^\d{4}-\d{2}-\d{2}$/.test(String(p?.start_date)) && /^\d{4}-\d{2}-\d{2}$/.test(String(p?.end_date)) && p?.raw && typeof p.raw === 'object')
+    if (!ok.length || ok.length !== list.length) return NextResponse.json({ error: `periods invalid: ${ok.length} of ${list.length} usable` }, { status: 400 })
+    const rows = ok.map(p => ({ period_type: p.period_type, period_key: p.period_key, start_date: p.start_date, end_date: p.end_date, raw: p.raw, raw_version: Number(p.raw_version) || 1, final: !!p.final, pulled_at: new Date().toISOString() }))
+    for (let i = 0; i < rows.length; i += 100) {
+      const { error } = await supabaseAdmin().from('scorecard_periods').upsert(rows.slice(i, i + 100), { onConflict: 'period_type,period_key' })
+      if (error) return NextResponse.json({ error: error.message, savedBeforeError: i }, { status: 500 })
+    }
+    return NextResponse.json({ ok: true, saved: rows.length, final: rows.filter(r => r.final).length })
   }
   if (report?.audit?.status !== 'PASS') {
     return NextResponse.json({ error: `Rejected: audit.status is "${report?.audit?.status ?? 'missing'}", must be PASS`, failures: report?.audit?.failures ?? [] }, { status: 422 })

@@ -373,11 +373,11 @@
       }
     },
     "roi": {
-      "week:2026-11-01": 3.31,
-      "allTime": 2.96
+      "week:2026-11-01": 3.31
     },
     "roiVsShopGmv": {
       "week:2026-11-01": 2.87
-    }
+    },
+    "_note_all_time": "All-time ROI is not a fixed control: it depends on the data-through date. It is audited as the sum of stored months instead."
   }
 }

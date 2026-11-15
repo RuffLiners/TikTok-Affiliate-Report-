@@ -1,3 +1,5 @@
+import type { StoredPeriod } from './plan.js'
+
 function base(): string {
   const u = (process.env.DASHBOARD_URL || '').replace(/\/$/, '')
   if (!u) throw new Error('DASHBOARD_URL is not set')
@@ -14,12 +16,16 @@ export async function publish(report: unknown): Promise<any> {
   if (!res.ok) throw new Error(`publish ${res.status}: ${JSON.stringify(body).slice(0, 600)}`)
   return body
 }
-export async function readState(key?: string): Promise<{ latest: { as_of: string; created_at: string } | null; snapshots: Array<{ snap_date: string; value: number }> }> {
-  const res = await fetch(`${base()}/api/publish-report${key ? `?key=${key}` : ''}`, { headers: headers() })
+export async function readState(key?: string, withPeriods = false): Promise<{ latest: { as_of: string; created_at: string } | null; snapshots: Array<{ snap_date: string; value: number }>; periods: StoredPeriod[] }> {
+  const q = [key ? `key=${key}` : '', withPeriods ? 'periods=1' : ''].filter(Boolean).join('&')
+  const res = await fetch(`${base()}/api/publish-report${q ? `?${q}` : ''}`, { headers: headers() })
   const body: any = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(`state ${res.status}: ${JSON.stringify(body).slice(0, 300)}`)
   return body
 }
 export async function saveSnapshot(date: string, values: Record<string, number>): Promise<void> {
   await publish({ snapshotOnly: true, snapshot: { date, values } })
+}
+export async function savePeriods(periods: StoredPeriod[]): Promise<{ saved: number; final: number }> {
+  return publish({ periodsOnly: true, periods })
 }

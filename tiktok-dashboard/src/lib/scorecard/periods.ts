@@ -31,6 +31,14 @@ export function weekRanges(asOf: string, n = 13): WeekRange[] {
   })
 }
 
+/** Every complete week from the one containing `since` up to the latest complete week, newest first (at least 13). */
+export function weekRangesSince(asOf: string, since: string): WeekRange[] {
+  const first = weekKeyOf(since)
+  const latest = weekRanges(asOf, 1)[0]
+  const n = Math.max(13, Math.round((parse(latest.start) - parse(first)) / (7 * MS)) + 1)
+  return weekRanges(asOf, n)
+}
+
 export interface MonthRange { key: string; start: string; end: string; daysElapsed: number; daysInMonth: number; partial: boolean }
 
 /** Calendar months from launch to the month containing dataThrough, current month first. The current month ends at dataThrough. */
