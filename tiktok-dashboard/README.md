@@ -34,3 +34,15 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Scorecard backfill (Manage tab)
+
+An admin can pull the whole scorecard history from Euka without GitHub Actions: Admin, Manage tab, "Scorecard backfill".
+
+- Engine: `src/lib/scorecard/engine/` (plan, pull, contests, drift, backfill). `pipeline/src/*.ts` re-exports it, so the GitHub "Weekly scorecard" run and the in-dashboard run share one copy. Metric definitions live only in `src/lib/scorecard/`.
+- Route: `POST /api/admin/scorecard-backfill` with `action` = `start` (`year_start`, `force_refresh`), `proof` (latest complete week only), `step` (`run_id`), `resume`, `cancel`. `GET` returns progress. Each step saves its batch before the next, so a stopped run resumes.
+- Euka auth: direct MCP client with `EUKA_BEARER_TOKEN` and `EUKA_MCP_URL` (`src/lib/server/eukaClient.ts`). Check it with `GET /api/admin/euka-probe`.
+- Lock and run state: `app_config` rows `scorecard_backfill_lock` and `scorecard_backfill_state`. No schema change.
+- Publishing writes straight to `scorecards`; `REPORT_PUBLISH_TOKEN` is not used by the in-dashboard run.
+- Alerts (run failed, no progress for 10 minutes, finished with missing periods) go to Slack and email. Env vars: `SLACK_WEBHOOK_URL` (webhook bound to #social-media), `RESEND_API_KEY`, `ALERT_EMAIL_FROM`, optional `ALERT_EMAIL_TO`. `CRON_SECRET` enables the 5 minute stall watchdog in `vercel.json`. Anything missing is shown in red in the panel.
+- Tests: `npm test` (`src/lib/scorecard/engine/backfill.test.ts` covers chunking, resume, the lock, skip-if-stored, no data, stall).

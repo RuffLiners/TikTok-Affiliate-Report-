@@ -147,9 +147,13 @@ export async function GET(req: NextRequest) {
 
   const tok = eukaToken()
   const ak = await anthropicKey()
-  const [direct, connector, tables] = await Promise.all([probeDirect(tok), probeConnector(tok, ak.key), tableCheck()])
+  // The connector test loads Euka's whole tool list into a model call (over a million input tokens), so it only runs when asked: ?connector=1
+  const withConnector = req.nextUrl.searchParams.get('connector') === '1'
+  const skipped: PathResult = { ok: false, ms: 0, detail: 'not tested (costly). Add ?connector=1 to test it.', error: null }
+  const [direct, connector, tables] = await Promise.all([probeDirect(tok), withConnector ? probeConnector(tok, ak.key) : Promise.resolve(skipped), tableCheck()])
   const set = (k: string) => !!(process.env[k] || '').trim()
-  const verdict = direct.ok && connector.ok ? 'BOTH paths work'
+  const verdict = !withConnector ? (direct.ok ? '(a) direct MCP works; (b) not tested' : '(a) direct MCP FAILED; (b) not tested')
+    : direct.ok && connector.ok ? 'BOTH paths work'
     : direct.ok ? 'ONLY (a) direct MCP works'
     : connector.ok ? 'ONLY (b) the Anthropic connector works'
     : 'NEITHER path works'

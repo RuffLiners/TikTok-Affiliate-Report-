@@ -1,0 +1,5 @@
+{
+  "crons": [
+    { "path": "/api/cron/scorecard-watchdog", "schedule": "*/5 * * * *" }
+  ]
+}

@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { ScorecardManual } from '@/components/ScorecardManual'
+import { ScorecardBackfill } from '@/components/ScorecardBackfill'
 
 interface ReportMeta {
   report_date: string
@@ -779,6 +780,8 @@ export function ManageTab() {
         </div>
       </div>
 
+
+      <ScorecardBackfill />
 
       <ScorecardManual />
 

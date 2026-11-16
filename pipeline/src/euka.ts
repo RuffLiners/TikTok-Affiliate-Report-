@@ -1,7 +1,8 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 
-export const BRAND_ID = 'b4ec897a-fb59-48e7-9320-873ea5e25155'
+import { cached } from './cache.js'
+export { BRAND_ID } from '../../tiktok-dashboard/src/lib/scorecard/engine/pull'
 export const STORE_ID = process.env.EUKA_STORE_ID || '455ea4f9-a404-411b-b748-9ba1929efb93'
 
 export function bearer(): string {
@@ -45,6 +46,9 @@ export class Euka {
       try { return JSON.parse(text) } catch { return text }
     }, name)
   }
+
+  /** Disk cache by report date and step, so a failed GitHub run resumes without re-pulling. */
+  cache<T>(reportDate: string, step: string, fn: () => Promise<T>): Promise<T> { return cached(reportDate, step, fn) }
 
   async close() { await this.client.close() }
 }
