@@ -457,6 +457,80 @@ describe('no data is stored as no data, never zero', () => {
   })
 })
 
+// ---- Monday run -------------------------------------------------------------------------------------------------
+describe('Monday run (weekly scope)', () => {
+  const full = async () => { const h = harness(); await startRun(h.deps, {}); await h.drive('run1'); return h }
+  it('pulls only the latest week and the month to date once history is stored', async () => {
+    const h = await full()
+    const st = await startRun(h.deps, { scope: 'weekly', trigger: 'cron' })
+    const pending = st.ok ? st.state.periods.filter(p => p.status === 'pending') : []
+    expect(pending.map(p => [p.id, p.reason])).toEqual([['week:2026-11-08', 'latest week'], ['month:2026-11', 'month to date']])
+    const before = h.fake.calls.length
+    await h.drive('run2')
+    expect(h.fake.calls.slice(before).filter(c => c.name === 'get_dashboard_performance_overview').map(c => c.args.startDate).sort()).toEqual(['2025-10-01', '2026-11-01', '2026-11-08'])
+    expect(h.mem.published).toHaveLength(2)
+  })
+  it('pulls last month as final once it is 3 days past its end, then never again', async () => {
+    const h = await full()
+    // October was stored on Nov 16 by the full run, already past Nov 3, so it is final
+    expect(h.mem.periods.get('month:2026-10')!.final).toBe(true)
+    // Roll forward to Dec 2 (a day before the 3rd): November is finished but not final yet, so it is not re-pulled as final
+    const d2 = { ...h.deps, today: () => '2026-12-02' }
+    h.clock.t += 20 * 86400000
+    let st = await startRun(d2, { scope: 'weekly' })
+    expect(st.ok && st.state.periods.find(p => p.id === 'month:2026-11')!.status).toBe('skipped')
+    let r = await runStep(d2, { runId: st.ok ? st.state.runId : '' }); while (r.ok && r.state.status === 'running') r = await runStep(d2, { runId: r.state.runId })
+    expect(h.mem.periods.get('month:2026-11')!.final).toBe(false)
+    // Dec 7, the first Monday on or after the 3rd: November is pulled as final
+    const d7 = { ...h.deps, today: () => '2026-12-07' }
+    h.clock.t += 5 * 86400000
+    st = await startRun(d7, { scope: 'weekly' })
+    expect(st.ok && st.state.periods.find(p => p.id === 'month:2026-11')).toMatchObject({ status: 'pending', reason: 'month final (3 days after month end)' })
+    r = await runStep(d7, { runId: st.ok ? st.state.runId : '' }); while (r.ok && r.state.status === 'running') r = await runStep(d7, { runId: r.state.runId })
+    expect(h.mem.periods.get('month:2026-11')).toMatchObject({ final: true, end_date: '2026-11-30' })
+    // The next Monday leaves it alone
+    const d14 = { ...h.deps, today: () => '2026-12-14' }
+    h.clock.t += 7 * 86400000
+    st = await startRun(d14, { scope: 'weekly' })
+    expect(st.ok && st.state.periods.find(p => p.id === 'month:2026-11')!.status).toBe('skipped')
+    expect(st.ok && st.state.periods.filter(p => p.status === 'pending').map(p => p.id)).toEqual(['week:2026-12-06', 'month:2026-12'])
+  })
+  it('fills a recent week that a missed run left out, and everything when nothing is stored', async () => {
+    const h = await full()
+    h.mem.periods.delete('week:2026-10-25')
+    const st = await startRun(h.deps, { scope: 'weekly' })
+    expect(st.ok && st.state.periods.find(p => p.id === 'week:2026-10-25')).toMatchObject({ status: 'pending', reason: 'not stored yet' })
+    const empty = harness()
+    const st2 = await startRun(empty.deps, { scope: 'weekly' })
+    expect(st2.ok && count(st2.state, 'pending')).toBe(72)
+  })
+  it('re-pulls periods stored under an older definition', async () => {
+    const h = await full()
+    const old = h.mem.periods.get('week:2026-03-01')!
+    h.mem.periods.set('week:2026-03-01', { ...old, raw_version: 1 })
+    const st = await startRun(h.deps, { scope: 'weekly' })
+    expect(st.ok && st.state.periods.find(p => p.id === 'week:2026-03-01')).toMatchObject({ status: 'pending', reason: 'definition changed' })
+  })
+})
+
+describe('usage rights', () => {
+  it('reads every page, a few at a time, and counts each creator once', async () => {
+    const h = harness()
+    const pages: number[] = []
+    const many: EukaLike = { call: async (n, a: any = {}) => {
+      if (n !== 'search_usage_rights_requests') return h.fake.e.call(n, a)
+      pages.push(a.page)
+      const items = Array.from({ length: a.page <= 82 ? (a.page === 82 ? 84 : 100) : 0 }, (_, i) => ({ creator: { id: `c${((a.page - 1) * 100 + i) % 900}` } }))
+      return { items, total: 8184 }
+    } }
+    const deps = { ...h.deps, euka: async () => many }
+    await startRun(deps, { mode: 'proof' })
+    let r = await runStep(deps, { runId: 'run1' }); while (r.ok && r.state.status === 'running') r = await runStep(deps, { runId: 'run1' })
+    expect(pages.sort((x, y) => x - y)).toEqual(Array.from({ length: 82 }, (_, i) => i + 1))
+    expect(h.mem.state!.prep.usageNow).toBe(900)
+  })
+})
+
 // ---- Euka Chat (line 7) -----------------------------------------------------------------------------------------
 describe('Euka Chat messages sent', () => {
   it('counts only team-sent Euka Chat messages, by Los Angeles day; no data before the first one, a real 0 after', async () => {

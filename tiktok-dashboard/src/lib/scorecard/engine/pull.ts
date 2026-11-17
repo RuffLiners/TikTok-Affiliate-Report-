@@ -99,12 +99,15 @@ export const fetchContestIds = (e: Euka, asOf: string) => (contestId: number): P
 /** Distinct creators with active usage rights right now. Euka has no dated source, so history comes from daily snapshots. */
 export async function pullUsageRightsNow(e: Euka, asOf: string): Promise<number> {
   const ids = await cached(e, asOf, 'usage_rights_creators', async () => {
+    // One request per licensed video, so there are thousands. Pages are read a few at a time; oldest first keeps the
+    // page boundaries stable while new requests arrive.
+    const page = (n: number) => e.call('search_usage_rights_requests', { brandId: BRAND_ID, filter: { archived: 'include', states: ['active'] }, sort: { field: 'createdAt', direction: 'asc' }, page: n, pageSize: 100 })
     const set = new Set<string>()
-    for (let page = 1; ; page++) {
-      const r = await e.call('search_usage_rights_requests', { brandId: BRAND_ID, filter: { archived: 'include', states: ['active'] }, page, pageSize: 100 })
-      for (const it of r?.items ?? []) if (it?.creator?.id) set.add(String(it.creator.id))
-      if (!r?.items?.length || page * 100 >= (r?.total ?? 0)) break
-    }
+    const add = (r: any) => { for (const it of r?.items ?? []) if (it?.creator?.id) set.add(String(it.creator.id)) }
+    const first = await page(1); add(first)
+    const pages = Math.ceil((Number(first?.total) || 0) / 100)
+    const rest = await mapPool(Array.from({ length: Math.max(0, pages - 1) }, (_, i) => i + 2), EUKA_CONCURRENCY, page)
+    rest.forEach(add)
     return [...set]
   })
   return ids.length

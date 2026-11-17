@@ -22,8 +22,8 @@ function successText(s: BackfillState): string {
   ].filter(Boolean).join('\n')
 }
 
-// Monday scorecard run on Vercel Cron (replaces the GitHub "Weekly scorecard" workflow). Pulls only what is missing or
-// not settled, then publishes. Scheduled twice: the second call does nothing if the first one published, and retries if it did not.
+// Monday scorecard run on Vercel Cron (replaces the GitHub "Weekly scorecard" workflow). Pulls the latest complete week,
+// the month to date, and last month once it is 3 days past its end; fills anything missing; then publishes. Scheduled twice: the second call does nothing if the first one published, and retries if it did not.
 export async function GET(req: NextRequest) {
   const denied = cronDenied(req); if (denied) return denied
   const t0 = Date.now()
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
     const today = laToday()
     const prev = await d.store.readState()
     if (prev && prev.status === 'done' && prev.mode === 'full' && prev.asOf === today) return NextResponse.json({ ok: true, skipped: `already published for ${today}` })
-    const st = await startRun(d, { trigger: 'cron' })
+    const st = await startRun(d, { trigger: 'cron', scope: 'weekly' })
     if (!st.ok) return NextResponse.json({ ok: false, skipped: st.message }, { status: 409 })   // an admin's run is in progress; the retry or the overdue check covers it
     let s = st.state
     while (s.status === 'running' && Date.now() - t0 < BUDGET_MS) {

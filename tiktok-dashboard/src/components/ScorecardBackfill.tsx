@@ -264,6 +264,12 @@ export function ScorecardBackfill() {
             </div>
           )}
 
+          <div className="text-xs border border-gray-100 rounded-xl p-3 space-y-2">
+            <h4 className="font-semibold text-gray-700">Audit the data with Claude</h4>
+            <p className="text-gray-600">One JSON file with every stored week and month, where each line comes from, what was typed in by hand, and the tool&apos;s own checks. Download it and give it to Claude with Euka connected, and ask it to follow the &quot;howToAudit&quot; steps inside the file.</p>
+            <a href="/api/scorecard-audit?download=1" className={`${btn} inline-block border border-gray-200 text-gray-700 hover:bg-gray-50`}>Download audit JSON</a>
+          </div>
+
           {weeks.length > 0 && list('Weeks, newest first', weeks)}
           {months.length > 0 && list('Months, newest first', months)}
         </div>

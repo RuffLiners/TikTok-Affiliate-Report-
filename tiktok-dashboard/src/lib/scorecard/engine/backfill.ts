@@ -20,6 +20,12 @@ export const STEP_BUDGET_MS = 150 * 1000
 /** One pull batch is a calendar month plus the weeks that end in it (at most 5), so one month of daily rows serves them all. */
 export const BATCH_MAX_PERIODS = 6
 
+/** A finished month is final once it is this many days past its end (on or after the 3rd of the next month). */
+export const MONTH_FINAL_DAYS = 3
+export const monthClosed = (end: string, asOf: string) => addDays(end, MONTH_FINAL_DAYS) <= asOf
+/** The Monday run also fills any week from this many most recent weeks that is missing from the store (a missed run). */
+export const WEEKLY_GAP_WEEKS = 5
+
 export type PeriodStatus = 'pending' | 'skipped' | 'stored' | 'partial' | 'no_data' | 'error'
 export interface PeriodProgress {
   id: string; type: 'week' | 'month'; key: string; start: string; end: string; partial: boolean
@@ -52,6 +58,8 @@ export interface BackfillState {
   mode: 'full' | 'proof'
   /** Who started it. A cron run is continued by the watchdog if one call was not enough. */
   trigger?: 'manual' | 'cron'
+  /** full = everything missing or unsettled. weekly = the Monday run: latest week, month to date, and last month once it is final. */
+  scope?: 'full' | 'weekly'
   yearStart: string
   /** First Sunday on or after yearStart: the first full week covered. */
   weeksFrom: string
@@ -138,19 +146,35 @@ const PULLED: PeriodStatus[] = ['stored', 'partial', 'no_data']
  * Decide each period's status. Stored and settled periods are skipped exactly as plan.ts decides; the current partial
  * month and anything unsettled is pulled. Periods already pulled in this run are kept, so a resume does not repeat them.
  */
-export function planPeriods(wanted: Wanted[], stored: StoredPeriod[], force: boolean, prior: PeriodProgress[] = [], sameDay = true): PeriodProgress[] {
+export function planPeriods(
+  wanted: Wanted[], stored: StoredPeriod[], force: boolean, prior: PeriodProgress[] = [], sameDay = true,
+  o: { scope?: 'full' | 'weekly'; asOf?: string } = {},
+): PeriodProgress[] {
   const priorBy = new Map(prior.map(p => [p.id, p]))
   const storedBy = new Map(stored.map(s => [`${s.period_type}:${s.period_key}`, s]))
   const normal = planPulls(wanted, stored, {})
+  const weeks = wanted.filter(w => w.type === 'week')
+  const recent = new Set(weeks.slice(0, WEEKLY_GAP_WEEKS).map(idOf))
+  /** The Monday run: only the newest week, the month to date, last month once it is final, and anything missing or outdated. */
+  const weeklyWhy = (w: Wanted, id: string, s?: StoredPeriod): string | undefined => {
+    const current = !!s && s.raw_version === RAW_VERSION
+    if (!current) return s ? 'definition changed' : (w.type === 'month' || recent.has(id) || !stored.length ? 'not stored yet' : undefined)
+    if (w.type === 'week') return id === idOf(weeks[0]) ? 'latest week' : undefined
+    if (w.partial) return 'month to date'
+    return !s!.final && o.asOf && monthClosed(w.end, o.asOf) ? `month final (${MONTH_FINAL_DAYS} days after month end)` : undefined
+  }
   return wanted.map(w => {
     const id = idOf(w), was = priorBy.get(id), s = storedBy.get(id)
-    const settledInStore = !!s && s.final && s.raw_version === RAW_VERSION
-    if (was && PULLED.includes(was.status) && was.end === w.end && (sameDay || settledInStore)) return was
-    const why = force ? 'forced refresh' : normal.reasons[id]
+    const currentInStore = !!s && s.raw_version === RAW_VERSION
+    const settledInStore = currentInStore && s!.final
+    // Keep what this run already pulled, unless the stored copy is from an older definition (a deploy happened mid-run)
+    if (was && PULLED.includes(was.status) && was.end === w.end && currentInStore && (sameDay || settledInStore)) return was
+    const why = force ? 'forced refresh' : o.scope === 'weekly' ? weeklyWhy(w, id, s) : normal.reasons[id]
     const base = { id, type: w.type, key: w.key, start: w.start, end: w.end, partial: w.partial }
-    return why ? { ...base, status: 'pending' as const, reason: why } : { ...base, status: 'skipped' as const, reason: 'already stored and settled' }
+    return why ? { ...base, status: 'pending' as const, reason: why } : { ...base, status: 'skipped' as const, reason: o.scope === 'weekly' ? 'already stored' : 'already stored and settled' }
   })
 }
+
 
 // Euka Chat messages are not listed: before the first one was sent they are legitimately no data, like contests and usage rights
 const EXPECTED: Array<keyof RangeRaw> = ['shopGmv', 'targetInvites', 'emails', 'videos', 'samplesApproved', 'creatorsPosted']
@@ -188,7 +212,7 @@ export type StartResult = { ok: true; state: BackfillState } | { ok: false; reas
 const isActive = (s: BackfillState | null, now: number) => !!s && s.status === 'running' && now - Date.parse(s.updatedAt) < STALL_MS
 
 /** Start a new run. Refused while another run is making progress. Exactly one of two simultaneous starts wins. */
-export async function startRun(d: Deps, o: { yearStart?: string; forceRefresh?: boolean; mode?: 'full' | 'proof'; trigger?: 'manual' | 'cron' } = {}): Promise<StartResult> {
+export async function startRun(d: Deps, o: { yearStart?: string; forceRefresh?: boolean; mode?: 'full' | 'proof'; trigger?: 'manual' | 'cron'; scope?: 'full' | 'weekly' } = {}): Promise<StartResult> {
   const now = d.now()
   const [lock, prev] = await Promise.all([d.store.readLock(), d.store.readState()])
   if (isActive(prev, now) || (lock && lock.rec.leaseUntil > now)) {
@@ -204,10 +228,10 @@ export async function startRun(d: Deps, o: { yearStart?: string; forceRefresh?: 
   if (mode === 'proof') wanted = wanted.filter(w => w.type === 'week').slice(0, 1)
   const stored = await d.store.loadPeriods()
   const state: BackfillState = {
-    runId, status: 'running', mode, trigger: o.trigger ?? 'manual', yearStart, weeksFrom: firstFullWeekStart(yearStart), forceRefresh: force, asOf, dataThrough,
+    runId, status: 'running', mode, trigger: o.trigger ?? 'manual', scope: o.scope ?? 'full', yearStart, weeksFrom: firstFullWeekStart(yearStart), forceRefresh: force, asOf, dataThrough,
     startedAt: iso(now), updatedAt: iso(now), phase: 'prep', prep: { contestMonthsDone: [], usageNow: null, done: false },
     // A proof run always pulls its one week so there are fresh numbers to check
-    periods: planPeriods(wanted, stored, force || mode === 'proof'), current: null, alerts: [], stallAlerted: false,
+    periods: planPeriods(wanted, stored, force || mode === 'proof', [], true, { scope: o.scope ?? 'full', asOf }), current: null, alerts: [], stallAlerted: false,
   }
   await d.store.writeState(state)
   return { ok: true, state }
@@ -224,10 +248,11 @@ export async function resumeRun(d: Deps): Promise<StartResult> {
   let wanted = backfillWanted(asOf, dataThrough, prev.yearStart)
   if (prev.mode === 'proof') wanted = wanted.filter(w => w.type === 'week').slice(0, 1)
   const retry = prev.periods.map(p => (p.status === 'error' ? { ...p, status: 'pending' as const, reason: 'retry after error' } : p))
-  const periods = planPeriods(wanted, await d.store.loadPeriods(), prev.forceRefresh || prev.mode === 'proof', retry, sameDay)
+  const periods = planPeriods(wanted, await d.store.loadPeriods(), prev.forceRefresh || prev.mode === 'proof', retry, sameDay, { scope: prev.scope ?? 'full', asOf })
   const state: BackfillState = {
     ...prev, status: 'running', asOf, dataThrough, updatedAt: iso(now), finishedAt: undefined, stallAlerted: false, current: null, periods,
-    phase: prev.prep.done && sameDay ? 'pull' : 'prep', prep: sameDay ? prev.prep : { contestMonthsDone: [], usageNow: null, done: false },
+    // Preparation is repeated if the day changed or if it predates a step added since (Euka Chat counts)
+    phase: prev.prep.done && prev.prep.chatDone && sameDay ? 'pull' : 'prep', prep: sameDay ? { ...prev.prep, done: prev.prep.done && !!prev.prep.chatDone } : { contestMonthsDone: [], usageNow: null, done: false },
   }
   await d.store.writeState(state)
   return { ok: true, state }
@@ -360,6 +385,8 @@ export async function runStep(d: Deps, o: { runId: string; budgetMs?: number; ma
         s.periods = s.periods.map(p => (ids.has(p.id) ? { ...p, status: 'error' as const, reason: msg } : p))
         throw new StepError(msg, s.current)
       }
+      // A finished month is final 3 days after it ends, so the Monday run pulls it once more and then leaves it alone
+      for (const p of pulled.periods) if (p.period_type === 'month' && !pulled.diag[`month:${p.period_key}`]?.overviewError && p.end_date < s.dataThrough && monthClosed(p.end_date, s.asOf)) p.final = true
       await d.store.savePeriods(pulled.periods)
       const at = iso(d.now())
       const byId = new Map(pulled.periods.map(p => [`${p.period_type}:${p.period_key}`, p]))

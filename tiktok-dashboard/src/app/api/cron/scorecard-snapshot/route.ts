@@ -7,7 +7,7 @@ import { sendBackfillAlert } from '@/lib/server/alerts'
 import { cronDenied } from '@/lib/server/cronAuth'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 120
+export const maxDuration = 300
 
 // Daily: record how many creators have active usage rights. Euka has no dated source for this, so history only
 // exists from the first snapshot onward (replaces the GitHub "Scorecard daily snapshot" job).
