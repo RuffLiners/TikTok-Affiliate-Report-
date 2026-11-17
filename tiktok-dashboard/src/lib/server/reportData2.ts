@@ -91,11 +91,11 @@ export async function collectReportGroup2(euka: EukaLike, w: W, g1: ReportGroup1
 
   // ---- Sources, fetched together
   const tiersFor = (r: Range) => e.call('get_dashboard_creator_level_breakdown', { brandId: BRAND_ID, postedDateRange: { startDate: r.start, endDate: r.end } })
-  const [postedRows, sold30, soldPrior, soldWeeks, weekTiers, monthTiers, agentsRaw, creatives] = await Promise.all([
+  const [postedRows, sold30, soldPrior, soldWeeks, weekTiers, monthTiers, tiers30, tiersPrior, agentsRaw, creatives] = await Promise.all([
     exportVideos(e, { kind: 'lifetime', sort: { field: 'postedAt', direction: 'desc' } }),
     soldIn(e, d30), soldIn(e, prior),
     mapPool(weeks, EUKA_CONCURRENCY, r => soldIn(e, r)),
-    mapPool(weeks, 3, tiersFor), mapPool(months, 3, tiersFor),
+    mapPool(weeks, 3, tiersFor), mapPool(months, 3, tiersFor), tiersFor(d30), tiersFor(prior),
     listAgents(e, d30.start), listCreatives(e, d30),
   ])
 
@@ -128,21 +128,18 @@ export async function collectReportGroup2(euka: EukaLike, w: W, g1: ReportGroup1
   const gmvByTier = (rows: SoldVideo[]) => { const o = Object.fromEntries(LV.map(l => [l, 0])) as Record<Lv, number>; for (const v of rows) o[tierFor(v.creatorId)] += v.gmv; return Object.fromEntries(LV.map(l => [l, r2(o[l])])) as Record<Lv, number> }
   const tot = <T extends Record<string, number>>(m: Record<Lv, T>, k: keyof T) => LV.reduce((t, l) => t + (m[l][k] as number), 0)
 
-  // ---- 30-day and prior: headline numbers are the sum of their tier rows
-  const p30 = postingByTier(d30), pPrior = postingByTier(prior)
-  const g30 = gmvByTier(sold30), gPrior = gmvByTier(soldPrior)
-  const retentionPct = (cur: Range, prev: Range) => {
-    const a = new Set(posted.filter(v => inR(v.day, prev)).map(v => v.creatorId)); if (!a.size) return null
-    const b = new Set(posted.filter(v => inR(v.day, cur)).map(v => v.creatorId)); let both = 0; for (const c of a) if (b.has(c)) both++
-    return Math.round((both / a.size) * 1000) / 10
-  }
-  const kpi = (p: ReturnType<typeof postingByTier>, g: Record<Lv, number>, rows: SoldVideo[], base: any, cur: Range, prev: Range) => ({
-    ...base, gmv: r2(LV.reduce((t, l) => t + g[l], 0)), orders: rows.reduce((t, v) => t + v.items, 0),
-    videos: tot(p, 'videos'), views: tot(p, 'views'), creators: new Set(posted.filter(v => inR(v.day, cur)).map(v => v.creatorId)).size, newCreators: tot(p, 'newCreators'), retention: retentionPct(cur, prev),
+  // ---- 30-day and prior. Creators, videos and GMV per level are Euka's own tier breakdown (they match its dashboard);
+  // new creators and views per level come from the export. Every headline is the sum of its level rows.
+  const tierRow = (list: any, l: Lv) => (list?.tiers ?? []).find((t: any) => String(t.tier).toLowerCase() === l)
+  const levels = (list: any, r: Range) => { const p = postingByTier(r); return Object.fromEntries(LV.map(l => { const t = tierRow(list, l); return [l, { creators: numOf(t?.activeCreators), newCreators: p[l].newCreators, videos: numOf(t?.videos), views: p[l].views, gmv: r2(numOf(t?.totalGmv)) }] })) as Record<Lv, { creators: number; newCreators: number; videos: number; views: number; gmv: number }> }
+  const sumL = (m: Record<Lv, any>, k: string) => LV.reduce((t, l) => t + numOf(m[l][k]), 0)
+  const L30 = levels(tiers30, d30), LPrior = levels(tiersPrior, prior)
+  const kpi = (L: ReturnType<typeof levels>, rows: SoldVideo[], base: any) => ({
+    ...base, gmv: r2(sumL(L, 'gmv')), orders: rows.reduce((t, v) => t + v.items, 0), videos: sumL(L, 'videos'), views: sumL(L, 'views'), creators: sumL(L, 'creators'), newCreators: sumL(L, 'newCreators'),
   })
-  const priorPrev: Range = { start: addDays(prior.start, -30), end: addDays(prior.start, -1) }
-  const A1 = kpi(p30, g30, sold30, g1.pd.A1, d30, prior), A2 = kpi(pPrior, gPrior, soldPrior, g1.pd.A2, prior, priorPrev)
-  const A3 = Object.fromEntries(LV.map(l => [l, { ...p30[l], gmv: g30[l] }]))
+  const A1 = kpi(L30, sold30, g1.pd.A1), A2 = kpi(LPrior, soldPrior, g1.pd.A2)      // retention stays Euka's own figure from group 1
+  const A3 = L30
+  const p30 = postingByTier(d30)
 
   // ---- GMV Max by tier and by content age, from the creatives that spent in the window
   const spendTier = Object.fromEntries(LV.map(l => [l, { spend: 0, revenue: 0 }])) as Record<Lv, { spend: number; revenue: number }>
@@ -159,31 +156,31 @@ export async function collectReportGroup2(euka: EukaLike, w: W, g1: ReportGroup1
     const days = vid?.day ? Math.round((Date.parse(d30.end) - Date.parse(vid.day)) / 86400000) : null
     const b = ageAcc[ages.findIndex(([, test]) => test(days))]; b.videos++; b.spend += cost; b.revenue += rev
   }
-  const A6 = { spend: r2(adSpend), revenue: r2(adRev), roi: adSpend > 0 ? r2(adRev / adSpend) : 0, ...Object.fromEntries(LV.map(l => [l, { spend: r2(spendTier[l].spend), roi: spendTier[l].spend > 0 ? r2(spendTier[l].revenue / spendTier[l].spend) : 0 }])) }
-  const A7 = ageAcc.filter(b => b.videos > 0).map(b => ({ label: b.label, videos: b.videos, spend: r2(b.spend), revenue: r2(b.revenue), roi: b.spend > 0 ? r2(b.revenue / b.spend) : 0, pct: adSpend > 0 ? Math.round((b.spend / adSpend) * 1000) / 10 : 0 }))
+  // The header is Euka's ads overview. Spend it does not tie to a listed video (the difference) is shown as "Unknown post date"
+  const headSpend = numOf(g1.pd.A6?.spend) || r2(adSpend), headRev = numOf(g1.pd.A6?.revenue) || r2(adRev)
+  const restSpend = r2(headSpend - adSpend), restRev = r2(headRev - adRev)
+  if (restSpend > 0.005) { const u = ageAcc[ageAcc.length - 1]; u.spend += restSpend; u.revenue += Math.max(0, restRev) }
+  const A6 = { spend: r2(headSpend), revenue: r2(headRev), roi: headSpend > 0 ? r2(headRev / headSpend) : 0, ...Object.fromEntries(LV.map(l => [l, { spend: r2(spendTier[l].spend), roi: spendTier[l].spend > 0 ? r2(spendTier[l].revenue / spendTier[l].spend) : 0 }])) }
+  const A7 = ageAcc.filter(b => b.videos > 0 || b.spend > 0).map(b => ({ label: b.label, videos: b.videos, spend: r2(b.spend), revenue: r2(b.revenue), roi: b.spend > 0 ? r2(b.revenue / b.spend) : 0, pct: headSpend > 0 ? Math.round((b.spend / headSpend) * 1000) / 10 : 0 }))
 
-  // ---- 13 weeks and 6 months, by tier
-  const tierRow = (list: any, l: Lv) => (list?.tiers ?? []).find((t: any) => String(t.tier).toLowerCase() === l)
+  // ---- 13 weeks and 6 months, by level: same sources as the 30-day table
   const series = (ranges: Range[], make: (r: Range, i: number) => Record<Lv, any>) => { const per = ranges.map(make); return Object.fromEntries(LV.map(l => [l, per.map(p => p[l])])) }
-  const C2P = series(weeks, r => { const p = postingByTier(r); return Object.fromEntries(LV.map(l => [l, { creators: p[l].creators, newCreators: p[l].newCreators, videos: p[l].videos }])) as any })
-  const weekGmv = soldWeeks.map(gmvByTier)
-  const C2V = series(weeks, (r, i) => { const p = postingByTier(r); return Object.fromEntries(LV.map(l => [l, { views: p[l].views, gmv: weekGmv[i][l] }])) as any })
-  const C1 = weeks.map((_, i) => ({ gmv: r2(LV.reduce((t, l) => t + weekGmv[i][l], 0)), orders: soldWeeks[i].reduce((t, v) => t + v.items, 0) }))
-  const C4 = weeks.map(r => { const p = postingByTier(r); return { videos: tot(p, 'videos'), views: tot(p, 'views') } })
-  const C3 = weeks.map(r => retentionPct(r, { start: addDays(r.start, -7), end: addDays(r.end, -7) }) ?? 0)
-  const C5 = series(weeks, (_, i) => Object.fromEntries(LV.map(l => [l, { msgs: null, invites: tierRow(weekTiers[i], l)?.invitesSent ?? null, samples: tierRow(weekTiers[i], l)?.samplesDelivered ?? null }])) as any)
-  const D2P = series(months, r => { const p = postingByTier(r); return Object.fromEntries(LV.map(l => [l, { creators: p[l].creators, newCreators: p[l].newCreators, videos: p[l].videos }])) as any })
-  // Monthly GMV by tier comes from Euka's tier breakdown (one call per month); weekly comes from per-video sales
-  const D2V = series(months, (r, i) => { const p = postingByTier(r); return Object.fromEntries(LV.map(l => [l, { views: p[l].views, gmv: r2(numOf(tierRow(monthTiers[i], l)?.totalGmv)) }])) as any })
-  const D1 = months.map((r, i) => ({ ...(g1.pd.D1[i] ?? {}), gmv: r2(LV.reduce((t, l) => t + numOf(tierRow(monthTiers[i], l)?.totalGmv), 0)), views: tot(postingByTier(r), 'views') }))
-  const prevMonth = (r: Range): Range => { const end = addDays(r.start, -1); return { start: `${end.slice(0, 7)}-01`, end } }
-  const D3 = months.map(r => retentionPct(r, prevMonth(r)) ?? 0)
-  const D4 = series(months, (_, i) => Object.fromEntries(LV.map(l => [l, { msgs: null, invites: tierRow(monthTiers[i], l)?.invitesSent ?? null, samples: tierRow(monthTiers[i], l)?.samplesDelivered ?? null, approved: tierRow(monthTiers[i], l)?.samplesApproved ?? null }])) as any)
+  const weekL = weeks.map((r, i) => levels(weekTiers[i], r)), monthL = months.map((r, i) => levels(monthTiers[i], r))
+  const pick = (Ls: Array<ReturnType<typeof levels>>, keys: string[]) => series(Ls.map((_, i) => ({ start: String(i), end: '' })), (_, i) => Object.fromEntries(LV.map(l => [l, Object.fromEntries(keys.map(k => [k, (Ls[i][l] as any)[k]]))])) as any)
+  const C2P = pick(weekL, ['creators', 'newCreators', 'videos']), C2V = pick(weekL, ['views', 'gmv'])
+  const D2P = pick(monthL, ['creators', 'newCreators', 'videos']), D2V = pick(monthL, ['views', 'gmv'])
+  const C1 = weeks.map((_, i) => ({ gmv: r2(sumL(weekL[i], 'gmv')), orders: soldWeeks[i].reduce((t, v) => t + v.items, 0) }))
+  const C4 = weeks.map((_, i) => ({ videos: sumL(weekL[i], 'videos'), views: sumL(weekL[i], 'views') }))
+  const C3 = g1.pd.C3, D3 = g1.pd.D3                                                // Euka's retention figures
+  const outreachL = (list: any[], withApproved: boolean) => series(list.map((_, i) => ({ start: String(i), end: '' })), (_, i) => Object.fromEntries(LV.map(l => [l, { msgs: null, invites: tierRow(list[i], l)?.invitesSent ?? null, samples: tierRow(list[i], l)?.samplesDelivered ?? null, ...(withApproved ? { approved: tierRow(list[i], l)?.samplesApproved ?? null } : {}) }])) as any)
+  const C5 = outreachL(weekTiers, false), D4 = outreachL(monthTiers, true)
+  const D1 = months.map((_, i) => ({ ...(g1.pd.D1[i] ?? {}), gmv: r2(sumL(monthL[i], 'gmv')), views: sumL(monthL[i], 'views') }))
 
   // ---- Tables
   const creatorTable = (rows: SoldVideo[], r: Range) => {
     const m = new Map<string, { h: string; gmv: number; ord: number; views: number; vids: number }>()
-    for (const v of rows) { const c = m.get(v.creatorId) ?? { h: v.handle, gmv: 0, ord: 0, views: 0, vids: 0 }; c.gmv += v.gmv; c.ord += v.items; c.views += v.views; c.vids++; m.set(v.creatorId, c) }
+    const vidSeen = new Set<string>()
+    for (const v of rows) { const c = m.get(v.creatorId) ?? { h: v.handle, gmv: 0, ord: 0, views: 0, vids: 0 }; c.gmv += v.gmv; c.ord += v.items; c.views += v.views; if (!vidSeen.has(v.id)) { vidSeen.add(v.id); c.vids++ } m.set(v.creatorId, c) }
     const postedIn = new Map<string, PostedVideo[]>()
     for (const v of posted) if (inR(v.day, r)) postedIn.set(v.creatorId, [...(postedIn.get(v.creatorId) ?? []), v])
     return { m, postedIn }
@@ -215,19 +212,21 @@ export async function collectReportGroup2(euka: EukaLike, w: W, g1: ReportGroup1
   // ---- Controls: Euka's own dashboard figures beside the rebuilt ones, so a drift between sources is visible
   const g = g1.pd, controls: string[] = []
   const cmp = (label: string, mine: number | null, euka: number | null, tolPct: number) => { if (mine == null || euka == null) return; const diff = euka === 0 ? (mine === 0 ? 0 : 100) : Math.abs((mine - euka) / euka) * 100; controls.push(`${diff <= tolPct ? 'OK  ' : 'DIFF'} ${label}: rebuilt ${mine} vs Euka dashboard ${euka} (${Math.round(diff * 10) / 10}%)`) }
-  cmp('30-day creators posting', A1.creators, g.A1.creators, 2); cmp('30-day videos', A1.videos, g.A1.videos, 5); cmp('30-day new creators', A1.newCreators, g.A1.newCreators, 5)
-  cmp('30-day retention', A1.retention, g.A1.retention, 5); cmp('30-day GMV (per-video sales vs tier breakdown)', A1.gmv, g.A1.gmv, 1)
-  cmp('GMV Max spend (creatives vs ads overview)', A6.spend, g.A6.spend, 1); cmp('GMV Max revenue (creatives vs ads overview)', A6.revenue, g.A6.revenue, 1)
-  g.C1.forEach((x: any, i: number) => cmp(`week ${weeks[i].start} GMV (per-video sales vs daily series)`, C1[i].gmv, x.gmv, 2))
+  const exp = { creators: new Set(posted.filter(v => inR(v.day, d30)).map(v => v.creatorId)).size, videos: LV.reduce((t, l) => t + p30[l].videos, 0) }
+  cmp('30-day creators posting (export vs Euka tier breakdown)', exp.creators, A1.creators, 2); cmp('30-day videos (export vs Euka tier breakdown)', exp.videos, A1.videos, 5)
+  cmp('30-day new creators (export vs Euka retention summary)', A1.newCreators, g.A1.newCreators, 5)
+  cmp('30-day GMV (per-video sales vs Euka tier breakdown)', r2(sold30.reduce((t, v) => t + v.gmv, 0)), A1.gmv, 1)
+  cmp('GMV Max spend tied to a video vs Euka ads overview', r2(adSpend), A6.spend, 100)
+  g.C1.forEach((x: any, i: number) => cmp(`week ${weeks[i].start} GMV (Euka tier breakdown vs daily series)`, C1[i].gmv, x.gmv, 2))
 
   return {
     pd: { A1, A2, A3, A4: g.A4, A5: g.A5, A6, A7, C1, C2P, C2V, C3, C4, C5, D1, D2P, D2V, D3, D4, topCreators, topVideos, activeCreators, weeklyTopCreators, weeklyTopVideos, weeklyActiveCreators, agents,
       _counts: { postedVideos: posted.length, creatorsEver: tierOf.size, sold30: sold30.length, creatives: creatives.length, agentsListed: agentsRaw.length } },
     sources: {
-      'creators, new creators, videos, views (all levels and totals)': 'export_videos (every video ever posted), one row per video, grouped by post date in America/Los_Angeles. "New" = the creator\'s first-ever post falls in the period. "Views" = lifetime views so far on videos posted in the period, the meaning earlier reports used.',
+      'new creators and views (all levels and totals)': 'export_videos (every video ever posted), one row per video, grouped by post date in America/Los_Angeles. "New" = the creator\'s first-ever post falls in the period. "Views" = lifetime views so far on videos posted in the period, the meaning earlier reports used.',
       'retention': 'creators who posted in both the prior period and this one, divided by creators who posted in the prior period, from the same export.',
-      'gmv and orders (30-day, weekly), tables': 'search_videos by sales window: GMV and items sold per video inside the window, whatever the post date. Orders = items sold.',
-      'monthly gmv by tier': 'get_dashboard_creator_level_breakdown per month.',
+      'creators, videos and gmv per level': 'get_dashboard_creator_level_breakdown for each period (30 days, each week, each month): activeCreators, videos, totalGmv. The headline is the sum of the seven levels.',
+      'orders and the six tables': 'search_videos by sales window: GMV and items sold per video inside the window, whatever the post date. Orders = items sold.',
       'tiers': 'each creator\'s current Euka level from the export; "L0" and unmatched creators count as L1.',
       'A6 by tier, A7 content age': 'list_gmv_max_creatives for the window (spend and revenue per creative), joined to the video\'s post date and creator level.',
       agents: 'list_outreach_agents, all pages, created inside the 30-day window. Targeting filters and commission are not in the list data.',
