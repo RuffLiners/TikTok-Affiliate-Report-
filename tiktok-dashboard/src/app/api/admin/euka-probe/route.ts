@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { request as httpsRequest } from 'https'
+import { timingSafeEqual } from 'node:crypto'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { verifyToken } from '@/lib/auth'
@@ -74,6 +75,18 @@ async function probeDirect(tok: string): Promise<PathResult> {
   } finally { await client?.close().catch(() => {}) }
 }
 
+async function listToolNames(tok: string): Promise<string[]> {
+  if (!tok) throw new Error('EUKA_BEARER_TOKEN is not set in this environment')
+  const client = new Client({ name: 'ruff-liners-dashboard-probe', version: '1.0.0' })
+  try {
+    await withTimeout(client.connect(new StreamableHTTPClientTransport(new URL(process.env.EUKA_MCP_URL || DEFAULT_URL), { requestInit: { headers: { Authorization: `Bearer ${tok}` } } })), 30_000, 'MCP connect')
+    const names: string[] = []
+    let cursor: string | undefined
+    do { const r: any = await withTimeout(client.listTools(cursor ? { cursor } : undefined), 60_000, 'tools/list'); for (const t of r.tools ?? []) names.push(t.name); cursor = r.nextCursor } while (cursor)
+    return names.sort()
+  } finally { await client.close().catch(() => {}) }
+}
+
 function anthropicPost(apiKey: string, bodyStr: string, timeoutMs: number): Promise<{ status: number; text: string }> {
   return new Promise((resolve, reject) => {
     const req = httpsRequest({
@@ -143,7 +156,16 @@ async function tableCheck(): Promise<Record<string, string>> {
 
 export async function GET(req: NextRequest) {
   const cookie = req.cookies.get('rl-auth')?.value
-  if (!cookie || !(await verifyToken(cookie))) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+  const bearer = Buffer.from((req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim())
+  const secret = Buffer.from((process.env.CRON_SECRET || '').trim())
+  const machine = secret.length > 0 && bearer.length === secret.length && timingSafeEqual(bearer, secret)
+  if (!machine && !(cookie && (await verifyToken(cookie)))) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+
+  // ?tools=1 lists the tool names this token can reach (names only), to build the report's allowlist
+  if (req.nextUrl.searchParams.get('tools') === '1') {
+    try { return NextResponse.json({ tools: await listToolNames(eukaToken()) }, { headers: { 'cache-control': 'no-store' } }) }
+    catch (e) { return NextResponse.json({ error: redact((e as Error).message, [eukaToken()]) }, { status: 502 }) }
+  }
 
   const tok = eukaToken()
   const ak = await anthropicKey()

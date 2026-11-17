@@ -1,3 +1,4 @@
+import { buildScorecardAudit } from '@/lib/server/scorecardAudit'
 import Link from 'next/link'
 import { cookies } from 'next/headers'
 import { supabaseAdmin } from '@/lib/supabase'
@@ -31,6 +32,8 @@ export default async function DashboardPage() {
     : liveSnapshot
   const needsReview: string[] = ((latestReport?.d30 as any)?.needsReview ?? []) as string[]
   const scorecardLoaded = await loadLatestScorecard().catch(() => null)
+  // Store and run health (missing periods, old definitions, a stalled run). Never blocks the page.
+  const scorecardHealthNow = scorecardLoaded ? await buildScorecardAudit().then(a => a.health).catch(() => null) : null
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -83,7 +86,7 @@ export default async function DashboardPage() {
             <ul className="mt-1 text-xs text-amber-800 list-disc pl-5 space-y-0.5">{needsReview.map((t, i) => <li key={i}>{t}</li>)}</ul>
           </div>
         )}
-        <LiveDashboard report={latestReport ?? null} goals={goals} scorecard={scorecardLoaded?.scorecard ?? null} scorecardMeta={scorecardLoaded ? { publishedAt: scorecardLoaded.publishedAt, audit: scorecardLoaded.liveAudit.status } : null} />
+        <LiveDashboard report={latestReport ?? null} goals={goals} scorecard={scorecardLoaded?.scorecard ?? null} scorecardMeta={scorecardLoaded ? { publishedAt: scorecardLoaded.publishedAt, audit: scorecardLoaded.liveAudit.status, health: scorecardHealthNow } : null} />
       </main>
     </div>
   )

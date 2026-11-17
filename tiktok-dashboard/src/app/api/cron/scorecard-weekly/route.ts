@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { runStep, startRun, BackfillState } from '@/lib/scorecard/engine'
+import { runCounts, runStep, startRun, BackfillState } from '@/lib/scorecard/engine'
 import { backfillDeps, laToday } from '@/lib/server/backfillStore'
 import { sendBackfillAlert, sendSlack } from '@/lib/server/alerts'
 import { cronDenied } from '@/lib/server/cronAuth'
@@ -31,8 +31,10 @@ export async function GET(req: NextRequest) {
     const d = backfillDeps()
     const today = laToday()
     const prev = await d.store.readState()
-    if (prev && prev.status === 'done' && prev.mode === 'full' && prev.asOf === today) return NextResponse.json({ ok: true, skipped: `already published for ${today}` })
-    const st = await startRun(d, { trigger: 'cron', scope: 'weekly' })
+    if (req.nextUrl.searchParams.get('scope') !== 'full' && prev && prev.status === 'done' && prev.mode === 'full' && prev.asOf === today) return NextResponse.json({ ok: true, skipped: `already published for ${today}` })
+    // ?scope=full runs the whole history (everything missing, unsettled or outdated). The watchdog finishes it if one call is not enough.
+    const full = req.nextUrl.searchParams.get('scope') === 'full'
+    const st = await startRun(d, { trigger: 'cron', scope: full ? 'full' : 'weekly', forceRefresh: req.nextUrl.searchParams.get('force') === '1' })
     if (!st.ok) return NextResponse.json({ ok: false, skipped: st.message }, { status: 409 })   // an admin's run is in progress; the retry or the overdue check covers it
     let s = st.state
     while (s.status === 'running' && Date.now() - t0 < BUDGET_MS) {
@@ -42,7 +44,7 @@ export async function GET(req: NextRequest) {
     }
     // Not finished inside one call: the 5 minute watchdog continues cron runs. A failure has already alerted.
     const slack = s.status === 'done' ? await sendSlack(successText(s)) : 'n/a'
-    return NextResponse.json({ ok: s.status !== 'failed', status: s.status, runId: s.runId, seconds: Math.round((Date.now() - t0) / 1000), slack, error: s.lastError?.message ?? null }, { status: s.status === 'failed' ? 500 : 200 })
+    return NextResponse.json({ ok: s.status !== 'failed', status: s.status, runId: s.runId, counts: runCounts(s), seconds: Math.round((Date.now() - t0) / 1000), slack, error: s.lastError?.message ?? null }, { status: s.status === 'failed' ? 500 : 200 })
   } catch (e) {
     const msg = String((e as Error).message).slice(0, 400)
     await sendBackfillAlert('FAILED', `The Monday scorecard run could not start: ${msg}. Nothing was published. Next step: open the dashboard, Manage tab, Scorecard backfill, and click Run backfill.`)

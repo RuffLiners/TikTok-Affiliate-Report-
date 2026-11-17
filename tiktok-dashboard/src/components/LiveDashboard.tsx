@@ -13,7 +13,7 @@ interface Props {
   report: WeeklyReport | null
   goals: Goals | null
   scorecard?: Scorecard | null
-  scorecardMeta?: { publishedAt: string | null; audit: string } | null
+  scorecardMeta?: { publishedAt: string | null; audit: string; health?: { status: 'PASS' | 'WARN' | 'FAIL'; problems: Array<{ level: 'FAIL' | 'WARN'; text: string }> } | null } | null
 }
 
 function friendlyError(msg: string): string {

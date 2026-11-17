@@ -3,7 +3,7 @@
 import {
   ScorecardRaw, RangeRaw, weekRanges, monthRanges, addDays, monthOf, LAUNCH_DATE, computeRoi, round2,
 } from '../index'
-import { DailyMap, mergeAds, mergeSeries, sumRange, chunks, snapshotOnOrAfter } from './daily'
+import { DailyMap, Field, mergeAds, mergeSeries, sumRange, sumThrough, chunks, snapshotOnOrAfter } from './daily'
 import { RAW_VERSION, StoredPeriod, Wanted, dailySpan, isSettled, planPulls, wantedPeriods } from './plan'
 import { eukaChatFor, refreshEukaChat } from './eukaChat'
 import { ContestCounts, ContestInfo, ContestMonth, contestCounts, contestFor as contestForMonth, resolveContestMonths } from './contests'
@@ -23,7 +23,7 @@ export const ADS_HISTORY_FROM = '2025-10-28'
 export const VIEWS_FROM = '2026-01-01'
 const nz = (v: any): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
 
-export interface Overview { error: boolean; errorText?: string; shopGmv: number | null; messages: number | null; samplesApproved: number | null; creatorsPosted: number | null; videos: number | null; views: number | null; truncated: boolean }
+export interface Overview { error: boolean; errorText?: string; shopGmv: number | null; samplesApproved: number | null; creatorsPosted: number | null; videos: number | null; views: number | null; truncated: boolean }
 
 /** Range-level performance overview. A truncated range (outside TikTok's retention) yields nulls, never partial numbers. */
 export async function pullOverview(e: Euka, asOf: string, a: string, b: string): Promise<Overview> {
@@ -35,12 +35,12 @@ export async function pullOverview(e: Euka, asOf: string, a: string, b: string):
   // A truncated range is outside TikTok's retention for shop and affiliate GMV only (Euka names the affected metrics in
   // sourceWarnings). Those yield null, never a partial number.
   const perf = (v: any) => (truncated || r?._error ? null : nz(v))
-  // Euka's own counts (samples, creators, messages, videos) are not affected and are kept. A 0 in a truncated range is
+  // Euka's own counts (samples, creators, videos) are not affected and are kept. A 0 in a truncated range is
   // ambiguous (a real zero, or before Euka had the data), so it stays "no data" rather than being stored as zero.
   const own = (v: any) => { const n = r?._error ? null : nz(v); return truncated && n === 0 ? null : n }
   return {
     error: !!r?._error, ...(r?._error ? { errorText: String(r._error) } : {}),
-    shopGmv: perf(r?.totalShopGMV), messages: own(r?.messagesSent), samplesApproved: own(r?.samplesApproved),
+    shopGmv: perf(r?.totalShopGMV), samplesApproved: own(r?.samplesApproved),
     creatorsPosted: own(r?.activeCreators), videos: own(r?.videoConvRateTotalVideos),
     views: b < VIEWS_FROM || r?._error ? null : nz(r?.allAccountVideoViews), truncated,
   }
@@ -146,18 +146,27 @@ export async function pullPeriods(
     const ov = overviews[i]
     diag[`${w.type}:${w.key}`] = { ...(ov.error ? { overviewError: ov.errorText ?? 'unknown error' } : {}), truncated: ov.truncated, control: { shopGmv: ov.shopGmv, videos: ov.videos } }
     const usageEnd = w.type === 'week' ? (b === ctx.latestWeekEnd ? 'now' : b) : (w.partial ? 'now' : b)
+    // Finished periods need every day (strict). The month in progress is cut per line at its own last day with data.
+    const through: NonNullable<RangeRaw['through']> = {}
+    const sum = (rawKey: keyof NonNullable<RangeRaw['through']>, f: Field, o: { historyFrom?: string } = {}) => {
+      if (!w.partial) return sumRange(daily, a, b, f, o, gaps)
+      const r = sumThrough(daily, a, b, f, o, gaps)
+      if (r.through) through[rawKey] = r.through
+      return r.value
+    }
     const raw: RangeRaw = {
-      shopGmv: sumRange(daily, a, b, 'shopGmv', {}, gaps),
-      gmvMaxSpend: sumRange(daily, a, b, 'spend', ads, gaps),
-      gmvMaxRevenue: sumRange(daily, a, b, 'revenue', ads, gaps),
-      targetInvites: sumRange(daily, a, b, 'invites', {}, gaps),
-      emails: sumRange(daily, a, b, 'emails', {}, gaps),
+      shopGmv: sum('shopGmv', 'shopGmv'),
+      gmvMaxSpend: sum('gmvMaxSpend', 'spend', ads),
+      gmvMaxRevenue: sum('gmvMaxRevenue', 'revenue', ads),
+      targetInvites: sum('targetInvites', 'invites'),
+      emails: sum('emails', 'emails'),
       eukaMessages: ctx.eukaChatFor(a, b),
-      videos: sumRange(daily, a, b, 'videos', {}, gaps),
+      videos: sum('videos', 'videos'),
       samplesApproved: ov.samplesApproved, creatorsPosted: ov.creatorsPosted, views: ov.views,
       contestAffiliates: ctx.contestFor(monthOf(b)),
       usageRightsCreators: usageEnd === 'now' ? ctx.usageNow : snapshotOnOrAfter(ctx.usageSnaps, addDays(usageEnd, 1)),
     }
+    if (Object.keys(through).length) raw.through = through
     // A pull that hit an error is never marked final, so it is retried next run instead of becoming permanent
     periods.push({ period_type: w.type, period_key: w.key, start_date: a, end_date: b, raw, raw_version: RAW_VERSION, final: !ov.error && isSettled(b, dataThrough, w.partial) })
   }
@@ -177,7 +186,8 @@ export function assembleRaw(o: { asOf: string; yearStart: string; dataThrough: s
     'Affiliates with usage rights are distinct creators with an active request. Euka has no dated source, so history before the first daily snapshot shows no data.',
     'Contest affiliates count each creator once per calendar month across all of that month\'s contests (Retainers excluded). A contest belongs to the month it starts in.',
     'Euka reports views as 0 before 2026-01-01; those periods show no data.',
-    `Stored periods are reused once final (14 days after they end). This run pulled ${o.pulled} of ${o.periods.length} periods.`,
+    `This run pulled ${o.pulled} period(s) from Euka. The scorecard is built from ${o.periods.length} stored period(s); a week is final 14 days after it ends, a month 3 days after.`,
+    'GMV Max spend and Gross Revenue are reported by Euka on the ad account\'s reporting day (America/Mexico_City here), two hours ahead of the shop\'s America/Los_Angeles day, so an ad day and a shop day are not exactly the same 24 hours.',
   ]
   return { asOf: o.asOf, yearStart: o.yearStart, dataThrough: o.dataThrough, weeks, months, allTime: o.allTime, ...(o.daily ? { daily: rawDaily } : {}), notes }
 }

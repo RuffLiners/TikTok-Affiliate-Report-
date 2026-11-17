@@ -5,8 +5,8 @@ import { jwtVerify } from 'jose'
 const secret = new TextEncoder().encode(process.env.AUTH_SECRET!)
 // /api/publish-report has no browser cookie: it checks its own bearer token (REPORT_PUBLISH_TOKEN)
 // /api/cron/* is called by Vercel Cron and checks CRON_SECRET itself
-// /api/scorecard-audit accepts an admin cookie or a machine token and checks both itself
-const PUBLIC = ['/login', '/api/auth', '/api/publish-report', '/api/cron/', '/api/scorecard-audit']
+// /api/scorecard-audit and /api/admin/euka-probe accept an admin cookie or a machine token and check both themselves
+const PUBLIC = ['/login', '/api/auth', '/api/publish-report', '/api/cron/', '/api/scorecard-audit', '/api/admin/euka-probe']
 
 // Routes that require full admin auth — view-only users are redirected to dashboard
 const ADMIN_ROUTES = ['/admin', '/api/admin', '/api/save-report']

@@ -140,9 +140,10 @@ export function ScorecardBackfill() {
   const s = state
   const running = s?.status === 'running'
   const stalled = !!s && running && !driving && now - Date.parse(s.updatedAt) > (meta?.stallMinutes ?? 10) * 60000
-  const canResume = !!s && !driving && (s.status === 'failed' || s.status === 'cancelled' || running)
+  const canResume = !!s && !driving && (s.status === 'failed' || s.status === 'cancelled' || s.status === 'stalled' || running)
   const weeks = s?.periods.filter(p => p.type === 'week') ?? [], months = s?.periods.filter(p => p.type === 'month') ?? []
   const finished = s ? s.periods.filter(p => p.status !== 'pending' && p.status !== 'error').length : 0
+  const pulledNow = s ? s.periods.filter(p => p.status === 'stored' || p.status === 'partial' || p.status === 'no_data').length : 0
   const pct = s && s.periods.length ? Math.round((finished / s.periods.length) * 100) : 0
   const cur = s?.current ? s.periods.find(p => p.id === s.current) : null
   const curText = !s || !running ? '' : cur ? `${cur.type === 'week' ? 'Week' : 'Month'} ${label(cur)}` : s.current ? s.current : s.phase === 'prep' ? 'Preparing: contests and usage rights' : 'Next batch'
@@ -204,22 +205,22 @@ export function ScorecardBackfill() {
           <div>
             <div className="flex flex-wrap justify-between gap-2 text-xs mb-1">
               <span className="font-medium text-gray-900">
-                {s.status === 'done' ? 'Finished' : s.status === 'failed' ? 'Failed' : s.status === 'cancelled' ? 'Stopped' : stalled ? 'Stalled' : driving ? 'Running' : 'Running (not from this tab)'}
-                {s.mode === 'proof' ? ' · latest-week test' : ''} · {finished} of {s.periods.length} periods done, {s.periods.length - finished} remaining
+                {s.status === 'done' ? 'Finished' : s.status === 'failed' ? 'Failed' : s.status === 'cancelled' ? 'Stopped' : s.status === 'stalled' || stalled ? 'Stalled' : driving ? 'Running' : 'Running (not from this tab)'}
+                {s.mode === 'proof' ? ' · latest-week test' : ''} · {finished} of {s.periods.length} periods done ({pulledNow} pulled in this run, {finished - pulledNow} already stored), {s.periods.length - finished} remaining
               </span>
               <span className="text-gray-500">Started {s.startedAt.slice(0, 16).replace('T', ' ')} UTC · last progress {ago(s.updatedAt, now)} · data through {s.dataThrough}</span>
             </div>
             <div className="h-2 bg-gray-100 rounded-full overflow-hidden" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-              <div className={`h-full ${s.status === 'failed' ? 'bg-red-500' : s.status === 'done' ? 'bg-green-500' : 'bg-blue-500'}`} style={{ width: `${pct}%` }} />
+              <div className={`h-full ${s.status === 'failed' || s.status === 'stalled' ? 'bg-red-500' : s.status === 'done' ? 'bg-green-500' : 'bg-blue-500'}`} style={{ width: `${pct}%` }} />
             </div>
             {running && <p className="text-xs text-gray-600 mt-1">{driving ? 'Working on' : 'Last working on'}: {curText}</p>}
             {running && !driving && !stalled && <p className="text-xs text-amber-700 mt-1">This run is not being driven from this tab. If another tab or admin has it open, leave it. If not, click Resume to continue it here.</p>}
             {stalled && <p role="alert" className="text-xs text-red-700 mt-1">No progress for over {meta?.stallMinutes ?? 10} minutes. Everything pulled so far is saved. Click Resume.</p>}
           </div>
 
-          {s.lastError && s.status === 'failed' && (
+          {s.lastError && (s.status === 'failed' || s.status === 'stalled') && (
             <div role="alert" className="text-xs bg-red-50 border border-red-200 text-red-800 rounded-xl p-3 space-y-1">
-              <p><strong>Failed{s.lastError.period ? ` at ${s.lastError.period.replace(':', ' ')}` : ''}.</strong> {s.lastError.message}</p>
+              <p><strong>{s.status === 'stalled' ? 'Stalled' : 'Failed'}{s.lastError.period ? ` at ${s.lastError.period.replace(':', ' ')}` : ''}.</strong> {s.lastError.message}</p>
               <p><strong>Next step:</strong> {s.lastError.nextStep}</p>
             </div>
           )}

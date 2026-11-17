@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { addDays, buildTodo, ManualEntry, Scorecard, ScorecardRaw } from '../index'
+import { addDays, auditScorecard, buildTodo, scorecardHealth, HealthInput, ManualEntry, Scorecard, ScorecardRaw } from '../index'
 import {
   AlertRecord, BackfillState, BackfillStore, Deps, LockRec, STALL_MS, backfillWanted, cancelRun, checkStall, classify, firstFullWeekStart,
-  nextBatch, resumeRun, runStep, startRun,
+  nextBatch, resumeRun, runCounts, runStep, startRun,
 } from './backfill'
 import { StoredPeriod, isSettled } from './plan'
 import { ContestMonth } from './contests'
@@ -46,7 +46,7 @@ const CHAT_THREADS = [
   ] },
   { id: 't2', at: 2, items: [msg('2026-06-15T18:00:00Z', 'Manager'), msg('2026-06-16T18:00:00Z', 'Member')] },
 ]
-interface FakeOpts { chatThreads?: typeof CHAT_THREADS; dataFrom?: string; failSeries?: (start: string, end: string) => boolean; overviewFails?: (start: string, end: string) => boolean }
+interface FakeOpts { chatThreads?: typeof CHAT_THREADS; shopGmvThrough?: string; dataFrom?: string; failSeries?: (start: string, end: string) => boolean; overviewFails?: (start: string, end: string) => boolean }
 /** A Euka that returns consistent daily rows. Before `dataFrom` it returns nothing, as Euka does outside TikTok retention. */
 function fakeEuka(o: FakeOpts = {}) {
   const calls: Array<{ name: string; args: any }> = []
@@ -61,7 +61,7 @@ function fakeEuka(o: FakeOpts = {}) {
         const ds = days(args.startDate, args.endDate)
         return { data: {
           videoPosted: ds.map(date => ({ date, videos_posted: 10 })),
-          performances: ds.map(date => ({ date, total_shop_gmv: gmv(date) })),
+          performances: ds.filter(date => !o.shopGmvThrough || date <= o.shopGmvThrough).map(date => ({ date, total_shop_gmv: gmv(date) })),
           analyticsAggregated: ds.map(date => ({ date, messages_sent: 100, target_invites: 50, emails_sent: 5 })),
         } }
       }
@@ -561,6 +561,128 @@ describe('Euka Chat messages sent', () => {
   })
   it('with no Euka Chat history at all the line is no data everywhere', () => {
     expect(eukaChatFor({})('2026-11-08', '2026-11-14')).toBeNull()
+  })
+})
+
+// ---- Audit fix brief (2026-11-17) --------------------------------------------------------------------------------
+describe('fix brief item 1: line 7 never mirrors the automated outreach count', () => {
+  it('stores the Euka Chat count, not the dashboard messagesSent', async () => {
+    const h = harness()
+    await startRun(h.deps, {}); await h.drive('run1')
+    // The fake dashboard reports 700 automated messages for the week; Euka Chat has 3 team messages
+    expect(h.mem.periods.get('week:2026-11-08')!.raw.eukaMessages).toBe(3)
+    for (const p of h.mem.periods.values()) expect(p.raw_version).toBe(3)
+  })
+  it('with no Euka Chat conversations the line is no data in every period, never the automated count', async () => {
+    const h = harness({ chatThreads: [] })
+    await startRun(h.deps, {}); await h.drive('run1')
+    for (const p of h.mem.periods.values()) expect(p.raw.eukaMessages).toBeNull()
+  })
+})
+
+describe('fix brief item 2: stall, resume and counters', () => {
+  it('a run with no progress ends as stalled, not running, and resumes from what is saved', async () => {
+    const h = harness()
+    await startRun(h.deps, {})
+    await runStep(h.deps, { runId: 'run1', maxPeriods: 4 })
+    h.clock.t += STALL_MS + 1000
+    const s = await checkStall(h.deps)
+    expect(s).toMatchObject({ status: 'stalled' })
+    expect(s!.finishedAt).toBeTruthy()
+    expect(s!.lastError!.nextStep).toContain('Resume')
+    expect((await runStep(h.deps, { runId: 'run1' })).ok).toBe(false)        // a stalled run does not quietly carry on
+    const r = await resumeRun(h.deps)
+    expect(r.ok && r.state.status).toBe('running')
+    expect((await h.drive('run1')).r.state!.status).toBe('done')
+    expect(h.mem.periods.size).toBe(72)
+  })
+  it('a run already marked as alerted (older state) still ends as stalled, without a second alert', async () => {
+    const h = harness()
+    await startRun(h.deps, {})
+    await h.mem.store.writeState({ ...h.mem.state!, stallAlerted: true })
+    h.clock.t += STALL_MS + 1000
+    expect((await checkStall(h.deps))!.status).toBe('stalled')
+    expect(h.sent).toHaveLength(0)
+  })
+  it('the alert, the summary and the state all report the same counts', async () => {
+    const h = harness()
+    await startRun(h.deps, {}); await h.drive('run1')
+    await startRun(h.deps, {})                                             // second run: 69 already stored, 3 to pull
+    await runStep(h.deps, { runId: 'run2', maxPeriods: 1 })
+    h.clock.t += STALL_MS + 1000
+    const s = (await checkStall(h.deps))!
+    const c = runCounts(s)
+    expect(c).toMatchObject({ total: 72, pulled: 1, alreadyStored: 69, remaining: 2, finished: 70 })
+    expect(h.sent[0].text).toContain('70 of 72 periods are finished (1 pulled in this run, 69 already stored), 2 remaining')
+    expect(c.pulled + c.alreadyStored + c.remaining).toBe(c.total)
+  })
+  it('a run that was planned before a definition change re-plans instead of skipping old rows', async () => {
+    const h = harness()
+    // Old rows in the store, and a run in flight whose plan (made under version 1) skipped them
+    const st = await startRun(h.deps, {}); await h.drive('run1')
+    for (const [k, p] of h.mem.periods) h.mem.periods.set(k, { ...p, raw_version: 1, raw: { ...p.raw, eukaMessages: 38182 } })
+    await startRun(h.deps, {})
+    const frozen = { ...h.mem.state!, rawVersion: 1, periods: h.mem.state!.periods.map(p => ({ ...p, status: 'skipped' as const, reason: 'already stored and settled' })) }
+    await h.mem.store.writeState(frozen)
+    const { r } = await h.drive('run2')
+    expect(st.ok).toBe(true)
+    expect(r.state!.status).toBe('done')
+    for (const p of h.mem.periods.values()) { expect(p.raw_version).toBe(3); expect(p.raw.eukaMessages).not.toBe(38182) }
+    expect(runCounts(r.state!)).toMatchObject({ pulled: 72, alreadyStored: 0, remaining: 0 })
+  })
+})
+
+describe('fix brief item 4: health reflects the store and the run, not only the arithmetic', () => {
+  const ok: HealthInput = { scorecardAudit: 'PASS', missingFromStore: [], outdatedDefinition: [], lastRun: { status: 'done', lastProgress: '2026-11-17T05:00:00Z' }, publishedAt: '2026-11-17T05:00:00Z', newestPulledAt: '2026-11-17T04:59:00Z', line7Periods: 40, eukaChatConversations: 246, alerts: { slack: true, email: true, missing: [] }, cronReady: true }
+  it('passes when everything is in order', () => expect(scorecardHealth(ok)).toEqual({ status: 'PASS', problems: [] }))
+  it('fails on missing periods, old definitions, a stalled or failed run, a store newer than the published scorecard, and an empty Euka Chat input', () => {
+    expect(scorecardHealth({ ...ok, missingFromStore: ['week 2026-06-28'] }).status).toBe('FAIL')
+    expect(scorecardHealth({ ...ok, outdatedDefinition: ['week 2026-11-08 (v1)'] }).status).toBe('FAIL')
+    expect(scorecardHealth({ ...ok, lastRun: { status: 'stalled', lastProgress: 'x' } }).status).toBe('FAIL')
+    expect(scorecardHealth({ ...ok, lastRun: { status: 'failed', lastProgress: 'x', message: 'boom' } }).status).toBe('FAIL')
+    expect(scorecardHealth({ ...ok, publishedAt: '2026-11-17T03:46:18Z', newestPulledAt: '2026-11-17T03:57:00Z' }).status).toBe('FAIL')
+    expect(scorecardHealth({ ...ok, eukaChatConversations: 0 }).problems[0].text).toContain('not Euka Chat counts')
+  })
+  it('fails when no alert channel is set up and names the variables; warns when only one is', () => {
+    const none = scorecardHealth({ ...ok, alerts: { slack: false, email: false, missing: ['SLACK_WEBHOOK_URL', 'RESEND_API_KEY', 'ALERT_EMAIL_FROM'] } })
+    expect(none.status).toBe('FAIL'); expect(none.problems[0].text).toContain('SLACK_WEBHOOK_URL, RESEND_API_KEY, ALERT_EMAIL_FROM')
+    expect(scorecardHealth({ ...ok, alerts: { slack: true, email: false, missing: ['RESEND_API_KEY'] } }).status).toBe('WARN')
+  })
+  it('the production state from the audit export is a FAIL', () => {
+    const h = scorecardHealth({ ...ok, missingFromStore: Array(39).fill('week x'), outdatedDefinition: Array(33).fill('week y (v1)'), lastRun: { status: 'stalled', lastProgress: '2026-11-17T04:05:57Z' }, publishedAt: '2026-11-17T03:46:18Z', newestPulledAt: '2026-11-17T03:57:00Z', eukaChatConversations: 0, alerts: { slack: false, email: false, missing: ['SLACK_WEBHOOK_URL'] } })
+    expect(h.status).toBe('FAIL'); expect(h.problems.filter(p => p.level === 'FAIL')).toHaveLength(6)
+  })
+})
+
+describe('fix brief item 5: the month in progress is cut per line at its own last day', () => {
+  it('shop GMV one day behind: the month shows GMV through that day and estimates from its own days', async () => {
+    const h = harness({ shopGmvThrough: '2026-11-14' })                  // data through Nov 15, shop GMV only through Nov 14
+    await startRun(h.deps, {}); await h.drive('run1')
+    const nov = h.mem.periods.get('month:2026-11')!.raw
+    const expected = Array.from({ length: 14 }, (_, i) => 1000 + i + 1).reduce((a, b) => a + b, 0)
+    expect(nov.shopGmv).toBe(expected)                                    // was null before the fix
+    expect(nov.through).toEqual({ shopGmv: '2026-11-14' })
+    expect(nov.videos).toBe(150)                                          // lines with data through Nov 15 are unchanged
+    const m = h.mem.published[0].scorecard.monthly[0]
+    expect(m.through).toEqual({ gmv: '2026-11-14' })
+    expect(m.lines.gmv).toMatchObject({ value: expected, note: 'through 2026-11-14' })
+    expect(m.projected!.gmv).toBe(Math.round((expected / 14) * 30 * 100) / 100)     // 14 days of data, not 15
+    expect(m.projected!.videos).toBe(300)                                           // 150 over 15 days
+    expect(auditScorecard(h.mem.published[0].scorecard).status).toBe('PASS')
+  })
+  it('a finished period keeps the strict rule: a missing day is still no data', async () => {
+    const h = harness({ shopGmvThrough: '2026-10-30' })
+    await startRun(h.deps, {}); await h.drive('run1')
+    expect(h.mem.periods.get('month:2026-10')!.raw.shopGmv).toBeNull()
+    expect(h.mem.periods.get('month:2026-10')!.raw.through).toBeUndefined()
+    expect(h.mem.periods.get('week:2026-10-25')!.raw.shopGmv).toBeNull()
+  })
+  it('a gap in the middle of the month in progress is still no data', async () => {
+    const h = harness()
+    const gap: EukaLike = { call: async (n, a: any = {}) => { const out = await h.fake.e.call(n, a); if (n === 'get_dashboard_performance_series') out.data.performances = out.data.performances.filter((r: any) => r.date !== '2026-11-06'); return out } }
+    const deps = { ...h.deps, euka: async () => gap }
+    await startRun(deps, {}); let r = await runStep(deps, { runId: 'run1' }); while (r.ok && r.state.status === 'running') r = await runStep(deps, { runId: 'run1' })
+    expect(h.mem.periods.get('month:2026-11')!.raw.shopGmv).toBeNull()
   })
 })
 

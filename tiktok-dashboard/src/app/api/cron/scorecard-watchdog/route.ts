@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { addDays } from '@/lib/scorecard'
-import { checkStall, runStep } from '@/lib/scorecard/engine'
+import { checkStall, resumeRun, runCounts, runStep } from '@/lib/scorecard/engine'
 import { supabaseAdmin } from '@/lib/supabase'
 import { backfillDeps, laToday } from '@/lib/server/backfillStore'
 import { sendBackfillAlert } from '@/lib/server/alerts'
@@ -21,6 +21,8 @@ export async function GET(req: NextRequest) {
     const d = backfillDeps()
     let s = await d.store.readState()
     let continued = false
+    // A cron run has no browser driving it: carry it on here, and pick it back up if it stalled
+    if (s && s.trigger === 'cron' && s.status === 'stalled') { const r0 = await resumeRun(d); if (r0.ok) s = r0.state }
     if (s && s.status === 'running' && s.trigger === 'cron') {
       const r = await runStep(d, { runId: s.runId, budgetMs: 200_000 })
       continued = r.ok
@@ -39,7 +41,7 @@ export async function GET(req: NextRequest) {
       }
       overdue = String(latest.as_of)
     }
-    return NextResponse.json({ ok: true, status: s?.status ?? 'none', lastProgress: s?.updatedAt ?? null, stallAlerted: s?.stallAlerted ?? false, continuedCronRun: continued, overdueSince: overdue })
+    return NextResponse.json({ ok: true, status: s?.status ?? 'none', counts: s ? runCounts(s) : null, lastProgress: s?.updatedAt ?? null, stallAlerted: s?.stallAlerted ?? false, continuedCronRun: continued, overdueSince: overdue })
   } catch (e) {
     console.error('[scorecard-watchdog]', (e as Error).message)
     return NextResponse.json({ ok: false, error: String((e as Error).message).slice(0, 300) }, { status: 500 })

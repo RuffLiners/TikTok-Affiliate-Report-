@@ -66,7 +66,7 @@ export function supabaseBackfillStore(): BackfillStore {
       must(await sb.from('app_config').upsert({ key: CHAT_KEY, value: JSON.stringify(c), updated_at: new Date().toISOString() }, { onConflict: 'key' }), 'save Euka Chat counts')
     },
     async publish(asOf, raw, scorecard, audit) {
-      must(await sb.from('scorecards').upsert({ as_of: asOf, raw, scorecard, audit: { ...audit, checks: ['typescript-rules', 'range-total-cross-check'] }, published_by: 'dashboard-backfill' }, { onConflict: 'as_of' }), 'publish scorecard')
+      must(await sb.from('scorecards').upsert({ as_of: asOf, raw, scorecard, audit: { ...audit, checks: ['typescript-rules', 'range-total-cross-check'] }, published_by: 'dashboard-backfill', created_at: new Date().toISOString() }, { onConflict: 'as_of' }), 'publish scorecard')
       try { revalidatePath('/dashboard') } catch { /* outside a request (tests, scripts) */ }
     },
   }

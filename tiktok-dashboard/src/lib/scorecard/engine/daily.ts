@@ -55,3 +55,16 @@ export function snapshotOnOrAfter(snaps: Array<{ snap_date: string; value: numbe
   const hit = snaps.filter(s => s.snap_date >= date && s.snap_date <= addDays(date, maxGapDays)).sort((x, y) => x.snap_date.localeCompare(y.snap_date))[0]
   return hit ? hit.value : null
 }
+
+/**
+ * For the month in progress only. A source can lag a day (TikTok shop GMV is usually a day behind ads), so each line is
+ * cut at its own last day with data and says so, instead of the whole month showing no data. Days before that last
+ * day must all be present: a gap in the middle is still "no data".
+ */
+export function sumThrough(daily: DailyMap, a: string, b: string, f: Field, opts: SumOpts = {}, gaps?: string[]): { value: number | null; through?: string } {
+  let last: string | null = null
+  for (let d = b; d >= a; d = addDays(d, -1)) if (daily[d]?.[f] !== undefined) { last = d; break }
+  if (!last) return { value: null }
+  const value = sumRange(daily, a, last, f, opts, gaps)
+  return value == null || last === b ? { value } : { value, through: last }
+}

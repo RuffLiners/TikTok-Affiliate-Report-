@@ -1,13 +1,14 @@
 import { supabaseAdmin } from '@/lib/supabase'
-import { LINES, LINE_KEYS, ManualEntry, Scorecard, ScorecardRaw, auditScorecard, buildScorecard, buildTodo, computeRoi } from '@/lib/scorecard'
-import { ADS_HISTORY_FROM, RAW_VERSION, VIEWS_FROM, backfillWanted, ChatCache } from '@/lib/scorecard/engine'
+import { LINES, LINE_KEYS, ManualEntry, Scorecard, ScorecardRaw, auditScorecard, buildScorecard, buildTodo, computeRoi, scorecardHealth } from '@/lib/scorecard'
+import { alertConfig } from './alerts'
+import { ADS_HISTORY_FROM, RAW_VERSION, VIEWS_FROM, backfillWanted, runCounts, ChatCache } from '@/lib/scorecard/engine'
 
 /** Where each line comes from, in words a reviewer can check against Euka or Seller Center. */
 const SOURCES: Record<string, { source: string; rawField: string; noData: string }> = {
-  grossRevenue: { rawField: 'gmvMaxRevenue', source: 'Euka get_dashboard_ads_overview, dailyRoas[].revenue summed over the period (GMV Max attributed revenue, TikTok co-funded basis). Seller Center entry only where Euka has none.', noData: `No Euka data before ${ADS_HISTORY_FROM}.` },
+  grossRevenue: { rawField: 'gmvMaxRevenue', source: 'Euka get_dashboard_ads_overview, dailyRoas[].revenue summed over the period (GMV Max attributed revenue, TikTok co-funded basis). Days are the ad account reporting day (Euka freshness.timezone, America/Mexico_City here), two hours ahead of the shop day in America/Los_Angeles. Seller Center entry only where Euka has none.', noData: `No Euka data before ${ADS_HISTORY_FROM}.` },
   gmv: { rawField: 'shopGmv', source: 'Euka get_dashboard_performance_series, performances[].total_shop_gmv summed over the period. Seller Center entry only where Euka has none.', noData: 'TikTok keeps about 180 days of shop GMV; earlier periods are no data unless entered from Seller Center.' },
   gmvCofunded: { rawField: '(manual only)', source: 'Seller Center Shop analytics, "Gross merchandise value (with TikTok co-funding)". Entered by hand or CSV. Euka has no such field.', noData: 'No data until entered.' },
-  gmvMaxSpend: { rawField: 'gmvMaxSpend', source: 'Euka get_dashboard_ads_overview, dailyRoas[].cost summed over the period.', noData: `No Euka data before ${ADS_HISTORY_FROM}.` },
+  gmvMaxSpend: { rawField: 'gmvMaxSpend', source: 'Euka get_dashboard_ads_overview, dailyRoas[].cost summed over the period. Same ad-account reporting day as line 1 (America/Mexico_City here), not the shop day.', noData: `No Euka data before ${ADS_HISTORY_FROM}.` },
   gmvMaxRoi: { rawField: '(derived)', source: 'Line 1 divided by line 4, recomputed, never averaged.', noData: 'No data when either side is missing or spend is 0.' },
   targetInvites: { rawField: 'targetInvites', source: 'Euka get_dashboard_performance_series, analyticsAggregated[].target_invites summed.', noData: 'A period with any missing day is no data, never a partial sum.' },
   eukaMessages: { rawField: 'eukaMessages', source: 'Messages the team sent in Euka Chat (Inbox channel CreatorAppChat, senderType Manager), counted by Los Angeles day. Not the automated outreach delivered as TikTok Shop DMs.', noData: 'No data before the first Euka Chat message; a real 0 after.' },
@@ -17,7 +18,7 @@ const SOURCES: Record<string, { source: string; rawField: string; noData: string
   videos: { rawField: 'videos', source: 'Euka get_dashboard_performance_series, videoPosted[].videos_posted summed.', noData: 'A period with any missing day is no data.' },
   views: { rawField: 'views', source: 'Euka get_dashboard_performance_overview.allAccountVideoViews for the exact period.', noData: `Euka returns 0 before ${VIEWS_FROM}; stored as no data.` },
   contestAffiliates: { rawField: 'contestAffiliates', source: 'Euka list_contests + get_contest participants, distinct creators per calendar month the contest starts in. Retainers and cancelled contests excluded. A week shows the count for the month its last day falls in.', noData: 'No data before the first contest month.' },
-  usageRightsCreators: { rawField: 'usageRightsCreators', source: 'Euka search_usage_rights_requests, state active, distinct creator ids. Current count for the newest period; older periods use the daily snapshot taken the day after they end.', noData: 'No data for periods before daily snapshots began.' },
+  usageRightsCreators: { rawField: 'usageRightsCreators', source: 'Euka search_usage_rights_requests, state active, distinct creator ids. Current count for the newest period; older periods use the daily snapshot taken the day after they end. To reproduce: page through every active request (thousands, one per licensed video) and count distinct creator.id.', noData: 'No data for periods before daily snapshots began.' },
 }
 
 const HOW_TO_AUDIT = [
@@ -27,7 +28,8 @@ const HOW_TO_AUDIT = [
   '3. Additive lines only (1, 2, 4, 6, 7, 8, 9, 11, 12): the weeks that fall wholly inside a month must not add up to more than that month. Lines 10, 13, 14 count distinct people and must never be summed.',
   '4. A null is "no data" and must never be read as 0. Check "storage.missingFromStore" and "storage.outdatedDefinition": both should be empty after a completed backfill.',
   '5. Values with source "manual" or "seller_center" were typed in or imported; check them against Seller Center, not Euka.',
-  '6. Report: what matches, what differs (period, line, tool value, stored value), what could not be checked and why. Never correct a number yourself.',
+  '6. Read "health" first: if its status is FAIL, the published scorecard should not be trusted until the listed problems are fixed. For the month in progress, a line with a "through" date covers the month start to that date, not to dataThrough.',
+  '7. Report: what matches, what differs (period, line, tool value, stored value), what could not be checked and why. Never correct a number yourself.',
 ]
 
 export async function buildScorecardAudit() {
@@ -55,7 +57,7 @@ export async function buildScorecardAudit() {
   const view = (type: 'week' | 'month', p: { key: string; start: string; end: string; lines: Scorecard['weekly'][number]['lines']; gmvMaxRevenue: number | null }, extra: Record<string, unknown> = {}) => {
     const s = stored.get(`${type}:${p.key}`)
     return {
-      type, key: p.key, start: p.start, end: p.end, ...extra,
+      type, key: p.key, start: p.start, end: p.end, ...extra, ...((p as any).through ? { through: (p as any).through } : {}),
       stored: s ? { final: s.final, rawVersion: s.raw_version, pulledAt: s.pulled_at, endDate: s.end_date } : null,
       raw: (type === 'week' ? raw!.weeks : raw!.months)[p.key] ?? null,
       lines: Object.fromEntries(LINE_KEYS.map(k => [k, { value: p.lines[k].value, source: p.lines[k].source, ...(p.lines[k].enteredBy ? { enteredBy: p.lines[k].enteredBy } : {}) }])),
@@ -85,9 +87,29 @@ export async function buildScorecardAudit() {
     const zeros = [...weeks, ...months].flatMap(p => (['shopGmv', 'gmvMaxSpend', 'gmvMaxRevenue', 'videos', 'views'] as const).filter(f => (p.raw as any)?.[f] === 0).map(f => `${p.type} ${p.key} ${f}`))
     checks.push({ check: 'no stored 0 on lines where 0 would be suspicious (GMV, spend, revenue, videos, views)', ok: zeros.length === 0, detail: zeros.slice(0, 30).join(', ') || undefined })
   }
-  const wanted = raw ? backfillWanted(raw.asOf, raw.dataThrough, '2025-10-01') : []
+  const wantedList = raw ? backfillWanted(raw.asOf, raw.dataThrough, '2025-10-01') : []
+  const wanted = wantedList
   const missingFromStore = wanted.filter(w => !stored.has(`${w.type}:${w.key}`)).map(w => `${w.type} ${w.key}`)
   const outdated = [...stored.values()].filter(p => p.raw_version !== RAW_VERSION).map(p => `${p.period_type} ${p.period_key} (v${p.raw_version})`)
+
+  // Checks that need the inputs as well as the periods
+  const line7 = [...weeks, ...months].filter(p => (p.raw as any)?.eukaMessages != null).length
+  if (raw) {
+    checks.push({ check: 'line 7 values are backed by Euka Chat conversations that were actually read', ok: !(line7 > 0 && Object.keys(chat).length === 0), detail: line7 > 0 && Object.keys(chat).length === 0 ? `${line7} period(s) hold a value but inputs.eukaChat is empty` : undefined })
+    checks.push({ check: 'every stored period uses the current definition', ok: outdated.length === 0, detail: outdated.slice(0, 20).join(', ') || undefined })
+    checks.push({ check: 'every expected period is stored', ok: missingFromStore.length === 0, detail: missingFromStore.slice(0, 20).join(', ') || undefined })
+    const snap = (snaps.data ?? []).find(r => r.key === 'usageRightsCreators')
+    const newest = weeks[0]?.raw as any
+    checks.push({ check: 'line 14 for the newest week equals the latest usage-rights snapshot (reproducible input)', ok: !snap || newest?.usageRightsCreators == null || Number(snap.value) === newest.usageRightsCreators, detail: snap ? `snapshot ${snap.snap_date}: ${Number(snap.value)}; stored: ${newest?.usageRightsCreators ?? 'no data'}` : 'no snapshot yet' })
+  }
+  const pulledTimes = [...stored.values()].map(p => p.pulled_at).filter(Boolean).sort()
+  const cfgAlerts = alertConfig()
+  const health = scorecardHealth({
+    scorecardAudit: sc ? auditScorecard(sc).status : null, missingFromStore, outdatedDefinition: outdated,
+    lastRun: state ? { status: state.status, lastProgress: state.updatedAt, message: state.lastError?.message ?? null } : null,
+    publishedAt: pub.data?.created_at ?? null, newestPulledAt: pulledTimes[pulledTimes.length - 1] ?? null,
+    line7Periods: line7, eukaChatConversations: Object.keys(chat).length, alerts: cfgAlerts, cronReady: !!(process.env.CRON_SECRET || '').trim(),
+  })
 
   return {
     file: 'Ruff Liners TikTok scorecard audit export',
@@ -98,6 +120,8 @@ export async function buildScorecardAudit() {
     published: pub.data ? { asOf: pub.data.as_of, dataThrough: raw?.dataThrough ?? null, publishedAt: pub.data.created_at, publishedBy: pub.data.published_by, audit: pub.data.audit } : null,
     lines: LINES.map(l => ({ n: l.n, key: l.key, label: l.label, kind: l.kind, distinctPeople: !!l.distinct, ...SOURCES[l.key] })),
     rules: { weeks: 'Sunday to Saturday', monthFinal: 'a finished month is final 3 days after it ends', currentRawVersion: RAW_VERSION, nullMeans: 'no data, never 0' },
+    health,
+    alertSetup: { slack: cfgAlerts.slack, email: cfgAlerts.email, missingEnvVars: cfgAlerts.missing, emailTo: (process.env.ALERT_EMAIL_TO || 'brandon@ruffliners.com'), neededInVercel: ['SLACK_WEBHOOK_URL', 'RESEND_API_KEY', 'ALERT_EMAIL_FROM', 'ALERT_EMAIL_TO (optional, defaults to brandon@ruffliners.com)', 'CRON_SECRET'] },
     integrityChecks: checks,
     storage: { periodsStored: stored.size, periodsExpected: wanted.length, missingFromStore, outdatedDefinition: outdated },
     allTime: sc ? Object.fromEntries(LINE_KEYS.map(k => [k, { value: sc.allTime.lines[k].value, source: sc.allTime.lines[k].source, note: sc.allTime.lines[k].note }])) : null,
@@ -111,7 +135,7 @@ export async function buildScorecardAudit() {
       eukaChat: { conversations: Object.keys(chat).length, firstDay: Object.keys(chatDaily).sort()[0] ?? null, teamMessagesByDay: Object.fromEntries(Object.entries(chatDaily).sort()) },
     },
     lastRun: state ? {
-      runId: state.runId, status: state.status, mode: state.mode, scope: state.scope ?? 'full', trigger: state.trigger ?? 'manual', asOf: state.asOf, startedAt: state.startedAt, lastProgress: state.updatedAt, finishedAt: state.finishedAt ?? null,
+      runId: state.runId, status: state.status, counts: runCounts(state), definitionVersionPlannedUnder: state.rawVersion ?? 1, mode: state.mode, scope: state.scope ?? 'full', trigger: state.trigger ?? 'manual', asOf: state.asOf, startedAt: state.startedAt, lastProgress: state.updatedAt, finishedAt: state.finishedAt ?? null,
       lastError: state.lastError ?? null, alerts: state.alerts ?? [],
       periods: (state.periods ?? []).map((p: any) => ({ id: p.id, status: p.status, ...(p.reason ? { reason: p.reason } : {}), ...(p.controlDiffs ? { controlDiffs: p.controlDiffs } : {}) })),
     } : null,

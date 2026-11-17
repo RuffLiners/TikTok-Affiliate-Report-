@@ -52,6 +52,16 @@ function resolveLines(type: 'week' | 'month', key: string, raw: RangeRaw, manual
   return { lines: L, revenue: L.grossRevenue.value }
 }
 
+const RAW_TO_LINE = { shopGmv: 'gmv', gmvMaxRevenue: 'grossRevenue', gmvMaxSpend: 'gmvMaxSpend', targetInvites: 'targetInvites', emails: 'emails', videos: 'videos' } as const
+/** Line-level "through" dates for the month in progress. Only for cells that actually come from Euka. */
+export function lineThrough(raw: RangeRaw, lines: Lines): Partial<Record<LineKey, string>> {
+  const out: Partial<Record<LineKey, string>> = {}
+  for (const [f, d] of Object.entries(raw.through ?? {})) { const k = RAW_TO_LINE[f as keyof typeof RAW_TO_LINE]; if (k && d && lines[k].source === 'euka') out[k] = d }
+  return out
+}
+/** Days of data behind a line: its own last day when it has one, else the month's days elapsed. */
+export const daysFor = (through: Partial<Record<LineKey, string>> | undefined, k: LineKey, daysElapsed: number) => (through?.[k] ? Number(through[k]!.slice(8, 10)) : daysElapsed)
+
 const roiVs = (l: Lines) => computeRoi(l.gmv.value, l.gmvMaxSpend.value)
 const valuesOf = (l: Lines) => Object.fromEntries(LINE_KEYS.map(k => [k, l[k].value])) as Record<LineKey, number | null>
 
@@ -67,10 +77,13 @@ export function buildScorecard(raw: ScorecardRaw, manualEntries: ManualEntry[] =
     let projected: MonthPeriod['projected'] = null
     let projRev: number | null = null
     let projRoiVs: number | null = null
+    const through = r.partial ? lineThrough(rr, lines) : undefined
+    if (through) for (const [k, d] of Object.entries(through)) if (lines[k as LineKey].value != null) lines[k as LineKey] = { ...lines[k as LineKey], note: `through ${d}` }
     if (r.partial) {
       projected = {} as Record<LineKey, number | null>
       for (const k of LINE_KEYS) projected[k] = null
-      for (const k of ADDITIVE_KEYS) projected[k] = projectValue(k, mtd[k], r.daysElapsed, r.daysInMonth)
+      // Each line is projected from its own days of data, so a source that lags a day is not understated
+      for (const k of ADDITIVE_KEYS) projected[k] = projectValue(k, mtd[k], daysFor(through, k, r.daysElapsed), r.daysInMonth)
       projRev = projected.grossRevenue
       // Rates come from projected numerator and denominator, never averaged
       projected.gmvMaxRoi = computeRoi(projRev, projected.gmvMaxSpend)
@@ -79,6 +92,7 @@ export function buildScorecard(raw: ScorecardRaw, manualEntries: ManualEntry[] =
     return {
       key: r.key, label: r.key, start: r.start, end: r.end, lines, gmvMaxRevenue: revenue, roiVsShopGmv: roiVs(lines),
       partial: r.partial, daysElapsed: r.daysElapsed, daysInMonth: r.daysInMonth, mtd,
+      ...(through && Object.keys(through).length ? { through } : {}),
       projected, projectedGmvMaxRevenue: projRev, projectedRoiVsShopGmv: projRoiVs,
     }
   })

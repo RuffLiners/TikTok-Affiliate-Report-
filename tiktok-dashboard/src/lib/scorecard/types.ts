@@ -68,6 +68,11 @@ export interface RangeRaw {
   views?: number | null
   contestAffiliates?: number | null
   usageRightsCreators?: number | null
+  /**
+   * Month in progress only: the last day a line's source had data, when that is earlier than the period end
+   * (e.g. shop GMV one day behind). The value covers the period start through this day.
+   */
+  through?: Partial<Record<'shopGmv' | 'gmvMaxSpend' | 'gmvMaxRevenue' | 'targetInvites' | 'emails' | 'videos', string>>
 }
 
 export interface ScorecardRaw {
@@ -129,6 +134,8 @@ export interface MonthPeriod extends PeriodBase {
   projected: Record<LineKey, number | null> | null
   projectedGmvMaxRevenue: number | null
   projectedRoiVsShopGmv: number | null
+  /** Lines whose data ends before the month-to-date end, with their own last day. The estimate uses that line's own days. */
+  through?: Partial<Record<LineKey, string>>
 }
 export type AllTimePeriod = PeriodBase
 

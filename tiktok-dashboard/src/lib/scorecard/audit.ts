@@ -1,6 +1,7 @@
 import { ADDITIVE_KEYS, LINE_BY_KEY, LINE_KEYS, Lines, Scorecard } from './types'
 import { computeRoi, projectValue, roundFor } from './calc'
 import { addDays } from './periods'
+import { daysFor } from './build'
 
 export interface AuditResult { status: 'PASS' | 'FAIL'; failures: string[]; warnings: string[] }
 const SOURCES = ['euka', 'seller_center', 'manual', 'none']
@@ -45,6 +46,7 @@ export function auditScorecard(sc: Scorecard): AuditResult {
     const n = `monthly[${m.key}]`
     if (!(m.daysElapsed >= 1 && m.daysElapsed <= m.daysInMonth)) f.push(`${n}: daysElapsed ${m.daysElapsed} outside 1..${m.daysInMonth}`)
     if (m.partial !== (m.daysElapsed < m.daysInMonth)) f.push(`${n}: partial flag disagrees with daysElapsed`)
+    for (const [k, d] of Object.entries(m.through ?? {})) if (!m.partial || !(d >= m.start && d < m.end)) f.push(`${n}: ${k} through-date ${d} is not inside the month to date`)
     for (const k of LINE_KEYS) if (!near(m.mtd[k], m.lines[k].value, 0)) f.push(`${n}: mtd.${k} differs from lines.${k}`)
     if (!m.partial) { if (m.projected) f.push(`${n}: complete month must not carry a projection`); continue }
     if (!m.projected) { f.push(`${n}: partial month is missing its projection`); continue }
@@ -52,10 +54,10 @@ export function auditScorecard(sc: Scorecard): AuditResult {
       const def = LINE_BY_KEY[k], got = m.projected[k]
       if (def.distinct) { if (got !== null) f.push(`${n}: distinct-people line ${k} must not be projected`); continue }
       if (def.derived) continue
-      const exp = projectValue(k, m.mtd[k], m.daysElapsed, m.daysInMonth)
+      const exp = projectValue(k, m.mtd[k], daysFor(m.through, k, m.daysElapsed), m.daysInMonth)
       if (!near(got, exp, def.kind === 'money' ? 0.0051 : 0)) f.push(`${n}: projected.${k}=${got}, formula gives ${exp}`)
     }
-    const expRev = projectValue('gmvMaxSpend', m.gmvMaxRevenue, m.daysElapsed, m.daysInMonth)
+    const expRev = projectValue('gmvMaxSpend', m.gmvMaxRevenue, daysFor(m.through, 'grossRevenue', m.daysElapsed), m.daysInMonth)
     if (!near(m.projectedGmvMaxRevenue, expRev)) f.push(`${n}: projectedGmvMaxRevenue ${m.projectedGmvMaxRevenue} != ${expRev}`)
     if (!near(m.projected.gmvMaxRoi, computeRoi(m.projectedGmvMaxRevenue, m.projected.gmvMaxSpend))) f.push(`${n}: projected ROI is not projected revenue / projected spend`)
   }

@@ -85,7 +85,7 @@ function Monthly({ sc }: { sc: Scorecard }) {
       </tr></thead><tbody>{LINES.map(def => (
         <tr key={def.key} className="border-t border-gray-50"><LabelCol def={def} />
           <td className={td}><Pct v={change(def.key)} /></td>
-          <td className={`${td} bg-gray-50/50`}><CellView def={def} cell={cur.lines[def.key]} />{def.key === 'gmvMaxRoi' && <RoiSub v={cur.roiVsShopGmv} />}</td>
+          <td className={`${td} bg-gray-50/50`}><CellView def={def} cell={cur.lines[def.key]} />{cur.through?.[def.key] && cur.lines[def.key].value != null && <div className="text-[10px] text-amber-600">through {cur.through[def.key]!.slice(5)}</div>}{def.key === 'gmvMaxRoi' && <RoiSub v={cur.roiVsShopGmv} />}</td>
           {cur.partial && <td className={`${td} bg-gray-50/50`}>
             {def.distinct ? <span className="text-gray-400 text-xs">to date only</span>
               : cur.projected && cur.projected[def.key as LineKey] != null ? <span className="tabular-nums text-gray-900">{fmtVal(def, cur.projected[def.key]!)}</span>
@@ -94,12 +94,13 @@ function Monthly({ sc }: { sc: Scorecard }) {
           </td>}
           {hist.map(m => <td key={m.key} className={`${td} text-gray-600`}><CellView def={def} cell={m.lines[def.key]} />{def.key === 'gmvMaxRoi' && <RoiSub v={m.roiVsShopGmv} />}</td>)}
         </tr>))}</tbody></table>
-      {cur.partial && <p className="text-[11px] text-gray-400 mt-2 px-3">Newest month first. While the month is in progress, percent change compares the month-end estimate with the prior full month. Estimate = (month to date / days elapsed) x days in month, recomputed on every report. ROI is projected revenue divided by projected spend. Counts of distinct people are not projected.</p>}
+      {cur.partial && <p className="text-[11px] text-gray-400 mt-2 px-3">Newest month first. A line marked "through" has data only to that day (the source lags) and its estimate uses its own days. While the month is in progress, percent change compares the month-end estimate with the prior full month. Estimate = (month to date / days elapsed) x days in month, recomputed on every report. ROI is projected revenue divided by projected spend. Counts of distinct people are not projected.</p>}
     </div>
   )
 }
 
-export function ScorecardCard({ scorecard, meta }: { scorecard: Scorecard | null; meta: { publishedAt: string | null; audit: string } | null }) {
+type HealthView = { status: 'PASS' | 'WARN' | 'FAIL'; problems: Array<{ level: 'FAIL' | 'WARN'; text: string }> }
+export function ScorecardCard({ scorecard, meta }: { scorecard: Scorecard | null; meta: { publishedAt: string | null; audit: string; health?: HealthView | null } | null }) {
   const [tab, setTab] = useState<Tab>('weekly')
   const [showAll, setShowAll] = useState(false)
   if (!scorecard) {
@@ -117,7 +118,7 @@ export function ScorecardCard({ scorecard, meta }: { scorecard: Scorecard | null
       <div className="flex flex-wrap items-center justify-between gap-2 px-5 pt-4">
         <div>
           <h2 className="text-base font-semibold text-gray-900">Scorecard</h2>
-          <p className="text-xs text-gray-400 mt-0.5">As of {scorecard.asOf}, data through {scorecard.dataThrough}{meta?.publishedAt ? ` · published ${meta.publishedAt.slice(0, 10)}` : ''} · audit {meta?.audit ?? 'n/a'}</p>
+          <p className="text-xs text-gray-400 mt-0.5">As of {scorecard.asOf}, data through {scorecard.dataThrough}{meta?.publishedAt ? ` · published ${meta.publishedAt.slice(0, 10)}` : ''} · rules {meta?.audit ?? 'n/a'}{meta?.health ? <> · data health <span className={meta.health.status === 'FAIL' ? 'text-red-600 font-semibold' : meta.health.status === 'WARN' ? 'text-amber-600 font-semibold' : 'text-green-600'}>{meta.health.status}</span></> : null}</p>
         </div>
         <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
           {([['all', 'All time'], ['weekly', 'Weekly'], ['monthly', 'Monthly']] as const).map(([k, l]) => (
@@ -125,6 +126,12 @@ export function ScorecardCard({ scorecard, meta }: { scorecard: Scorecard | null
           ))}
         </div>
       </div>
+      {meta?.health && meta.health.status !== 'PASS' && (
+        <div role="alert" className={`mx-5 mt-3 rounded-lg px-4 py-3 border ${meta.health.status === 'FAIL' ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'}`}>
+          <p className={`text-xs font-semibold mb-1 ${meta.health.status === 'FAIL' ? 'text-red-800' : 'text-amber-800'}`}>{meta.health.status === 'FAIL' ? 'Do not rely on this scorecard yet' : 'Scorecard notices'}</p>
+          <ul className="list-disc pl-4 space-y-0.5">{meta.health.problems.map((p, i) => <li key={i} className={`text-xs ${p.level === 'FAIL' ? 'text-red-800' : 'text-amber-800'}`}>{p.text}</li>)}</ul>
+        </div>
+      )}
       <div className="px-2 py-3">
         {tab === 'all' && <AllTime sc={scorecard} />}
         {tab === 'weekly' && (

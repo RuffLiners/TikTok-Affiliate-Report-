@@ -41,6 +41,7 @@ export interface PeriodProgress {
 export interface AlertRecord { at: string; kind: 'FAILED' | 'STALLED' | 'MISSING'; text: string; slack: string; email: string }
 export interface BackfillSummary {
   weeksStored: number; monthsStored: number; reused: number
+  counts?: RunCounts
   noData: Array<{ id: string; label: string; reason: string }>
   partial: Array<{ id: string; label: string; reason: string }>
   controlDiffs: string[]
@@ -53,7 +54,10 @@ export interface BackfillSummary {
 }
 export interface BackfillState {
   runId: string
-  status: 'running' | 'failed' | 'done' | 'cancelled'
+  /** stalled = no progress for 10 minutes; it stopped by itself and can be resumed. */
+  status: 'running' | 'failed' | 'done' | 'cancelled' | 'stalled'
+  /** The definition version the plan was made under. A run that spans a deploy re-plans when this changes. */
+  rawVersion?: number
   /** full = the whole history. proof = the most recent complete week only, to prove the path end to end. */
   mode: 'full' | 'proof'
   /** Who started it. A cron run is continued by the watchdog if one call was not enough. */
@@ -228,7 +232,7 @@ export async function startRun(d: Deps, o: { yearStart?: string; forceRefresh?: 
   if (mode === 'proof') wanted = wanted.filter(w => w.type === 'week').slice(0, 1)
   const stored = await d.store.loadPeriods()
   const state: BackfillState = {
-    runId, status: 'running', mode, trigger: o.trigger ?? 'manual', scope: o.scope ?? 'full', yearStart, weeksFrom: firstFullWeekStart(yearStart), forceRefresh: force, asOf, dataThrough,
+    runId, status: 'running', rawVersion: RAW_VERSION, mode, trigger: o.trigger ?? 'manual', scope: o.scope ?? 'full', yearStart, weeksFrom: firstFullWeekStart(yearStart), forceRefresh: force, asOf, dataThrough,
     startedAt: iso(now), updatedAt: iso(now), phase: 'prep', prep: { contestMonthsDone: [], usageNow: null, done: false },
     // A proof run always pulls its one week so there are fresh numbers to check
     periods: planPeriods(wanted, stored, force || mode === 'proof', [], true, { scope: o.scope ?? 'full', asOf }), current: null, alerts: [], stallAlerted: false,
@@ -250,7 +254,7 @@ export async function resumeRun(d: Deps): Promise<StartResult> {
   const retry = prev.periods.map(p => (p.status === 'error' ? { ...p, status: 'pending' as const, reason: 'retry after error' } : p))
   const periods = planPeriods(wanted, await d.store.loadPeriods(), prev.forceRefresh || prev.mode === 'proof', retry, sameDay, { scope: prev.scope ?? 'full', asOf })
   const state: BackfillState = {
-    ...prev, status: 'running', asOf, dataThrough, updatedAt: iso(now), finishedAt: undefined, stallAlerted: false, current: null, periods,
+    ...prev, status: 'running', rawVersion: RAW_VERSION, asOf, dataThrough, updatedAt: iso(now), finishedAt: undefined, stallAlerted: false, current: null, periods,
     // Preparation is repeated if the day changed or if it predates a step added since (Euka Chat counts)
     phase: prev.prep.done && prev.prep.chatDone && sameDay ? 'pull' : 'prep', prep: sameDay ? { ...prev.prep, done: prev.prep.done && !!prev.prep.chatDone } : { contestMonthsDone: [], usageNow: null, done: false },
   }
@@ -275,17 +279,30 @@ async function sendAlert(d: Deps, s: BackfillState, kind: AlertRecord['kind'], t
 /** Alert once when a running backfill has made no progress for 10 minutes. Safe to call from a cron or a page load. */
 export async function checkStall(d: Deps): Promise<BackfillState | null> {
   const s = await d.store.readState()
-  if (!s || s.status !== 'running' || s.stallAlerted) return s
+  if (!s || s.status !== 'running') return s
   const idle = d.now() - Date.parse(s.updatedAt)
   if (idle < STALL_MS) return s
-  const at = s.current ?? s.periods.find(p => p.status === 'pending')?.id ?? s.phase
-  s.stallAlerted = true
-  await sendAlert(d, s, 'STALLED', `The scorecard backfill has made no progress for ${Math.round(idle / 60000)} minutes. Stopped at: ${describe(s, at)}. ${done(s)} of ${s.periods.length} periods are finished. Next step: open the dashboard, Manage tab, Scorecard backfill, and click Resume.`)
+  const at = s.phase === 'prep' ? 'preparation (contests, Euka Chat, usage rights)' : describe(s, s.current ?? s.periods.find(p => p.status === 'pending')?.id ?? s.phase)
+  // The run ends as "stalled" instead of looking alive forever. Nothing is lost: Resume carries on from what is saved.
+  s.status = 'stalled'; s.finishedAt = iso(d.now())
+  s.lastError = { at: iso(d.now()), period: s.current, message: `No progress for ${Math.round(idle / 60000)} minutes. Stopped at: ${at}.`, nextStep: 'Open the Manage tab, Scorecard backfill, and click Resume.' }
+  if (!s.stallAlerted) {
+    s.stallAlerted = true
+    await sendAlert(d, s, 'STALLED', `The scorecard backfill has made no progress for ${Math.round(idle / 60000)} minutes. Stopped at: ${at}. ${countsText(s)}. Next step: open the dashboard, Manage tab, Scorecard backfill, and click Resume.`)
+  }
   await d.store.writeState(s)
   return s
 }
 
-const done = (s: BackfillState) => s.periods.filter(p => p.status !== 'pending' && p.status !== 'error').length
+/** One source for every progress number: the panel, the alerts, the summary and the audit export all use this. */
+export interface RunCounts { total: number; pulled: number; alreadyStored: number; remaining: number; failed: number; finished: number }
+export function runCounts(s: Pick<BackfillState, 'periods'>): RunCounts {
+  const n = (...st: PeriodStatus[]) => s.periods.filter(p => st.includes(p.status)).length
+  const pulled = n('stored', 'partial', 'no_data'), alreadyStored = n('skipped'), failed = n('error'), remaining = n('pending') + failed
+  return { total: s.periods.length, pulled, alreadyStored, remaining, failed, finished: pulled + alreadyStored }
+}
+export const countsText = (s: Pick<BackfillState, 'periods'>) => { const c = runCounts(s); return `${c.finished} of ${c.total} periods are finished (${c.pulled} pulled in this run, ${c.alreadyStored} already stored), ${c.remaining} remaining` }
+
 const describe = (s: BackfillState, id: string | null) => { const p = s.periods.find(x => x.id === id); return p ? periodLabel(p) : (id ?? 'start of run') }
 
 export type StepResult = { ok: true; state: BackfillState } | { ok: false; reason: 'not_current' | 'busy' | 'not_running'; message: string; state: BackfillState | null }
@@ -305,6 +322,14 @@ export async function runStep(d: Deps, o: { runId: string; budgetMs?: number; ma
   const lease: LockRec = { runId: o.runId, leaseUntil: t0 + LEASE_MS, at: iso(t0) }
   if (!(await d.store.casLock(lock.raw, lease))) return { ok: false, reason: 'busy', state: s, message: 'Another step of this run started at the same moment.' }
 
+  // A deploy changed the definitions while this run was in flight: plan again so nothing from the old definition is kept or skipped
+  if ((s.rawVersion ?? 1) !== RAW_VERSION) {
+    let wanted = backfillWanted(s.asOf, s.dataThrough, s.yearStart)
+    if (s.mode === 'proof') wanted = wanted.filter(w => w.type === 'week').slice(0, 1)
+    s.periods = planPeriods(wanted, await d.store.loadPeriods(), s.forceRefresh || s.mode === 'proof', s.periods, true, { scope: s.scope ?? 'full', asOf: s.asOf })
+    s.rawVersion = RAW_VERSION; s.phase = 'prep'; s.prep = { ...s.prep, done: false, chatDone: false, chatStarted: false }
+    await d.store.writeState(s)
+  }
   const conn: { e: (EukaLike & { close?: () => Promise<void> }) | null } = { e: null }
   const client = async () => (conn.e ??= await d.euka())
   const within = () => d.now() - t0 < budget
@@ -413,7 +438,7 @@ export async function runStep(d: Deps, o: { runId: string; budgetMs?: number; ma
         contestAffiliates: counts.allTime || null,
         usageRightsCreators: s.prep.usageNow,
       }
-      const raw = assembleRaw({ asOf: s.asOf, yearStart: s.weeksFrom, dataThrough: s.dataThrough, periods: use, allTime, pulled: s.periods.filter(p => PULLED.includes(p.status)).length })
+      const raw = assembleRaw({ asOf: s.asOf, yearStart: s.weeksFrom, dataThrough: s.dataThrough, periods: use, allTime, pulled: runCounts(s).pulled })
       const sc = buildScorecard(raw, await d.store.loadManual().catch(() => []))
       const audit = auditScorecard(sc)
       if (audit.status !== 'PASS') throw new StepError(`The scorecard failed its audit, so nothing was published: ${audit.failures.slice(0, 5).join('; ')}`, null, 'Run the backfill again with "Re-pull everything" ticked. If it fails the same way, the numbers need a developer to look at them; do not edit them by hand.')
@@ -431,7 +456,7 @@ export async function runStep(d: Deps, o: { runId: string; budgetMs?: number; ma
     const se = err instanceof StepError ? err : new StepError(String((err as Error)?.message ?? err).slice(0, 500), s.current)
     s.status = 'failed'; s.finishedAt = iso(d.now())
     s.lastError = { at: iso(d.now()), period: se.period, message: se.message, nextStep: se.nextStep }
-    await sendAlert(d, s, 'FAILED', `The scorecard backfill failed at ${describe(s, se.period)}: ${se.message}. ${done(s)} of ${s.periods.length} periods are finished and saved. Next step: ${se.nextStep}`)
+    await sendAlert(d, s, 'FAILED', `The scorecard backfill failed at ${describe(s, se.period)}: ${se.message}. ${countsText(s)}. Next step: ${se.nextStep}`)
     await d.store.writeState(s).catch(() => {})
     return { ok: true, state: s }
   } finally {
@@ -454,7 +479,7 @@ function summarize(s: BackfillState, sc: Scorecard, used: StoredPeriod[]): Backf
   const proofWeek = proofP ? (sc.weeklyAll ?? sc.weekly).find(w => w.key === proofP.key) : null
   return {
     weeksStored: used.filter(p => p.period_type === 'week').length, monthsStored: used.filter(p => p.period_type === 'month').length,
-    reused: s.periods.filter(p => p.status === 'skipped').length,
+    reused: runCounts(s).alreadyStored, counts: runCounts(s),
     noData: list('no_data'), partial: list('partial'),
     controlDiffs: s.periods.flatMap(p => p.controlDiffs ?? []),
     cofundedTodo: { weeks: todo.cofunded.filter(c => c.period_type === 'week').length, months: todo.cofunded.filter(c => c.period_type === 'month').length, text: todo.summary },
