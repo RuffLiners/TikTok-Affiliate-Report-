@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { buildWindows, todayInReportTz } from '@/lib/assembleReport'
 import { connectEuka, redactSecrets } from '@/lib/server/eukaClient'
 import { collectReportGroup1 } from '@/lib/server/reportData'
+import { collectReportGroup2 } from '@/lib/server/reportData2'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -23,9 +24,13 @@ export async function GET(req: NextRequest) {
     const w = buildWindows(todayInReportTz(today))
     const euka = await connectEuka()
     let direct
-    try { direct = await collectReportGroup1(euka, w) } finally { await euka.close().catch(() => {}) }
-    const { data: saved } = await supabaseAdmin().from('weekly_reports').select('report_date, created_at, d30, weekly_charts, monthly_charts').eq('report_date', w.reportDate).maybeSingle()
-    return NextResponse.json({ reportDate: w.reportDate, direct, saved: saved ?? null }, { headers: { 'cache-control': 'no-store' } })
+    let group2: Awaited<ReturnType<typeof collectReportGroup2>> | { error: string } | null = null
+    try {
+      direct = await collectReportGroup1(euka, w)
+      if (req.nextUrl.searchParams.get('group') === '2') { try { group2 = await collectReportGroup2(euka, w, direct) } catch (e) { group2 = { error: redactSecrets(String((e as Error).message)).slice(0, 500) } } }
+    } finally { await euka.close().catch(() => {}) }
+    const { data: saved } = await supabaseAdmin().from('weekly_reports').select('report_date, created_at, d30, weekly_charts, monthly_charts, tables, agents').eq('report_date', w.reportDate).maybeSingle()
+    return NextResponse.json({ reportDate: w.reportDate, direct, group2, saved: saved ?? null }, { headers: { 'cache-control': 'no-store' } })
   } catch (e) {
     return NextResponse.json({ error: redactSecrets(String((e as Error).message)).slice(0, 500) }, { status: 502 })
   }
