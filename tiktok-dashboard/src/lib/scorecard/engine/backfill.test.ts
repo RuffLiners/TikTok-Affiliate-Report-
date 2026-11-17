@@ -120,20 +120,52 @@ describe('coverage', () => {
 // ---- Chunking ---------------------------------------------------------------------------------------------------
 describe('chunking', () => {
   const wanted = backfillWanted(TODAY, THROUGH, '2025-10-01')
-  it('a batch holds at most 4 periods of one type inside a 31 day window', () => {
+  it('a batch is one calendar month plus the weeks that end in it, newest month first', () => {
     let rest = wanted, batches = 0
+    const anchors: string[] = []
     while (rest.length) {
       const b = nextBatch(rest)
-      expect(b.length).toBeGreaterThan(0); expect(b.length).toBeLessThanOrEqual(4)
-      expect(new Set(b.map(x => x.type)).size).toBe(1)
-      const lo = b.map(x => x.start).sort()[0], hi = b.map(x => x.end).sort().pop()!
-      expect((Date.parse(hi) - Date.parse(lo)) / 86400000 + 1).toBeLessThanOrEqual(31)
-      rest = rest.slice(b.length); batches++
+      expect(b.length).toBeGreaterThan(0); expect(b.length).toBeLessThanOrEqual(6)
+      const months = new Set(b.map(x => x.end.slice(0, 7)))
+      expect(months.size).toBe(1)                                   // every period in the batch ends in the same month
+      expect(b.filter(x => x.type === 'month')).toHaveLength(1)
+      anchors.push([...months][0])
+      const ids = new Set(b.map(x => `${x.type}:${x.key}`))
+      rest = rest.filter(x => !ids.has(`${x.type}:${x.key}`)); batches++
     }
-    expect(batches).toBe(15 + 14) // 58 weeks in fours, then one month at a time
+    expect(batches).toBe(14)                                        // one per month, was 29 batches before
+    expect(anchors[0]).toBe('2026-11'); expect(anchors[13]).toBe('2025-10')
   })
-  it('periods far apart are not pulled together', () => {
-    expect(nextBatch([wanted[0], wanted[20]])).toHaveLength(1)
+  it('a batch can be capped, for the one-week proof', () => {
+    expect(nextBatch(wanted, 1)).toEqual([wanted[0]])
+  })
+  it('the whole backfill asks Euka for each day once and each period once', async () => {
+    const h = harness()
+    await startRun(h.deps, {})
+    await h.drive('run1')
+    const n = (name: string) => h.fake.calls.filter(c => c.name === name).length
+    expect(n('get_dashboard_performance_series')).toBe(14)          // one per month; weeks reuse the month's rows
+    expect(n('get_dashboard_ads_overview')).toBe(14)
+    expect(n('get_dashboard_performance_overview')).toBe(73)        // 72 periods and the all-time range
+    for (const c of h.fake.calls.filter(x => x.name === 'get_dashboard_performance_series')) expect(c.args.startDate.slice(8)).toBe('01')
+  })
+  it('Euka calls run in parallel, never more than 4 at once', async () => {
+    const h = harness()
+    let inFlight = 0, peak = 0
+    const slow: EukaLike = { call: async (n, a) => { inFlight++; peak = Math.max(peak, inFlight); await new Promise(r => setTimeout(r, 2)); try { return await h.fake.e.call(n, a) } finally { inFlight-- } } }
+    const deps = { ...h.deps, euka: async () => slow }
+    await startRun(deps, {})
+    let r = await runStep(deps, { runId: 'run1' })
+    while (r.ok && r.state.status === 'running') r = await runStep(deps, { runId: 'run1' })
+    expect(r.ok && r.state.status).toBe('done')
+    expect(peak).toBeGreaterThan(1); expect(peak).toBeLessThanOrEqual(4)
+  })
+  it('a failed call inside a parallel batch stops the batch and nothing from it is saved', async () => {
+    const h = harness({ failSeries: a => a === '2026-11-01' })
+    await startRun(h.deps, {})
+    const { r } = await h.drive('run1')
+    expect(r.state!.status).toBe('failed')
+    expect(h.mem.periods.size).toBe(0)
   })
   it('each step processes a bounded batch and reports progress; the run finishes over many steps', async () => {
     const h = harness()
@@ -191,13 +223,14 @@ describe('finish and publish', () => {
     const overview = { performanceRangeCoverage: { isTruncated: false }, totalShopGMV: 77338.52, messagesSent: 38182, samplesApproved: 31, activeCreators: 129, videoConvRateTotalVideos: 546, allAccountVideoViews: 3126914 }
     const h = harness()
     const base = h.fake.e
+    // The month's rows come back as usual; the seven live days replace the generated ones
+    const swap = (rows: any[], real: any[]) => rows.map(r => real.find(x => x.date === r.date) ?? r)
     const live: EukaLike = { call: async (n, a: any = {}) => {
-      if (a.startDate === '2026-11-08' || a.postedDateRange?.startDate === '2026-11-08') {
-        if (n === 'get_dashboard_performance_series') return series
-        if (n === 'get_dashboard_ads_overview') return ads
-        if (n === 'get_dashboard_performance_overview') return overview
-      }
-      return base.call(n, a)
+      const out = await base.call(n, a)
+      if (n === 'get_dashboard_performance_series') for (const k of ['videoPosted', 'performances', 'analyticsAggregated'] as const) out.data[k] = swap(out.data[k], series.data[k])
+      if (n === 'get_dashboard_ads_overview') out.dailyRoas = swap(out.dailyRoas, ads.dailyRoas)
+      if (n === 'get_dashboard_performance_overview' && a.startDate === '2026-11-08') return overview
+      return out
     } }
     const deps = { ...h.deps, euka: async () => live }
     const st = await startRun(deps, { mode: 'proof' })
@@ -235,7 +268,7 @@ describe('resume after a mid-run failure', () => {
     expect(h.mem.published).toHaveLength(0)
     expect(h.sent).toHaveLength(1)
     expect(h.sent[0].kind).toBe('FAILED')
-    expect(h.sent[0].text).toMatch(/failed at Week 2026-08-\d\d to 2026-08-\d\d/)
+    expect(h.sent[0].text).toContain('failed at Week 2026-09-20 to 2026-09-26')   // the batch that needed August's rows
     expect(s1.alerts[0].slack).toContain('SLACK_WEBHOOK_URL')      // an undelivered alert is recorded, never silent
     // a step on a failed run is refused until it is resumed
     expect((await runStep(h.deps, { runId: 'run1' })).ok).toBe(false)
@@ -248,8 +281,8 @@ describe('resume after a mid-run failure', () => {
     expect(res.ok && count(res.state, 'stored')).toBe(saved)
     const second = await h.drive('run1')
     expect(second.r.state!.status).toBe('done')
-    const repulled = h.fake.calls.slice(before).filter(c => c.name === 'get_dashboard_performance_overview' && c.args.startDate >= '2026-08-30' && c.args.endDate <= '2026-11-14' && c.args.startDate !== '2026-11-01' && c.args.startDate.slice(8) !== '01')
-    expect(repulled).toHaveLength(0)                               // weeks finished before the failure were not pulled again
+    const repulled = h.fake.calls.slice(before).filter(c => c.name === 'get_dashboard_performance_overview' && c.args.startDate >= '2026-09-27')
+    expect(repulled).toHaveLength(0)                               // the October and November batches finished before the failure and were not pulled again
     expect(h.mem.published).toHaveLength(1)
     expect(h.mem.periods.size).toBe(72)
   })

@@ -47,14 +47,31 @@ export async function pullAds(e: Euka, asOf: string, a: string, b: string) {
 }
 
 /** Daily series for the whole span, in 31-day chunks. */
+/** Euka calls in flight at once. Four parallel calls were checked against the live server; more risks rate limits. */
+export const EUKA_CONCURRENCY = 4
+
+/** Run `fn` over `items` with at most `n` in flight. Results keep the input order. The first error stops new work and is thrown. */
+export async function mapPool<T, R>(items: T[], n: number, fn: (item: T, i: number) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length)
+  let next = 0, failed = false
+  const worker = async () => {
+    while (!failed && next < items.length) {
+      const i = next++
+      try { out[i] = await fn(items[i], i) } catch (err) { failed = true; throw err }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(n, items.length)) }, worker))
+  return out
+}
+
+/** Daily series for the whole span, in 31-day chunks. Chunks cover different days, so they are fetched in parallel. */
 export async function pullDaily(e: Euka, asOf: string, from: string, to: string): Promise<DailyMap> {
   const daily: DailyMap = {}
-  for (const [a, b] of chunks(from, to, 31)) {
-    const series = await cached(e, asOf, `series_${a}_${b}`, () => e.call('get_dashboard_performance_series', { brandId: BRAND_ID, startDate: a, endDate: b }))
-    mergeSeries(daily, series)
-    const ads = await cached(e, asOf, `adsdaily_${a}_${b}`, () => e.call('get_dashboard_ads_overview', { brandId: BRAND_ID, postedDateRange: { startDate: a, endDate: b }, compareTo: { type: 'none' } }))
-    mergeAds(daily, ads)
-  }
+  const parts = await mapPool(chunks(from, to, 31), Math.max(1, Math.floor(EUKA_CONCURRENCY / 2)), ([a, b]) => Promise.all([
+    cached(e, asOf, `series_${a}_${b}`, () => e.call('get_dashboard_performance_series', { brandId: BRAND_ID, startDate: a, endDate: b })),
+    cached(e, asOf, `adsdaily_${a}_${b}`, () => e.call('get_dashboard_ads_overview', { brandId: BRAND_ID, postedDateRange: { startDate: a, endDate: b }, compareTo: { type: 'none' } })),
+  ]))
+  for (const [series, ads] of parts) { mergeSeries(daily, series); mergeAds(daily, ads) }
   return daily
 }
 
@@ -98,16 +115,22 @@ export interface PeriodDiag {
   /** Range-level totals from the overview, independent of the daily series, for cross-checking. */
   control: { shopGmv: number | null; eukaMessages: number | null; videos: number | null }
 }
-export async function pullPeriods(e: Euka, asOf: string, dataThrough: string, list: Wanted[], ctx: PullCtx, gaps: string[] = []): Promise<{ periods: StoredPeriod[]; daily: DailyMap; diag: Record<string, PeriodDiag> }> {
+export async function pullPeriods(
+  e: Euka, asOf: string, dataThrough: string, list: Wanted[], ctx: PullCtx, gaps: string[] = [],
+  /** A daily series the caller already fetched for these days, so the same days are not asked for twice. */
+  pre: { daily?: DailyMap } = {},
+): Promise<{ periods: StoredPeriod[]; daily: DailyMap; diag: Record<string, PeriodDiag> }> {
   const span = dailySpan(list)
   const diag: Record<string, PeriodDiag> = {}
   if (!span) return { periods: [], daily: {}, diag }
-  const daily = await pullDaily(e, asOf, span.from, span.to)
+  const daily = pre.daily ?? await pullDaily(e, asOf, span.from, span.to)
+  // One overview per period. They are independent, so they run a few at a time.
+  const overviews = await mapPool(list, EUKA_CONCURRENCY, w => pullOverview(e, asOf, w.start, w.end))
   const ads = { historyFrom: ADS_HISTORY_FROM }
   const periods: StoredPeriod[] = []
-  for (const w of list) {
+  for (const [i, w] of list.entries()) {
     const a = w.start, b = w.end
-    const ov = await pullOverview(e, asOf, a, b)
+    const ov = overviews[i]
     diag[`${w.type}:${w.key}`] = { ...(ov.error ? { overviewError: ov.errorText ?? 'unknown error' } : {}), truncated: ov.truncated, control: { shopGmv: ov.shopGmv, eukaMessages: ov.messages, videos: ov.videos } }
     const usageEnd = w.type === 'week' ? (b === ctx.latestWeekEnd ? 'now' : b) : (w.partial ? 'now' : b)
     const raw: RangeRaw = {

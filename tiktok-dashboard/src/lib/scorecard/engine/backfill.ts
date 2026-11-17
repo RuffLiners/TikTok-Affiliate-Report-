@@ -2,11 +2,12 @@
 // bounded steps that each fit inside one server function call. Storage, the Euka client and alerts are injected, so
 // the whole flow is unit-tested with fakes. No metric definition lives here.
 import {
-  LAUNCH_DATE, ManualEntry, RangeRaw, Scorecard, ScorecardRaw, addDays, auditScorecard, buildScorecard, buildTodo, dayOfWeek, weekRanges,
+  LAUNCH_DATE, ManualEntry, RangeRaw, Scorecard, ScorecardRaw, addDays, addMonths, auditScorecard, buildScorecard, buildTodo, dayOfWeek, monthEnd, monthOf, monthStart, weekRanges,
 } from '../index'
 import { RAW_VERSION, StoredPeriod, Wanted, planPulls, wantedPeriods } from './plan'
 import { ContestInfo, ContestMonth, contestCounts, contestFor, countsAsContest, resolveContestMonths } from './contests'
-import { ADS_HISTORY_FROM, EukaLike, PeriodDiag, VIEWS_FROM, assembleRaw, fetchContestIds, listContests, pullOverview, pullPeriods, pullUsageRightsNow } from './pull'
+import { ADS_HISTORY_FROM, EukaLike, PeriodDiag, VIEWS_FROM, assembleRaw, fetchContestIds, listContests, pullDaily, pullOverview, pullPeriods, pullUsageRightsNow } from './pull'
+import type { DailyMap } from './daily'
 
 export const DEFAULT_YEAR_START = '2025-10-01'
 /** A run with no progress for this long is stalled: it alerts and can be resumed or replaced. */
@@ -15,9 +16,8 @@ export const STALL_MS = 10 * 60 * 1000
 export const LEASE_MS = 6 * 60 * 1000
 /** Stop starting new batches after this long inside one step. */
 export const STEP_BUDGET_MS = 150 * 1000
-/** One pull batch covers at most this many periods and this many days, so it needs one or two daily-series calls. */
-export const BATCH_MAX_PERIODS = 4
-export const BATCH_MAX_SPAN_DAYS = 31
+/** One pull batch is a calendar month plus the weeks that end in it (at most 5), so one month of daily rows serves them all. */
+export const BATCH_MAX_PERIODS = 6
 
 export type PeriodStatus = 'pending' | 'skipped' | 'stored' | 'partial' | 'no_data' | 'error'
 export interface PeriodProgress {
@@ -116,18 +116,14 @@ export function backfillWanted(asOf: string, dataThrough: string, yearStart: str
   return [...all.filter(w => w.type === 'week' && w.start >= from), ...all.filter(w => w.type === 'month')]
 }
 
-/** The next group to pull together: same type, in order, at most `maxPeriods`, and close enough in time to share one daily-series window. */
-export function nextBatch(pending: Wanted[], maxPeriods = BATCH_MAX_PERIODS, maxSpanDays = BATCH_MAX_SPAN_DAYS): Wanted[] {
+/**
+ * The next group to pull together: the newest month that still has work, with the weeks that end in it. They share
+ * the same days, so the daily series is fetched once for all of them instead of once for weeks and again for months.
+ */
+export function nextBatch(pending: Wanted[], maxPeriods = BATCH_MAX_PERIODS): Wanted[] {
   if (!pending.length) return []
-  const out = [pending[0]]
-  let lo = pending[0].start, hi = pending[0].end
-  for (const w of pending.slice(1)) {
-    if (out.length >= maxPeriods || w.type !== out[0].type) break
-    const nlo = w.start < lo ? w.start : lo, nhi = w.end > hi ? w.end : hi
-    if ((Date.parse(nhi) - Date.parse(nlo)) / 86400000 + 1 > maxSpanDays) break
-    out.push(w); lo = nlo; hi = nhi
-  }
-  return out
+  const anchor = monthOf(pending.reduce((m, w) => (w.end > m ? w.end : m), pending[0].end))
+  return pending.filter(w => monthOf(w.end) === anchor).slice(0, Math.max(1, maxPeriods))
 }
 
 const PULLED: PeriodStatus[] = ['stored', 'partial', 'no_data']
@@ -305,6 +301,23 @@ export async function runStep(d: Deps, o: { runId: string; budgetMs?: number; ma
 
     // ---- Pull: bounded batches, each saved before the next
     let pulledThisStep = 0
+    // Read once per step, not once per batch
+    const counts = s.phase === 'pull' ? contestCounts(await d.store.loadContestMonths()) : null
+    const usageSnaps = s.phase === 'pull' ? await d.store.loadSnapshots('usageRightsCreators') : []
+    // Daily rows by calendar month, fetched once per step and shared by every batch that touches the month
+    const monthDaily = new Map<string, Promise<DailyMap>>()
+    const dailyFor = async (e: EukaLike, from: string, to: string): Promise<DailyMap> => {
+      const keys: string[] = []
+      for (let m = monthOf(from); m <= monthOf(to); m = addMonths(m, 1)) keys.push(m)
+      const maps = await Promise.all(keys.map(m => {
+        if (!monthDaily.has(m)) {
+          const end = monthEnd(m) > s.dataThrough ? s.dataThrough : monthEnd(m)
+          monthDaily.set(m, pullDaily(e, s.asOf, monthStart(m), end).catch(err => { monthDaily.delete(m); throw err }))
+        }
+        return monthDaily.get(m)!
+      }))
+      return Object.assign({}, ...maps)
+    }
     while (s.phase === 'pull') {
       const pending = s.periods.filter(p => p.status === 'pending')
       if (!pending.length) { s.phase = 'publish'; break }
@@ -314,14 +327,14 @@ export async function runStep(d: Deps, o: { runId: string; budgetMs?: number; ma
       const ids = new Set(batch.map(idOf))
       s.current = idOf(batch[0])
       const e = await client()
-      const counts = contestCounts(await d.store.loadContestMonths())
       const gaps: string[] = []
       let pulled: Awaited<ReturnType<typeof pullPeriods>>
       try {
+        const from = batch.reduce((m, w) => (w.start < m ? w.start : m), batch[0].start), to = batch.reduce((m, w) => (w.end > m ? w.end : m), batch[0].end)
         pulled = await pullPeriods(e, s.asOf, s.dataThrough, batch, {
-          usageSnaps: await d.store.loadSnapshots('usageRightsCreators'), usageNow: s.prep.usageNow ?? 0,
-          contestFor: m => contestFor(counts, m), latestWeekEnd: weekRanges(s.asOf, 1)[0].end,
-        }, gaps)
+          usageSnaps, usageNow: s.prep.usageNow ?? 0,
+          contestFor: m => contestFor(counts!, m), latestWeekEnd: weekRanges(s.asOf, 1)[0].end,
+        }, gaps, { daily: await dailyFor(e, from, to) })
       } catch (err) {
         const msg = String((err as Error)?.message ?? err).slice(0, 500)
         s.periods = s.periods.map(p => (ids.has(p.id) ? { ...p, status: 'error' as const, reason: msg } : p))
