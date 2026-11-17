@@ -161,6 +161,24 @@ export async function GET(req: NextRequest) {
   const machine = secret.length > 0 && bearer.length === secret.length && timingSafeEqual(bearer, secret)
   if (!machine && !(cookie && (await verifyToken(cookie)))) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
+  // ?reports=1: read-only history of the weekly report (saved reports and recent jobs), to see whether it has been working
+  if (req.nextUrl.searchParams.get('reports') === '1') {
+    try {
+      const sb = supabaseAdmin()
+      const { data: reps, error: e1 } = await sb.from('weekly_reports').select('*').order('report_date', { ascending: false }).limit(4)
+      const { data: jobs, error: e2 } = await sb.from('report_jobs').select('*').order('updated_at', { ascending: false }).limit(8)
+      const shape = (v: any): any => Array.isArray(v) ? `array(${v.length})` : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).slice(0, 40).map(([k, x]) => [k, Array.isArray(x) ? `array(${x.length})` : x && typeof x === 'object' ? `object(${Object.keys(x).length})` : x])) : v
+      return NextResponse.json({
+        errors: [e1?.message, e2?.message].filter(Boolean),
+        reports: (reps ?? []).map((r: any) => ({ report_date: r.report_date, label: r.label, data_window: r.data_window, created_at: r.created_at, columns: Object.keys(r), d30: shape(r.d30), tables: shape(r.tables), weeklyCharts: shape(r.weekly_charts ?? r.weeklyCharts), analysisKeys: r.analysis ? Object.keys(r.analysis) : null, meta: shape(r.meta) })),
+        jobs: (jobs ?? []).map((j: any) => ({ id: String(j.id).slice(0, 8), type: j.job_type, status: j.status, phase_label: j.phase_label, error: j.error ? redact(String(j.error), [eukaToken()]).slice(0, 400) : null, created_at: j.created_at, updated_at: j.updated_at, params: j.params,
+          phases: j.phase_data?._ph ? Object.fromEntries(Object.entries(j.phase_data._ph).map(([k, v]: any) => [k, `${v.s}${v.a ? ' a' + v.a : ''}${v.e ? ' ' + redact(String(v.e), [eukaToken()]).slice(0, 160) : ''}`])) : null,
+          dataKeys: j.phase_data ? Object.keys(j.phase_data).filter(k => !k.startsWith('_')) : [], notes: j.phase_data?._validationNotes ? String(j.phase_data._validationNotes).slice(0, 600) : null,
+          A1: j.phase_data?.A1 ?? null, C1tail: Array.isArray(j.phase_data?.C1) ? j.phase_data.C1.slice(-2) : null })),
+      }, { headers: { 'cache-control': 'no-store' } })
+    } catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 500 }) }
+  }
+
   // ?tools=1 lists the tool names this token can reach (names only), to build the report's allowlist
   if (req.nextUrl.searchParams.get('tools') === '1') {
     try { return NextResponse.json({ tools: await listToolNames(eukaToken()) }, { headers: { 'cache-control': 'no-store' } }) }
