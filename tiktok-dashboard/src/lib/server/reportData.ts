@@ -52,7 +52,7 @@ export async function collectReportGroup1(euka: EukaLike, w: W): Promise<ReportG
   const e: EukaLike = { call: (n, a) => { calls++; return euka.call(n, a) } }
   const weeks: Range[] = w.weeks.map(x => ({ start: f(x.start), end: f(x.end) }))
   // The current month ends at the last finalized day (the 30-day window end), like the old prompt's "MTD" intent, never in the future
-  const months: Array<Range & { key: string }> = w.months.map((m: any, i: number) => ({ key: m.key, start: f(m.start), end: i === w.months.length - 1 ? (w.d30.end < f(m.start) ? f(m.start) : w.d30.end) : f(m.end) }))
+  const months: Array<Range & { key: string }> = w.months.map((m: any) => ({ key: m.key, start: f(m.start), end: f(m.end) }))
   const overview = (r: Range, compare = false) => e.call('get_dashboard_performance_overview', { brandId: BRAND_ID, startDate: r.start, endDate: r.end, compareTo: compare ? { type: 'previous_period' } : { type: 'none' } })
   const retention = (r: Range, prev: Range) => e.call('get_creator_retention_summary', { brandId: BRAND_ID, startDate: r.start, endDate: r.end, compareTo: { type: 'custom', startDate: prev.start, endDate: prev.end } })
   const prevWeek = (r: Range): Range => ({ start: addDays(r.start, -7), end: addDays(r.end, -7) })
@@ -60,7 +60,7 @@ export async function collectReportGroup1(euka: EukaLike, w: W): Promise<ReportG
 
   const spanFrom = [w.prior.start, weeks[0].start, months[0].start].sort()[0]
   const spanTo = [w.d30.end, weeks[weeks.length - 1].end, months[months.length - 1].end].sort().pop()!
-  const [day, ovCur, ovPrior, ret30, tiers, tiersPrior, ads, weekOv, weekRet, monthOv, monthRet] = await Promise.all([
+  const [day, ovCur, ovPrior, ret30, tiers, tiersPrior, ads, weekOv, weekRet] = await Promise.all([
     dailySeries(e, spanFrom, spanTo),
     overview(w.d30, true), overview(w.prior),
     retention(w.d30, w.prior),
@@ -69,9 +69,15 @@ export async function collectReportGroup1(euka: EukaLike, w: W): Promise<ReportG
     e.call('get_dashboard_ads_overview', { brandId: BRAND_ID, postedDateRange: { startDate: w.d30.start, endDate: w.d30.end }, compareTo: { type: 'none' } }),
     mapPool(weeks, EUKA_CONCURRENCY, r => overview(r)),
     mapPool(weeks, EUKA_CONCURRENCY, r => retention(r, prevWeek(r))),
-    mapPool(months, EUKA_CONCURRENCY, r => overview(r)),
-    mapPool(months, EUKA_CONCURRENCY, r => retention(r, prevMonth(r))),
   ])
+
+  // The month in progress ends at the last day Euka has affiliate GMV for, so it is neither cut short nor padded with empty days
+  const cur = months[months.length - 1]
+  let lastDay = cur.start
+  for (let d = cur.end; d >= cur.start; d = addDays(d, -1)) if (day[d]?.gmv !== undefined) { lastDay = d; break }
+  cur.end = lastDay
+
+  const [monthOv, monthRet] = await Promise.all([mapPool(months, EUKA_CONCURRENCY, r => overview(r)), mapPool(months, EUKA_CONCURRENCY, r => retention(r, prevMonth(r)))])
 
   // Shop GMV is only trusted when Euka says the figure is whole (the old prompt's guardrail)
   const shopOk = (o: any) => o?.shopGmvError == null && o?.gmvFiltered === false && o?.filteredGmvUnavailable === false && !o?.performanceRangeCoverage?.isTruncated
@@ -87,6 +93,9 @@ export async function collectReportGroup1(euka: EukaLike, w: W): Promise<ReportG
     affiliateGmv: shopOk(ovCur) ? num(ovCur?.totalAffiliateGMV) : null, affiliateGmvPct: shopOk(ovCur) ? num(ovCur?.totalAffiliateGMVDifference) : null,
   }
   const A2 = kpi(w.prior, ovPrior, ret30?.previous)
+  const tierGmv = (list: any) => { const rows = list?.tiers ?? []; return rows.length ? r2(rows.reduce((t: number, x: any) => t + (Number(x.totalGmv) || 0), 0)) : null }
+  if (tierGmv(tiers) !== null) A1.gmv = tierGmv(tiers)
+  if (tierGmv(tiersPrior) !== null) A2.gmv = tierGmv(tiersPrior)
 
   const tierRow = (list: any, lk: string) => (list?.tiers ?? []).find((t: any) => String(t.tier).toLowerCase() === lk)
   const A3 = Object.fromEntries(LV.map(lk => { const t = tierRow(tiers, lk); return [lk, { creators: num(t?.activeCreators), newCreators: null, videos: num(t?.videos), views: null, gmv: t ? r2(Number(t.totalGmv) || 0) : null }] }))
@@ -106,9 +115,10 @@ export async function collectReportGroup1(euka: EukaLike, w: W): Promise<ReportG
   const D3 = monthRet.map((x: any) => pctRate(x?.current?.retentionRate))
 
   return {
-    pd: { A1, A2, A3, A4, A5, A6, C1, C3, C4, D1, D3, _weekly: weekRet.map((x: any, i: number) => ({ week: weeks[i].start, creators: num(x?.current?.activeCreators), newCreators: num(x?.current?.newCreators) })), _windows: { d30: w.d30, prior: w.prior, weeks, months } },
+    pd: { A1, A2, A3, A4, A5, A6, C1, C3, C4, D1, D3, _monthToDateThrough: cur.end, _weekly: weekRet.map((x: any, i: number) => ({ week: weeks[i].start, creators: num(x?.current?.activeCreators), newCreators: num(x?.current?.newCreators) })), _windows: { d30: w.d30, prior: w.prior, weeks, months } },
     sources: {
-      'gmv, orders (A1, A2, C1, D1)': 'get_dashboard_performance_series performances[].total_gmv / total_orders, summed by day. A period with a missing day is null.',
+      '30-day gmv (A1, A2)': 'Sum of totalGmv over the seven tier rows of get_dashboard_creator_level_breakdown, so the tier table always adds up to the headline.',
+    'orders, weekly and monthly gmv (C1, D1)': 'get_dashboard_performance_series performances[].total_gmv / total_orders, summed by day. A finished period with a missing day is null; the month in progress ends at the last day with data.',
       'shopGmv, affiliateGmv and their % change': 'get_dashboard_performance_overview totalShopGMV / totalAffiliateGMV and their Difference fields (vs the preceding equal period). null when Euka flags the figure as filtered, errored or cut short by retention.',
       views: 'get_dashboard_performance_overview.impressions for the exact window (affiliate shoppable-video impressions).',
       'creators, newCreators, retention, videos': 'get_creator_retention_summary for the exact window: activeCreators (posted in the window), newCreators, retentionRate x 100, totalVideos. Prior window from the same call.',
