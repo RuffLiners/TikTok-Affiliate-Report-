@@ -96,7 +96,7 @@ export async function collectReportGroup2(euka: EukaLike, w: W, g1: ReportGroup1
     soldIn(e, d30), soldIn(e, prior),
     mapPool(weeks, EUKA_CONCURRENCY, r => soldIn(e, r)),
     mapPool(weeks, 3, tiersFor), mapPool(months, 3, tiersFor),
-    listAgents(e), listCreatives(e, d30),
+    listAgents(e, d30.start), listCreatives(e, d30),
   ])
 
   // ---- Every posted video, once, with its creator's tier
@@ -243,14 +243,18 @@ export async function collectReportGroup2(euka: EukaLike, w: W, g1: ReportGroup1
   }
 }
 
-async function listAgents(e: EukaLike): Promise<any[]> {
+/** Outreach and CRM agents, newest first, 25 a page (Euka's limit). Stops once a whole page is older than `since`. */
+async function listAgents(e: EukaLike, since: string): Promise<any[]> {
   const out: any[] = []
   for (const type of ['outreach', 'crm'] as const) {
-    for (let page = 1; page <= 40; page++) {
-      const r = await e.call('list_outreach_agents', { brandId: BRAND_ID, agentType: type, archived: false, limit: 100, page })
+    let got = 0
+    for (let page = 1; page <= 60; page++) {
+      const r = await e.call('list_outreach_agents', { brandId: BRAND_ID, agentType: type, archived: false, limit: 25, page })
       const rows = r?.agents ?? []
       for (const a of rows) out.push({ ...a, _type: type })
-      if (!rows.length || out.filter(a => a._type === type).length >= Number(r?.total ?? 0)) break
+      got += rows.length
+      if (!rows.length || got >= Number(r?.total ?? 0)) break
+      if (rows.every((a: any) => String(a.created_time ?? '').slice(0, 10) < since)) break
     }
   }
   return out
