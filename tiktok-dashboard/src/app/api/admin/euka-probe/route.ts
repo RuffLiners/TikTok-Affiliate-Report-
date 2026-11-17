@@ -218,7 +218,8 @@ export async function GET(req: NextRequest) {
 
 // Read-only pass-through for mapping work: POST { tool, args } calls one Euka tool; { schema: tool } returns its input schema.
 // Only read tools (get_, list_, search_, count_) are allowed, so nothing in Euka can be changed from here.
-const READ_ONLY = /^(get|list|search|count)_[a-z0-9_]+$/
+// export_ tools only produce a file to download; they change nothing in Euka
+const READ_ONLY = /^(get|list|search|count|export)_[a-z0-9_]+$/
 export async function POST(req: NextRequest) {
   const cookie = req.cookies.get('rl-auth')?.value
   const bearer = Buffer.from((req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim())
