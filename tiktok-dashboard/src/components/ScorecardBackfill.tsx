@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { BackfillState, PeriodProgress, PeriodStatus } from '@/lib/scorecard/engine'
 
-interface Meta { alerts: { slack: boolean; email: boolean; missing: string[]; emailTo: string }; stallMinutes: number; defaultYearStart: string; now: string }
+interface Meta { cronReady?: boolean; alerts: { slack: boolean; email: boolean; missing: string[]; emailTo: string }; stallMinutes: number; defaultYearStart: string; now: string }
 type Resp = Partial<Meta> & { ok?: boolean; state?: BackfillState | null; error?: string; reason?: string }
 
 const STATUS: Record<PeriodStatus, { label: string; cls: string }> = {
@@ -37,7 +37,7 @@ export function ScorecardBackfill() {
 
   const apply = useCallback((j: Resp) => {
     if (j.state !== undefined) setState(j.state ?? null)
-    if (j.alerts) setMeta({ alerts: j.alerts, stallMinutes: j.stallMinutes ?? 10, defaultYearStart: j.defaultYearStart ?? '2025-10-01', now: j.now ?? '' })
+    if (j.alerts) setMeta({ cronReady: j.cronReady, alerts: j.alerts, stallMinutes: j.stallMinutes ?? 10, defaultYearStart: j.defaultYearStart ?? '2025-10-01', now: j.now ?? '' })
     setNow(Date.now())
   }, [])
   const call = useCallback(async (body?: Record<string, unknown>): Promise<{ status: number; j: Resp }> => {
@@ -130,6 +130,13 @@ export function ScorecardBackfill() {
           <strong>Alerts cannot be delivered yet.</strong> {!meta.alerts.slack && !meta.alerts.email ? 'Neither Slack nor email is set up' : !meta.alerts.slack ? 'Slack is not set up' : 'Email is not set up'}, so a failure will only show on this page. Add in Vercel, Settings, Environment Variables, then redeploy: <code>{meta.alerts.missing.join(', ')}</code>.
         </div>
       )}
+
+      {meta && meta.cronReady === false && (
+        <div role="alert" className="text-xs bg-red-50 border border-red-200 text-red-800 rounded-xl p-3">
+          <strong>The automatic Monday run is off.</strong> So are the daily usage-rights snapshot and the stall watchdog. Add <code>CRON_SECRET</code> (any long random value) in Vercel, Settings, Environment Variables, then redeploy.
+        </div>
+      )}
+      {meta && meta.cronReady && <p className="text-xs text-gray-500">Automatic run: every Monday at 15:07 UTC (7:07 or 8:07 am Pacific), with a retry two hours later. It pulls only new and unsettled periods and publishes.</p>}
 
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-xs text-gray-500">Start date

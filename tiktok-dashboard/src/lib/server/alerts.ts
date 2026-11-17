@@ -21,7 +21,7 @@ async function post(url: string, headers: Record<string, string>, body: unknown)
   } catch (e) { return `failed: ${String((e as Error).message).slice(0, 120)}` }
 }
 
-const TITLES = { FAILED: 'Scorecard backfill FAILED', STALLED: 'Scorecard backfill STALLED', MISSING: 'Scorecard backfill finished with missing periods' } as const
+const TITLES = { FAILED: 'Scorecard run FAILED', STALLED: 'Scorecard run STALLED', MISSING: 'Scorecard run finished with missing periods', OVERDUE: 'Weekly scorecard is OVERDUE' } as const
 
 export async function sendBackfillAlert(kind: keyof typeof TITLES, text: string): Promise<{ slack: string; email: string }> {
   const title = TITLES[kind]
@@ -37,4 +37,11 @@ export async function sendBackfillAlert(kind: keyof typeof TITLES, text: string)
   ])
   if (slack !== 'sent' || email !== 'sent') console.error(`[scorecard-backfill] ALERT ${kind} (slack: ${slack}; email: ${email}): ${text}`)
   return { slack, email }
+}
+
+/** A plain Slack message (the Monday success summary). Returns whether it was delivered. */
+export async function sendSlack(text: string): Promise<string> {
+  const url = (process.env.SLACK_WEBHOOK_URL || '').trim()
+  if (!url) return 'not sent: SLACK_WEBHOOK_URL is not set in Vercel'
+  return post(url, {}, { text })
 }

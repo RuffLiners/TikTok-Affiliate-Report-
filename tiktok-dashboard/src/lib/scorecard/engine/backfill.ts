@@ -49,6 +49,8 @@ export interface BackfillState {
   status: 'running' | 'failed' | 'done' | 'cancelled'
   /** full = the whole history. proof = the most recent complete week only, to prove the path end to end. */
   mode: 'full' | 'proof'
+  /** Who started it. A cron run is continued by the watchdog if one call was not enough. */
+  trigger?: 'manual' | 'cron'
   yearStart: string
   /** First Sunday on or after yearStart: the first full week covered. */
   weeksFrom: string
@@ -181,7 +183,7 @@ export type StartResult = { ok: true; state: BackfillState } | { ok: false; reas
 const isActive = (s: BackfillState | null, now: number) => !!s && s.status === 'running' && now - Date.parse(s.updatedAt) < STALL_MS
 
 /** Start a new run. Refused while another run is making progress. Exactly one of two simultaneous starts wins. */
-export async function startRun(d: Deps, o: { yearStart?: string; forceRefresh?: boolean; mode?: 'full' | 'proof' } = {}): Promise<StartResult> {
+export async function startRun(d: Deps, o: { yearStart?: string; forceRefresh?: boolean; mode?: 'full' | 'proof'; trigger?: 'manual' | 'cron' } = {}): Promise<StartResult> {
   const now = d.now()
   const [lock, prev] = await Promise.all([d.store.readLock(), d.store.readState()])
   if (isActive(prev, now) || (lock && lock.rec.leaseUntil > now)) {
@@ -197,7 +199,7 @@ export async function startRun(d: Deps, o: { yearStart?: string; forceRefresh?: 
   if (mode === 'proof') wanted = wanted.filter(w => w.type === 'week').slice(0, 1)
   const stored = await d.store.loadPeriods()
   const state: BackfillState = {
-    runId, status: 'running', mode, yearStart, weeksFrom: firstFullWeekStart(yearStart), forceRefresh: force, asOf, dataThrough,
+    runId, status: 'running', mode, trigger: o.trigger ?? 'manual', yearStart, weeksFrom: firstFullWeekStart(yearStart), forceRefresh: force, asOf, dataThrough,
     startedAt: iso(now), updatedAt: iso(now), phase: 'prep', prep: { contestMonthsDone: [], usageNow: null, done: false },
     // A proof run always pulls its one week so there are fresh numbers to check
     periods: planPeriods(wanted, stored, force || mode === 'proof'), current: null, alerts: [], stallAlerted: false,

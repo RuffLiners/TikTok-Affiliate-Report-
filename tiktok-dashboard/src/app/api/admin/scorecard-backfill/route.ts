@@ -13,7 +13,7 @@ async function admin(req: NextRequest): Promise<boolean> {
   const c = req.cookies.get('rl-auth')?.value
   return !!c && (await verifyToken(c))
 }
-const meta = () => ({ alerts: { ...alertConfig(), emailTo: ALERT_EMAIL_TO }, stallMinutes: STALL_MS / 60000, defaultYearStart: DEFAULT_YEAR_START, now: new Date().toISOString() })
+const meta = () => ({ cronReady: !!(process.env.CRON_SECRET || '').trim(), alerts: { ...alertConfig(), emailTo: ALERT_EMAIL_TO }, stallMinutes: STALL_MS / 60000, defaultYearStart: DEFAULT_YEAR_START, now: new Date().toISOString() })
 const fail = (e: unknown, status = 500) => NextResponse.json({ ok: false, error: redactSecrets(String((e as Error)?.message ?? e)).slice(0, 600), ...meta() }, { status })
 
 // Admin only. Current run, its progress, and whether alerts can be delivered. Also raises the stall alert if one is due.
