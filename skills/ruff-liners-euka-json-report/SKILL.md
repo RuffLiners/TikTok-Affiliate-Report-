@@ -18,7 +18,7 @@ brandId `b4ec897a-fb59-48e7-9320-873ea5e25155`, storeId `455ea4f9-a404-411b-b748
 | 4 | GMV Max Spend | `get_dashboard_ads_overview` daily `cost` | 2025-10-28 |
 | 5 | GMV Max ROI = line 1 / line 4 | computed, never averaged or summed | 2025-10-28 |
 | 6 | Target Collab invites sent | series `analyticsAggregated.target_invites` | see "Known gaps" |
-| 7 | Euka messages sent | series `analyticsAggregated.messages_sent` | see "Known gaps" |
+| 7 | Euka Chat messages sent | team-sent messages (`senderType` Manager) in Euka Chat conversations (`list_inbox_threads` channel `CreatorAppChat` + `list_inbox_thread_timeline`), counted by Los Angeles day. NOT the outreach `messages_sent` (TikTok Shop DMs). | first Euka Chat message |
 | 8 | Emails sent | series `analyticsAggregated.emails_sent` | see "Known gaps" |
 | 9 | Free samples approved | `get_dashboard_performance_overview.samplesApproved` | retention window |
 | 10 | Creators posted (distinct) | overview `activeCreators` | retention window |

@@ -7,6 +7,7 @@ import {
 import { StoredPeriod, isSettled } from './plan'
 import { ContestMonth } from './contests'
 import { EukaLike } from './pull'
+import { ChatCache, eukaChatFor } from './eukaChat'
 
 const TODAY = '2026-11-16', THROUGH = '2026-11-15'
 
@@ -14,6 +15,7 @@ const TODAY = '2026-11-16', THROUGH = '2026-11-15'
 function memoryStore() {
   let lock: string | null = null
   let state: BackfillState | null = null
+  let chat: ChatCache = {}
   const periods = new Map<string, StoredPeriod>()
   const contestMonths = new Map<string, ContestMonth>()
   const published: Array<{ asOf: string; raw: ScorecardRaw; scorecard: Scorecard; audit: any }> = []
@@ -28,12 +30,23 @@ function memoryStore() {
     async saveContestMonths(m) { for (const x of m) contestMonths.set(x.month, x) },
     async loadSnapshots() { return [] },
     async loadManual() { return [] as ManualEntry[] },
+    async loadChatCache() { return JSON.parse(JSON.stringify(chat)) },
+    async saveChatCache(c) { chat = JSON.parse(JSON.stringify(c)) },
     async publish(asOf, raw, scorecard, audit) { published.push({ asOf, raw, scorecard, audit }) },
   }
   return { store, periods, published, get lock() { return lock }, get state() { return state } }
 }
 
-interface FakeOpts { dataFrom?: string; failSeries?: (start: string, end: string) => boolean; overviewFails?: (start: string, end: string) => boolean }
+const msg = (ts: string, senderType: 'Manager' | 'Member', kind = 'message', channel = 'CreatorAppChat') => ({ kind, channel, senderType, internalDate: Date.parse(ts), data: { providerTimestamp: ts } })
+const CHAT_THREADS = [
+  { id: 't1', at: 1, items: [
+    msg('2026-11-10T18:00:00Z', 'Manager'), msg('2026-11-10T19:00:00Z', 'Manager'), msg('2026-11-10T20:00:00Z', 'Member'),
+    msg('2026-11-03T18:00:00Z', 'Manager'), msg('2026-11-10T21:00:00Z', 'Manager', 'note'),
+    msg('2026-11-15T06:30:00Z', 'Manager'),      // 10:30 pm Nov 14 in Los Angeles: belongs to the week ending Nov 14
+  ] },
+  { id: 't2', at: 2, items: [msg('2026-06-15T18:00:00Z', 'Manager'), msg('2026-06-16T18:00:00Z', 'Member')] },
+]
+interface FakeOpts { chatThreads?: typeof CHAT_THREADS; dataFrom?: string; failSeries?: (start: string, end: string) => boolean; overviewFails?: (start: string, end: string) => boolean }
 /** A Euka that returns consistent daily rows. Before `dataFrom` it returns nothing, as Euka does outside TikTok retention. */
 function fakeEuka(o: FakeOpts = {}) {
   const calls: Array<{ name: string; args: any }> = []
@@ -67,6 +80,9 @@ function fakeEuka(o: FakeOpts = {}) {
           allAccountVideoViews: none ? 0 : ds.length * 1000,
         }
       }
+      // Two Euka Chat conversations. Only team-sent messages count; creator messages, notes and other channels do not.
+      if (name === 'list_inbox_threads') return { items: (o.chatThreads ?? CHAT_THREADS).map(t => ({ id: t.id, internalDate: t.at })), nextCursor: null }
+      if (name === 'list_inbox_thread_timeline') return { items: (o.chatThreads ?? CHAT_THREADS).find(t => t.id === args.threadId)!.items, nextCursor: null }
       if (name === 'list_contests') return { contests: [{ id: 7, type: 'posting', status: 'completed', startDate: '2026-03-01', endDate: '2026-03-31' }] }
       if (name === 'get_contest') return { participants: [{ creatorId: 'a' }, { creatorId: 'b' }], pagination: { hasMoreParticipants: false } }
       if (name === 'search_usage_rights_requests') return { items: [{ creator: { id: 'c1' } }, { creator: { id: 'c2' } }], total: 2 }
@@ -240,7 +256,7 @@ describe('finish and publish', () => {
     expect(r.ok && r.state.status).toBe('done')
     const proof = h.mem.state!.summary!.proof!
     expect(proof.raw).toMatchObject({
-      shopGmv: 77338.52, gmvMaxSpend: 23909.06, gmvMaxRevenue: 89159.16, targetInvites: 59587, emails: 845, eukaMessages: 38182,
+      shopGmv: 77338.52, gmvMaxSpend: 23909.06, gmvMaxRevenue: 89159.16, targetInvites: 59587, emails: 845,
       videos: 546, samplesApproved: 31, creatorsPosted: 129, views: 3126914,
     })
     expect(proof.gmvMaxRoi).toBe(3.73)
@@ -370,7 +386,7 @@ describe('skip if stored', () => {
   })
   it('the current partial month is re-pulled even when it is already stored', async () => {
     const h = harness()
-    await h.mem.store.savePeriods([{ period_type: 'month', period_key: '2026-11', start_date: '2026-11-01', end_date: '2026-11-14', raw: { shopGmv: 1 }, raw_version: 2, final: false }])
+    await h.mem.store.savePeriods([{ period_type: 'month', period_key: '2026-11', start_date: '2026-11-01', end_date: '2026-11-14', raw: { shopGmv: 1 }, raw_version: 3, final: false }])
     const st = await startRun(h.deps, {})
     expect(st.ok && st.state.periods.find(p => p.id === 'month:2026-11')).toMatchObject({ status: 'pending', end: THROUGH })
   })
@@ -436,8 +452,41 @@ describe('no data is stored as no data, never zero', () => {
   })
   it('classify reports days missing from the daily series', () => {
     const p: StoredPeriod = { period_type: 'week', period_key: '2026-05-03', start_date: '2026-05-03', end_date: '2026-05-09', raw: { shopGmv: 10, videos: null, eukaMessages: 5, targetInvites: 1, emails: 1, samplesApproved: 1, creatorsPosted: 1, gmvMaxSpend: 1, gmvMaxRevenue: 1, views: 1 }, raw_version: 1, final: true }
-    const c = classify(p, { truncated: false, control: { shopGmv: 10, eukaMessages: 5, videos: null } }, ['videos 2026-05-03..2026-05-09: 6 of 7 days have data'])
+    const c = classify(p, { truncated: false, control: { shopGmv: 10, videos: null } }, ['videos 2026-05-03..2026-05-09: 6 of 7 days have data'])
     expect(c.status).toBe('partial'); expect(c.nullFields).toEqual(['videos']); expect(c.reason).toContain('6 of 7 days')
+  })
+})
+
+// ---- Euka Chat (line 7) -----------------------------------------------------------------------------------------
+describe('Euka Chat messages sent', () => {
+  it('counts only team-sent Euka Chat messages, by Los Angeles day; no data before the first one, a real 0 after', async () => {
+    const h = harness()
+    await startRun(h.deps, {})
+    await h.drive('run1')
+    const raw = (id: string) => h.mem.periods.get(id)!.raw.eukaMessages
+    expect(raw('week:2026-11-08')).toBe(3)        // two on Nov 10 and the late-evening Nov 14 one; the creator message and the note are not counted
+    expect(raw('week:2026-11-01')).toBe(1)
+    expect(raw('month:2026-11')).toBe(4)
+    expect(raw('month:2026-06')).toBe(1)
+    expect(raw('month:2026-07')).toBe(0)          // Euka Chat was in use, nothing sent: a real zero
+    expect(raw('month:2026-05')).toBeNull()       // before the first Euka Chat message: no data, not zero
+    expect(h.mem.published[0].scorecard.monthly.find(m => m.key === '2026-05')!.lines.eukaMessages).toMatchObject({ value: null, source: 'none' })
+  })
+  it('a later run reads only conversations with new activity', async () => {
+    const h = harness()
+    await startRun(h.deps, {}); await h.drive('run1')
+    const timelines = () => h.fake.calls.filter(c => c.name === 'list_inbox_thread_timeline').length
+    expect(timelines()).toBe(2)
+    await startRun(h.deps, {}); await h.drive('run2')
+    expect(timelines()).toBe(2)                   // nothing changed, nothing re-read
+    const h2 = harness({ chatThreads: [{ ...CHAT_THREADS[0], at: 99, items: [...CHAT_THREADS[0].items, msg('2026-11-12T18:00:00Z', 'Manager')] }, CHAT_THREADS[1]] })
+    await h2.mem.store.saveChatCache({ t1: { at: 1, days: { '2026-11-10': 2 } }, t2: { at: 2, days: { '2026-06-15': 1 } } })
+    await startRun(h2.deps, {}); await h2.drive('run1')
+    expect(h2.fake.calls.filter(c => c.name === 'list_inbox_thread_timeline').map(c => c.args.threadId)).toEqual(['t1'])
+    expect(h2.mem.periods.get('week:2026-11-08')!.raw.eukaMessages).toBe(4)
+  })
+  it('with no Euka Chat history at all the line is no data everywhere', () => {
+    expect(eukaChatFor({})('2026-11-08', '2026-11-14')).toBeNull()
   })
 })
 

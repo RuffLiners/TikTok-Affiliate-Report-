@@ -5,7 +5,8 @@ import { RangeRaw, addDays, monthRanges, weekRangesSince } from '../index'
 export const SETTLE_DAYS = 14
 /** Bump when a line's definition or source changes. Every stored period is then re-pulled once. */
 // 2: samples approved and creators posted are kept for ranges where only TikTok's GMV history is cut short.
-export const RAW_VERSION = 2
+// 3: line 7 counts team-sent Euka Chat messages instead of Euka's outreach "messages sent" (TikTok Shop DMs).
+export const RAW_VERSION = 3
 
 export interface Wanted { type: 'week' | 'month'; key: string; start: string; end: string; partial: boolean }
 export interface StoredPeriod { period_type: 'week' | 'month'; period_key: string; start_date: string; end_date: string; raw: RangeRaw; raw_version: number; final: boolean }

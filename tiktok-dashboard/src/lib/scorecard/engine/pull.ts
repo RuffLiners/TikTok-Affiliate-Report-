@@ -5,6 +5,7 @@ import {
 } from '../index'
 import { DailyMap, mergeAds, mergeSeries, sumRange, chunks, snapshotOnOrAfter } from './daily'
 import { RAW_VERSION, StoredPeriod, Wanted, dailySpan, isSettled, planPulls, wantedPeriods } from './plan'
+import { eukaChatFor, refreshEukaChat } from './eukaChat'
 import { ContestCounts, ContestInfo, ContestMonth, contestCounts, contestFor as contestForMonth, resolveContestMonths } from './contests'
 
 export const BRAND_ID = 'b4ec897a-fb59-48e7-9320-873ea5e25155'
@@ -109,7 +110,11 @@ export async function pullUsageRightsNow(e: Euka, asOf: string): Promise<number>
   return ids.length
 }
 
-export interface PullCtx { usageSnaps: Array<{ snap_date: string; value: number }>; usageNow: number; contestFor: (month: string) => number | null; latestWeekEnd: string }
+export interface PullCtx {
+  usageSnaps: Array<{ snap_date: string; value: number }>; usageNow: number; contestFor: (month: string) => number | null; latestWeekEnd: string
+  /** Team-sent Euka Chat messages in a date range (line 7). null before the first one was ever sent. */
+  eukaChatFor: (a: string, b: string) => number | null
+}
 
 /** Pull the given periods from Euka. The daily series is fetched only for the days they cover. */
 export interface PeriodDiag {
@@ -118,7 +123,7 @@ export interface PeriodDiag {
   /** Euka marked the range as cut short by TikTok's retention. */
   truncated: boolean
   /** Range-level totals from the overview, independent of the daily series, for cross-checking. */
-  control: { shopGmv: number | null; eukaMessages: number | null; videos: number | null }
+  control: { shopGmv: number | null; videos: number | null }
 }
 export async function pullPeriods(
   e: Euka, asOf: string, dataThrough: string, list: Wanted[], ctx: PullCtx, gaps: string[] = [],
@@ -136,7 +141,7 @@ export async function pullPeriods(
   for (const [i, w] of list.entries()) {
     const a = w.start, b = w.end
     const ov = overviews[i]
-    diag[`${w.type}:${w.key}`] = { ...(ov.error ? { overviewError: ov.errorText ?? 'unknown error' } : {}), truncated: ov.truncated, control: { shopGmv: ov.shopGmv, eukaMessages: ov.messages, videos: ov.videos } }
+    diag[`${w.type}:${w.key}`] = { ...(ov.error ? { overviewError: ov.errorText ?? 'unknown error' } : {}), truncated: ov.truncated, control: { shopGmv: ov.shopGmv, videos: ov.videos } }
     const usageEnd = w.type === 'week' ? (b === ctx.latestWeekEnd ? 'now' : b) : (w.partial ? 'now' : b)
     const raw: RangeRaw = {
       shopGmv: sumRange(daily, a, b, 'shopGmv', {}, gaps),
@@ -144,7 +149,7 @@ export async function pullPeriods(
       gmvMaxRevenue: sumRange(daily, a, b, 'revenue', ads, gaps),
       targetInvites: sumRange(daily, a, b, 'invites', {}, gaps),
       emails: sumRange(daily, a, b, 'emails', {}, gaps),
-      eukaMessages: sumRange(daily, a, b, 'messages', {}, gaps),
+      eukaMessages: ctx.eukaChatFor(a, b),
       videos: sumRange(daily, a, b, 'videos', {}, gaps),
       samplesApproved: ov.samplesApproved, creatorsPosted: ov.creatorsPosted, views: ov.views,
       contestAffiliates: ctx.contestFor(monthOf(b)),
@@ -164,7 +169,8 @@ export function assembleRaw(o: { asOf: string; yearStart: string; dataThrough: s
   const rawDaily: NonNullable<ScorecardRaw['daily']> = {}
   for (const [d, x] of Object.entries(o.daily ?? {})) if (x.spend !== undefined || x.revenue !== undefined) rawDaily[d] = { gmvMaxSpend: x.spend ?? null, gmvMaxRevenue: x.revenue ?? null }
   const notes = [
-    'Videos, messages, Target Collab invites and emails come from the daily series of get_dashboard_performance_series; a period with any missing day shows no data rather than a partial sum.',
+    'Videos, Target Collab invites and emails come from the daily series of get_dashboard_performance_series; a period with any missing day shows no data rather than a partial sum.',
+    'Euka Chat messages sent counts messages the team sent in Euka Chat (inside Euka\'s creator app), by Los Angeles day. Automated outreach delivered as TikTok Shop DMs is not counted. Periods before the first Euka Chat message show no data.',
     'Affiliates with usage rights are distinct creators with an active request. Euka has no dated source, so history before the first daily snapshot shows no data.',
     'Contest affiliates count each creator once per calendar month across all of that month\'s contests (Retainers excluded). A contest belongs to the month it starts in.',
     'Euka reports views as 0 before 2026-01-01; those periods show no data.',
@@ -192,7 +198,8 @@ export async function pullScorecardRaw(
   const { months: contestMonths, fresh: contestMonthsFresh } = await resolveContestMonths(await listContests(e, asOf), force ? [] : storedContests, dataThrough, fetchContestIds(e, asOf))
   const contests = contestCounts(contestMonths)
   const usageNow = await pullUsageRightsNow(e, asOf)
-  const ctx: PullCtx = { usageSnaps, usageNow, contestFor: m => contestForMonth(contests, m), latestWeekEnd: weekRanges(asOf, 1)[0].end }
+  const chat = await refreshEukaChat(e, {})
+  const ctx: PullCtx = { usageSnaps, usageNow, contestFor: m => contestForMonth(contests, m), latestWeekEnd: weekRanges(asOf, 1)[0].end, eukaChatFor: eukaChatFor(chat.cache) }
 
   const { periods: fresh, daily } = await pullPeriods(e, asOf, dataThrough, plan.toPull, ctx, gaps)
   const all = [...plan.reused, ...fresh]
@@ -218,7 +225,7 @@ export async function buildControls(e: Euka, asOf: string, dataThrough: string):
     const ad = await pullAds(e, asOf, a, b)
     const hasAds = b >= ADS_HISTORY_FROM
     ranges[name] = {
-      shopGmv: ov.shopGmv, eukaMessages: ov.messages, samplesApproved: ov.samplesApproved, creatorsPosted: ov.creatorsPosted, videos: ov.videos, views: ov.views,
+      shopGmv: ov.shopGmv, samplesApproved: ov.samplesApproved, creatorsPosted: ov.creatorsPosted, videos: ov.videos, views: ov.views,
       ...(hasAds ? { gmvMaxSpend: ad.spend, gmvMaxRevenue: ad.revenue } : {}),
     }
     const r = computeRoi(ad.revenue, ad.spend); if (r != null && hasAds) roi[name] = r

@@ -8,6 +8,7 @@ import { RAW_VERSION, StoredPeriod, Wanted, planPulls, wantedPeriods } from './p
 import { ContestInfo, ContestMonth, contestCounts, contestFor, countsAsContest, resolveContestMonths } from './contests'
 import { ADS_HISTORY_FROM, EukaLike, PeriodDiag, VIEWS_FROM, assembleRaw, fetchContestIds, listContests, pullDaily, pullOverview, pullPeriods, pullUsageRightsNow } from './pull'
 import type { DailyMap } from './daily'
+import { ChatCache, eukaChatFor, refreshEukaChat } from './eukaChat'
 
 export const DEFAULT_YEAR_START = '2025-10-01'
 /** A run with no progress for this long is stalled: it alerts and can be resumed or replaced. */
@@ -62,7 +63,7 @@ export interface BackfillState {
   updatedAt: string
   finishedAt?: string
   phase: 'prep' | 'pull' | 'publish' | 'done'
-  prep: { contestMonthsDone: string[]; usageNow: number | null; done: boolean }
+  prep: { contestMonthsDone: string[]; usageNow: number | null; done: boolean; chatDone?: boolean; chatStarted?: boolean }
   periods: PeriodProgress[]
   current: string | null
   lastError?: { at: string; period: string | null; message: string; nextStep: string }
@@ -85,6 +86,9 @@ export interface BackfillStore {
   saveContestMonths(m: ContestMonth[]): Promise<void>
   loadSnapshots(key: string): Promise<Array<{ snap_date: string; value: number }>>
   loadManual(): Promise<ManualEntry[]>
+  /** Per-conversation Euka Chat counts, kept between runs so only conversations with new activity are read again. */
+  loadChatCache(): Promise<ChatCache>
+  saveChatCache(c: ChatCache): Promise<void>
   publish(asOf: string, raw: ScorecardRaw, scorecard: Scorecard, audit: { status: string; failures: string[]; warnings: string[] }): Promise<void>
 }
 export type Notify = (kind: AlertRecord['kind'], text: string) => Promise<{ slack: string; email: string }>
@@ -148,8 +152,9 @@ export function planPeriods(wanted: Wanted[], stored: StoredPeriod[], force: boo
   })
 }
 
-const EXPECTED: Array<keyof RangeRaw> = ['shopGmv', 'targetInvites', 'emails', 'eukaMessages', 'videos', 'samplesApproved', 'creatorsPosted']
-const SERIES: Array<keyof RangeRaw> = ['shopGmv', 'targetInvites', 'emails', 'eukaMessages', 'videos']
+// Euka Chat messages are not listed: before the first one was sent they are legitimately no data, like contests and usage rights
+const EXPECTED: Array<keyof RangeRaw> = ['shopGmv', 'targetInvites', 'emails', 'videos', 'samplesApproved', 'creatorsPosted']
+const SERIES: Array<keyof RangeRaw> = ['shopGmv', 'targetInvites', 'emails', 'videos']
 
 /** Classify a pulled period. Never fills a number: missing stays null and gets a reason. */
 export function classify(p: StoredPeriod, diag: PeriodDiag | undefined, gaps: string[]): Pick<PeriodProgress, 'status' | 'reason' | 'nullFields' | 'controlDiffs'> {
@@ -159,11 +164,11 @@ export function classify(p: StoredPeriod, diag: PeriodDiag | undefined, gaps: st
   const mine = gaps.filter(g => g.includes(`${a}..${b}`))
   const controlDiffs: string[] = []
   if (diag && !diag.overviewError && !diag.truncated) {
-    const cmp = (f: 'shopGmv' | 'eukaMessages' | 'videos', tol: number) => {
+    const cmp = (f: 'shopGmv' | 'videos', tol: number) => {
       const c = diag.control[f], v = raw[f]
       if (c != null && v != null && Math.abs(c - v) > tol) controlDiffs.push(`${periodLabel({ type: p.period_type, key: p.period_key, start: a, end: b, partial: false })} ${f}: daily sum ${v} vs range total ${c}`)
     }
-    cmp('shopGmv', 0.01); cmp('eukaMessages', 0); cmp('videos', 0)
+    cmp('shopGmv', 0.01); cmp('videos', 0)
   }
   const extra = controlDiffs.length ? { controlDiffs } : {}
   if (diag?.overviewError) {
@@ -295,6 +300,18 @@ export async function runStep(d: Deps, o: { runId: string; budgetMs?: number; ma
         s.prep.contestMonthsDone.push(month)
         await progress()
       }
+      if (!s.prep.chatDone) {
+        s.current = 'Euka Chat messages'
+        // A forced refresh reads every conversation again; otherwise only those with new activity
+        const res = await refreshEukaChat(e, s.forceRefresh && !s.prep.chatStarted ? {} : await d.store.loadChatCache(), {
+          within, onChunk: async c => { await d.store.saveChatCache(c); s.prep.chatStarted = true; await progress() },
+        })
+        await d.store.saveChatCache(res.cache)
+        s.prep.chatStarted = true
+        if (!res.done) { await progress(); return { ok: true, state: s } }
+        s.prep.chatDone = true
+        await progress()
+      }
       s.current = 'usage rights'
       s.prep.usageNow = await pullUsageRightsNow(e, s.asOf)
       s.prep.done = true; s.phase = 'pull'; s.current = null
@@ -306,6 +323,7 @@ export async function runStep(d: Deps, o: { runId: string; budgetMs?: number; ma
     // Read once per step, not once per batch
     const counts = s.phase === 'pull' ? contestCounts(await d.store.loadContestMonths()) : null
     const usageSnaps = s.phase === 'pull' ? await d.store.loadSnapshots('usageRightsCreators') : []
+    const chatFor = s.phase === 'pull' ? eukaChatFor(await d.store.loadChatCache()) : () => null
     // Daily rows by calendar month, fetched once per step and shared by every batch that touches the month
     const monthDaily = new Map<string, Promise<DailyMap>>()
     const dailyFor = async (e: EukaLike, from: string, to: string): Promise<DailyMap> => {
@@ -335,7 +353,7 @@ export async function runStep(d: Deps, o: { runId: string; budgetMs?: number; ma
         const from = batch.reduce((m, w) => (w.start < m ? w.start : m), batch[0].start), to = batch.reduce((m, w) => (w.end > m ? w.end : m), batch[0].end)
         pulled = await pullPeriods(e, s.asOf, s.dataThrough, batch, {
           usageSnaps, usageNow: s.prep.usageNow ?? 0,
-          contestFor: m => contestFor(counts!, m), latestWeekEnd: weekRanges(s.asOf, 1)[0].end,
+          contestFor: m => contestFor(counts!, m), latestWeekEnd: weekRanges(s.asOf, 1)[0].end, eukaChatFor: chatFor,
         }, gaps, { daily: await dailyFor(e, from, to) })
       } catch (err) {
         const msg = String((err as Error)?.message ?? err).slice(0, 500)

@@ -15,7 +15,7 @@ const STATUS: Record<PeriodStatus, { label: string; cls: string }> = {
 }
 const FIELD: Record<string, string> = {
   shopGmv: 'TikTok GMV', gmvMaxRevenue: 'TikTok Gross Revenue', gmvMaxSpend: 'GMV Max spend', targetInvites: 'Target Collab invites sent',
-  eukaMessages: 'Euka messages sent', emails: 'Emails sent', samplesApproved: 'Free samples approved', creatorsPosted: 'Creators posted',
+  eukaMessages: 'Euka Chat messages sent', emails: 'Emails sent', samplesApproved: 'Free samples approved', creatorsPosted: 'Creators posted',
   videos: 'Affiliate videos posted', views: 'Views', contestAffiliates: 'Affiliates in monthly contest', usageRightsCreators: 'Affiliates with usage rights',
 }
 const MONEY = new Set(['shopGmv', 'gmvMaxRevenue', 'gmvMaxSpend'])

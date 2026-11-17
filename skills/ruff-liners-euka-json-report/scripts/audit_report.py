@@ -44,7 +44,7 @@ SC_DISTINCT = {"creatorsPosted", "contestAffiliates", "usageRightsCreators"}
 SC_MONEY = {"grossRevenue", "gmv", "gmvCofunded", "gmvMaxSpend"}
 SC_FILLABLE = {"grossRevenue", "gmv", "gmvCofunded", "views", "eukaMessages"}
 # controls.scorecard.ranges field -> scorecard line
-SC_CONTROL_MAP = {"gmvMaxRevenue": "grossRevenue", "shopGmv": "gmv", "gmvMaxSpend": "gmvMaxSpend", "eukaMessages": "eukaMessages",
+SC_CONTROL_MAP = {"gmvMaxRevenue": "grossRevenue", "shopGmv": "gmv", "gmvMaxSpend": "gmvMaxSpend", 
                   "samplesApproved": "samplesApproved", "creatorsPosted": "creatorsPosted", "videos": "videos", "views": "views",
                   "targetInvites": "targetInvites", "emails": "emails"}
 

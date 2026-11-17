@@ -7,6 +7,7 @@ import { sendBackfillAlert } from './alerts'
 
 const LOCK_KEY = 'scorecard_backfill_lock'
 const STATE_KEY = 'scorecard_backfill_state'
+const CHAT_KEY = 'scorecard_eukachat_threads'
 
 /** Backfill storage on the existing tables. The lock and run state live in app_config, so no schema change is needed. */
 export function supabaseBackfillStore(): BackfillStore {
@@ -57,6 +58,13 @@ export function supabaseBackfillStore(): BackfillStore {
       return (data ?? []).map(r => ({ snap_date: r.snap_date as string, value: Number(r.value) }))
     },
     loadManual: () => loadManualEntries(),
+    async loadChatCache() {
+      const { data } = must(await sb.from('app_config').select('value').eq('key', CHAT_KEY).maybeSingle(), 'read Euka Chat counts')
+      try { return data?.value ? JSON.parse(data.value as string) : {} } catch { return {} }
+    },
+    async saveChatCache(c) {
+      must(await sb.from('app_config').upsert({ key: CHAT_KEY, value: JSON.stringify(c), updated_at: new Date().toISOString() }, { onConflict: 'key' }), 'save Euka Chat counts')
+    },
     async publish(asOf, raw, scorecard, audit) {
       must(await sb.from('scorecards').upsert({ as_of: asOf, raw, scorecard, audit: { ...audit, checks: ['typescript-rules', 'range-total-cross-check'] }, published_by: 'dashboard-backfill' }, { onConflict: 'as_of' }), 'publish scorecard')
       try { revalidatePath('/dashboard') } catch { /* outside a request (tests, scripts) */ }

@@ -29,7 +29,7 @@ export const LINES: LineDef[] = [
   { n: 4,  key: 'gmvMaxSpend',         label: 'TikTok GMV Max Spend',                    kind: 'money' },
   { n: 5,  key: 'gmvMaxRoi',           label: 'TikTok GMV Max ROI',                      kind: 'ratio', derived: true },
   { n: 6,  key: 'targetInvites',       label: 'Euka Outreach: Target Collab invites sent', kind: 'count' },
-  { n: 7,  key: 'eukaMessages',        label: 'Euka Outreach: Euka messages sent',       kind: 'count' },
+  { n: 7,  key: 'eukaMessages',        label: 'Euka Outreach: Euka Chat messages sent',  kind: 'count' },
   { n: 8,  key: 'emails',              label: 'Euka Outreach: Emails sent',              kind: 'count' },
   { n: 9,  key: 'samplesApproved',     label: 'Free Samples Approved',                   kind: 'count' },
   { n: 10, key: 'creatorsPosted',      label: 'Creators Posted',                         kind: 'count', distinct: true },
