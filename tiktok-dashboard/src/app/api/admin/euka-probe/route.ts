@@ -215,3 +215,38 @@ export async function GET(req: NextRequest) {
     checkedAt: new Date().toISOString(),
   }, { headers: { 'cache-control': 'no-store' } })
 }
+
+// Read-only pass-through for mapping work: POST { tool, args } calls one Euka tool; { schema: tool } returns its input schema.
+// Only read tools (get_, list_, search_, count_) are allowed, so nothing in Euka can be changed from here.
+const READ_ONLY = /^(get|list|search|count)_[a-z0-9_]+$/
+export async function POST(req: NextRequest) {
+  const cookie = req.cookies.get('rl-auth')?.value
+  const bearer = Buffer.from((req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim())
+  const secret = Buffer.from((process.env.CRON_SECRET || '').trim())
+  const machine = secret.length > 0 && bearer.length === secret.length && timingSafeEqual(bearer, secret)
+  if (!machine && !(cookie && (await verifyToken(cookie)))) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+  const body = await req.json().catch(() => null)
+  const tok = eukaToken()
+  if (!tok) return NextResponse.json({ error: 'EUKA_BEARER_TOKEN is not set' }, { status: 503 })
+  const client = new Client({ name: 'ruff-liners-dashboard-probe', version: '1.0.0' })
+  try {
+    await withTimeout(client.connect(new StreamableHTTPClientTransport(new URL(process.env.EUKA_MCP_URL || DEFAULT_URL), { requestInit: { headers: { Authorization: `Bearer ${tok}` } } })), 30_000, 'MCP connect')
+    if (body?.schema) {
+      const want = ([] as string[]).concat(body.schema)
+      const found: any[] = []
+      let cursor: string | undefined
+      do { const r: any = await withTimeout(client.listTools(cursor ? { cursor } : undefined), 60_000, 'tools/list'); for (const t of r.tools ?? []) if (want.includes(t.name)) found.push({ name: t.name, description: t.description, inputSchema: t.inputSchema }); cursor = r.nextCursor } while (cursor)
+      return NextResponse.json({ tools: found })
+    }
+    const tool = String(body?.tool ?? '')
+    if (!READ_ONLY.test(tool)) return NextResponse.json({ error: 'Only read tools (get_, list_, search_, count_) can be called here' }, { status: 400 })
+    const t0 = Date.now()
+    const res: any = await withTimeout(client.callTool({ name: tool, arguments: body?.args ?? {} }, undefined, { timeout: 120_000 }), 125_000, tool)
+    const text = (res.content ?? []).filter((c: any) => c.type === 'text').map((c: any) => c.text).join('\n')
+    let parsed: unknown = text
+    try { parsed = JSON.parse(text) } catch { /* keep text */ }
+    return NextResponse.json({ ok: !res.isError, ms: Date.now() - t0, result: res.isError ? redact(text, [tok]) : parsed })
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: redact((e as Error).message, [tok]) }, { status: 502 })
+  } finally { await client.close().catch(() => {}) }
+}
