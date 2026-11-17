@@ -4,7 +4,8 @@ import { RangeRaw, addDays, monthRanges, weekRangesSince } from '../index'
 /** A period is final once it ended this many days before the data cutoff: TikTok's numbers have settled by then. */
 export const SETTLE_DAYS = 14
 /** Bump when a line's definition or source changes. Every stored period is then re-pulled once. */
-export const RAW_VERSION = 1
+// 2: samples approved and creators posted are kept for ranges where only TikTok's GMV history is cut short.
+export const RAW_VERSION = 2
 
 export interface Wanted { type: 'week' | 'month'; key: string; start: string; end: string; partial: boolean }
 export interface StoredPeriod { period_type: 'week' | 'month'; period_key: string; start_date: string; end_date: string; raw: RangeRaw; raw_version: number; final: boolean }

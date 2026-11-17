@@ -24,6 +24,46 @@ const label = (p: PeriodProgress) => (p.type === 'week' ? `${p.start} to ${p.end
 const ago = (iso: string, now: number) => { const m = Math.max(0, Math.round((now - Date.parse(iso)) / 60000)); return m < 1 ? 'under a minute ago' : `${m} min ago` }
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
+/** The prompt a person pastes into Claude in Chrome. It reads the live gap list itself, so it never goes stale. */
+const chromePrompt = (origin: string) => `You are working in my signed-in Chrome. Task: read from TikTok Seller Center the scorecard values that Euka cannot provide, and enter them in my dashboard. Work in new tabs. Seller Center is READ ONLY: change nothing there. Never type a password or 2FA code; if any site shows a login, captcha or 2FA prompt, stop and tell me.
+
+STEP 1: Get the list
+Open ${origin}/api/admin/scorecard-todo. It returns JSON with:
+- "cofunded": weeks and months missing "GMV with TikTok co-funding". Each has start and end dates.
+- "history": weeks and months where Euka has no history. Each has "lines" naming what is missing: gmv, grossRevenue, views.
+- "spotCheck": one month to compare with Euka.
+Enter only what is listed. If everything is empty, say so and stop.
+
+STEP 2: Calibrate (mandatory)
+Seller Center > Shop analytics, date range Nov 1 to Nov 7 2026, time zone America/Los_Angeles:
+- "Gross merchandise value (with TikTok co-funding)" must read $61,492.68
+- "GMV" must read $51,830.97
+If either is different, the date range, time zone or metric is wrong. Stop, report what you saw, enter nothing.
+
+STEP 3: Read
+Work in this order and stop when I say or when you have done 20 periods, then report and ask whether to continue: all months first (newest first), then weeks (newest first).
+For each period set the date range to its exact start and end, confirm the range label on the page matches, and read:
+- gmvCofunded: Shop analytics, "Gross merchandise value (with TikTok co-funding)". For every period in "cofunded".
+- gmv: Shop analytics, "GMV". Only where "history" lists gmv for that period.
+- grossRevenue: Marketing > Shop ads, "Gross revenue". Only where "history" lists grossRevenue.
+- views: skip. Seller Center counts views differently from the scorecard, so leave it blank.
+Rules: copy each figure exactly, digits and decimal point only. If Seller Center has no data that far back, or a figure is loading, hidden or ambiguous, leave it blank. Blank means "no data". Never enter 0 for a missing value, never estimate, never infer one number from another.
+
+STEP 4: Enter
+Open ${origin}/admin, Manage tab, "Scorecard: Seller Center values", "One-time CSV import". Type my name in "Your name". Paste one CSV with this header and one row per period:
+period_type,period_key,gmvCofunded,gmv,grossRevenue
+month,2026-04,265000.10,251000.55,
+week,2026-04-05,61492.68,51830.97,
+period_type is week or month. period_key is the Sunday start date for a week, YYYY-MM for a month. Leave a cell empty when you have no value.
+Click "Validate only". It must show no errors and the count you expect. Then click "Import".
+For the spot-check, import a second CSV: header period_type,period_key,grossRevenue,gmv,gmvMaxSpend,gmvMaxRoi with one row, period_type month_check.
+
+STEP 5: Verify
+Reload ${origin}/api/admin/scorecard-todo. Every item you entered must be gone from the list. Open ${origin}/dashboard, Scorecard, Monthly tab, and confirm the values show with a "Seller Center" tag. If the Issues box flags a spot-check line over 2 percent, report both numbers; do not change either.
+
+REPORT BACK
+How many periods you entered and which, what you left blank and why (including the earliest date Seller Center had data for), the calibration readings, and the spot-check result. No em dashes. No credentials or session details.`
+
 export function ScorecardBackfill() {
   const [state, setState] = useState<BackfillState | null>(null)
   const [meta, setMeta] = useState<Meta | null>(null)
@@ -89,6 +129,12 @@ export function ScorecardBackfill() {
   async function stop() {
     if (!confirm('Stop this backfill? Periods already stored are kept, and you can resume later.')) return
     await call({ action: 'cancel' }).catch(() => {})
+  }
+
+  const [copied, setCopied] = useState(false)
+  async function copyChromePrompt() {
+    try { await navigator.clipboard.writeText(chromePrompt(window.location.origin)); setCopied(true); setTimeout(() => setCopied(false), 4000) }
+    catch { setMsg({ ok: false, text: 'Could not copy. Your browser blocked clipboard access.' }) }
   }
 
   const s = state
@@ -207,6 +253,14 @@ export function ScorecardBackfill() {
                   </tbody></table>
                 </div>
               )}
+            </div>
+          )}
+
+          {s.status === 'done' && s.mode === 'full' && (
+            <div className="text-xs border border-gray-100 rounded-xl p-3 space-y-2">
+              <h4 className="font-semibold text-gray-700">Fill what Euka cannot provide</h4>
+              <p className="text-gray-600">Euka has no field for GMV with TikTok co-funding, and no TikTok GMV before TikTok&apos;s history window. Both are in Seller Center. Copy this prompt, open the Claude in Chrome side panel while signed in to Seller Center, and paste it. It reads the current gap list, reads Seller Center, and imports the values here.</p>
+              <button onClick={copyChromePrompt} className={`${btn} border border-gray-200 text-gray-700 hover:bg-gray-50`}>{copied ? 'Copied. Paste it into Claude in Chrome' : 'Copy prompt for Claude in Chrome'}</button>
             </div>
           )}
 

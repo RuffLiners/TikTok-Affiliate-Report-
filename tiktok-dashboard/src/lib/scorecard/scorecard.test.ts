@@ -275,6 +275,14 @@ describe('to-do for Seller Center entry', () => {
     expect(t.spotCheck!.missing.map(m => m.line)).toEqual(['grossRevenue', 'gmv', 'gmvMaxSpend', 'gmvMaxRoi'])
     expect(t.spotCheck!.missing.find(m => m.line === 'gmvMaxSpend')!.euka).toBe(50000)
   })
+  it('lists history gaps a person can fill from Seller Center, and drops a line once it is entered', () => {
+    const t = buildTodo(buildScorecard(raw))
+    const oct = t.history.find(h => h.period_type === 'month' && h.period_key === '2025-10')!
+    expect(oct.lines).toEqual(['gmv', 'grossRevenue', 'views'])
+    expect(t.history.some(h => h.period_type === 'week' && h.period_key === '2026-11-01')).toBe(false)   // Euka has this week
+    const e: ManualEntry[] = [{ period_type: 'month', period_key: '2025-10', line: 'gmv', value: 13000, source: 'seller_center' }]
+    expect(buildTodo(buildScorecard(raw, e)).history.find(h => h.period_key === '2025-10')!.lines).toEqual(['grossRevenue', 'views'])
+  })
   it('spot-check disappears once all four are entered', () => {
     const e: ManualEntry[] = (['grossRevenue', 'gmv', 'gmvMaxSpend', 'gmvMaxRoi'] as const).map(line => ({ period_type: 'month_check' as const, period_key: '2026-10', line, value: 1, source: 'manual' as const }))
     expect(buildTodo(buildScorecard(raw, e)).spotCheck).toBeNull()

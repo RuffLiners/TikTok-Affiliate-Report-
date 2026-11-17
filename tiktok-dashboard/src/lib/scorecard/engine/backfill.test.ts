@@ -370,7 +370,7 @@ describe('skip if stored', () => {
   })
   it('the current partial month is re-pulled even when it is already stored', async () => {
     const h = harness()
-    await h.mem.store.savePeriods([{ period_type: 'month', period_key: '2026-11', start_date: '2026-11-01', end_date: '2026-11-14', raw: { shopGmv: 1 }, raw_version: 1, final: false }])
+    await h.mem.store.savePeriods([{ period_type: 'month', period_key: '2026-11', start_date: '2026-11-01', end_date: '2026-11-14', raw: { shopGmv: 1 }, raw_version: 2, final: false }])
     const st = await startRun(h.deps, {})
     expect(st.ok && st.state.periods.find(p => p.id === 'month:2026-11')).toMatchObject({ status: 'pending', end: THROUGH })
   })
@@ -411,6 +411,28 @@ describe('no data is stored as no data, never zero', () => {
     expect(stored.raw.samplesApproved).toBeNull()
     const again = await startRun(h.deps, {})
     expect(again.ok && again.state.periods.find(x => x.id === 'week:2026-06-07')!.status).toBe('pending')
+  })
+  it('before TikTok GMV history starts, GMV is no data but the counts Euka does have are kept; a 0 there is not stored as zero', async () => {
+    const h = harness()
+    // Live shape, May 2026: range truncated, GMV null, samples and creators real. October 2025: zeros.
+    const live: EukaLike = { call: async (n, a: any = {}) => {
+      const out = await h.fake.e.call(n, a)
+      if (n === 'get_dashboard_performance_overview' && a.startDate === '2026-05-01') return { ...out, performanceRangeCoverage: { isTruncated: true }, totalShopGMV: null, samplesApproved: 69, activeCreators: 125 }
+      if (n === 'get_dashboard_performance_overview' && a.startDate === '2025-10-01' && a.endDate === '2025-10-31') return { ...out, performanceRangeCoverage: { isTruncated: true }, totalShopGMV: null, samplesApproved: 0, activeCreators: 52 }
+      return out
+    } }
+    const deps = { ...h.deps, euka: async () => live }
+    await startRun(deps, {})
+    let r = await runStep(deps, { runId: 'run1' })
+    while (r.ok && r.state.status === 'running') r = await runStep(deps, { runId: 'run1' })
+    expect(h.mem.periods.get('month:2026-05')!.raw).toMatchObject({ samplesApproved: 69, creatorsPosted: 125 })
+    expect(h.mem.periods.get('month:2025-10')!.raw).toMatchObject({ samplesApproved: null, creatorsPosted: 52 })
+  })
+  it('periods stored under the old rule are re-pulled once', async () => {
+    const h = harness()
+    await h.mem.store.savePeriods([{ period_type: 'month', period_key: '2026-05', start_date: '2026-05-01', end_date: '2026-05-31', raw: { shopGmv: null }, raw_version: 1, final: true }])
+    const st = await startRun(h.deps, {})
+    expect(st.ok && st.state.periods.find(p => p.id === 'month:2026-05')).toMatchObject({ status: 'pending', reason: 'definition changed' })
   })
   it('classify reports days missing from the daily series', () => {
     const p: StoredPeriod = { period_type: 'week', period_key: '2026-05-03', start_date: '2026-05-03', end_date: '2026-05-09', raw: { shopGmv: 10, videos: null, eukaMessages: 5, targetInvites: 1, emails: 1, samplesApproved: 1, creatorsPosted: 1, gmvMaxSpend: 1, gmvMaxRevenue: 1, views: 1 }, raw_version: 1, final: true }

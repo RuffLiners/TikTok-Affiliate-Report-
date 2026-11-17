@@ -31,11 +31,16 @@ export async function pullOverview(e: Euka, asOf: string, a: string, b: string):
     catch (err) { return { _error: String((err as Error).message).slice(0, 200) } }
   })
   const truncated = !!r?.performanceRangeCoverage?.isTruncated
+  // A truncated range is outside TikTok's retention for shop and affiliate GMV only (Euka names the affected metrics in
+  // sourceWarnings). Those yield null, never a partial number.
   const perf = (v: any) => (truncated || r?._error ? null : nz(v))
+  // Euka's own counts (samples, creators, messages, videos) are not affected and are kept. A 0 in a truncated range is
+  // ambiguous (a real zero, or before Euka had the data), so it stays "no data" rather than being stored as zero.
+  const own = (v: any) => { const n = r?._error ? null : nz(v); return truncated && n === 0 ? null : n }
   return {
     error: !!r?._error, ...(r?._error ? { errorText: String(r._error) } : {}),
-    shopGmv: perf(r?.totalShopGMV), messages: perf(r?.messagesSent), samplesApproved: perf(r?.samplesApproved),
-    creatorsPosted: perf(r?.activeCreators), videos: perf(r?.videoConvRateTotalVideos),
+    shopGmv: perf(r?.totalShopGMV), messages: own(r?.messagesSent), samplesApproved: own(r?.samplesApproved),
+    creatorsPosted: own(r?.activeCreators), videos: own(r?.videoConvRateTotalVideos),
     views: b < VIEWS_FROM || r?._error ? null : nz(r?.allAccountVideoViews), truncated,
   }
 }

@@ -70,28 +70,26 @@ function Weekly({ sc, all }: { sc: Scorecard; all: boolean }) {
 function Monthly({ sc }: { sc: Scorecard }) {
   const cur: MonthPeriod = sc.monthly[0]
   const hist = sc.monthly.slice(1)
+  // One table: the current month, its month-end estimate, then every earlier month on the same row
   return (
-    <div className="space-y-4 overflow-x-auto">
+    <div className="overflow-x-auto">
       <table className="w-full"><thead><tr>
         <th className={`${th} sticky left-0 bg-white`}>Line</th>
-        <th className={th}>{cur.key} month to date ({cur.daysElapsed} of {cur.daysInMonth} days)</th>
-        {cur.partial && <th className={th}>Month-end estimate <Chip>straight-line estimate</Chip></th>}
+        <th className={th}>{cur.key}{cur.partial ? ` to date (${cur.daysElapsed} of ${cur.daysInMonth} days)` : ''}</th>
+        {cur.partial && <th className={th}>{cur.key} month-end <Chip>estimate</Chip></th>}
+        {hist.map(m => <th key={m.key} className={th}>{m.key}</th>)}
       </tr></thead><tbody>{LINES.map(def => (
         <tr key={def.key} className="border-t border-gray-50"><LabelCol def={def} />
           <td className={`${td} bg-gray-50/50`}><CellView def={def} cell={cur.lines[def.key]} />{def.key === 'gmvMaxRoi' && <RoiSub v={cur.roiVsShopGmv} />}</td>
-          {cur.partial && <td className={td}>
-            {def.distinct ? <span className="text-gray-400 text-xs">month to date only</span>
+          {cur.partial && <td className={`${td} bg-gray-50/50`}>
+            {def.distinct ? <span className="text-gray-400 text-xs">to date only</span>
               : cur.projected && cur.projected[def.key as LineKey] != null ? <span className="tabular-nums text-gray-900">{fmtVal(def, cur.projected[def.key]!)}</span>
               : <span className="text-gray-300">no data</span>}
-            {def.key === 'gmvMaxRoi' && cur.partial && <RoiSub v={cur.projectedRoiVsShopGmv} />}
+            {def.key === 'gmvMaxRoi' && <RoiSub v={cur.projectedRoiVsShopGmv} />}
           </td>}
+          {hist.map(m => <td key={m.key} className={`${td} text-gray-600`}><CellView def={def} cell={m.lines[def.key]} />{def.key === 'gmvMaxRoi' && <RoiSub v={m.roiVsShopGmv} />}</td>)}
         </tr>))}</tbody></table>
-      {cur.partial && <p className="text-[11px] text-gray-400 px-3">Estimate = (month to date / days elapsed) x days in month, recomputed on every report. ROI is projected revenue divided by projected spend. Counts of distinct people are not projected.</p>}
-      <table className="w-full"><thead><tr><th className={`${th} sticky left-0 bg-white`}>Line</th>{hist.map(m => <th key={m.key} className={th}>{m.key}</th>)}</tr></thead>
-        <tbody>{LINES.map(def => (
-          <tr key={def.key} className="border-t border-gray-50"><LabelCol def={def} />
-            {hist.map(m => <td key={m.key} className={`${td} text-gray-600`}><CellView def={def} cell={m.lines[def.key]} />{def.key === 'gmvMaxRoi' && <RoiSub v={m.roiVsShopGmv} />}</td>)}
-          </tr>))}</tbody></table>
+      {cur.partial && <p className="text-[11px] text-gray-400 mt-2 px-3">Newest month first. Estimate = (month to date / days elapsed) x days in month, recomputed on every report. ROI is projected revenue divided by projected spend. Counts of distinct people are not projected.</p>}
     </div>
   )
 }

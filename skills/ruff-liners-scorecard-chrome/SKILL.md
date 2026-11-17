@@ -5,6 +5,8 @@ description: Use Claude in Chrome to read the Seller Center values the scorecard
 
 # Weekly scorecard entry with Claude in Chrome
 
+The ready-to-paste prompt for this runbook is in the dashboard: Admin > Manage tab > Scorecard backfill > "Copy prompt for Claude in Chrome" (shown after a finished run).
+
 Load the `chrome-browser` skill first (open the person's tabs, work in a new tab, site permissions, stop conditions). This runbook says what to read, where to enter it, and when to stop.
 
 ## What is manual and what is not
@@ -15,6 +17,7 @@ Everything on the scorecard comes from Euka except **TikTok GMV with TikTok co-f
 2. Open `<dashboard>/api/admin/scorecard-todo`. It returns JSON listing exactly what is missing:
    - `cofunded`: weeks and months that need the co-funded GMV, each with `start` and `end`.
    - `spotCheck`: the month to spot-check and the four lines needed (Gross Revenue, GMV, GMV Max cost, ROI) with the Euka value beside each.
+   - `history`: weeks and months where Euka has no history (TikTok GMV before 2026-05-22, Gross Revenue before 2025-10-28, Views before 2026-01-01), with the `lines` missing for each. Fill `gmv` and `grossRevenue` from Seller Center where it still has the data; skip `views` (Seller Center counts them differently).
    Enter only what is listed. If the list is empty, there is nothing to enter: go to "Start the run".
 
 ## Calibrate first (mandatory, once per session)
