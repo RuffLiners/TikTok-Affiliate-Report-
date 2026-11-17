@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { Cell, LINES, LineDef, LineKey, Scorecard, MonthPeriod, WeekPeriod } from '@/lib/scorecard'
+import { Cell, LINES, LineDef, LineKey, Scorecard, MonthPeriod, WeekPeriod, pctChange } from '@/lib/scorecard'
 
 type Tab = 'all' | 'weekly' | 'monthly'
 
@@ -54,32 +54,37 @@ function Weekly({ sc, all }: { sc: Scorecard; all: boolean }) {
   return (
     <div className="overflow-x-auto"><table className="w-full"><thead><tr>
       <th className={`${th} sticky left-0 bg-white`}>Line</th>
-      <th className={th}>Week of {w[0].start}</th><th className={th}>Prior week</th><th className={th}>Change</th>
+      <th className={th}>% change vs prior week</th><th className={th}>Week of {w[0].start}</th>
       {w.slice(1).map((x: WeekPeriod) => <th key={x.key} className={th}>{x.start.slice(5)}</th>)}
     </tr></thead><tbody>{LINES.map(def => (
       <tr key={def.key} className="border-t border-gray-50"><LabelCol def={def} />
-        <td className={`${td} bg-gray-50/50`}><CellView def={def} cell={w[0].lines[def.key]} />{def.key === 'gmvMaxRoi' && <RoiSub v={w[0].roiVsShopGmv} />}</td>
-        <td className={`${td} text-gray-500`}>{w[0].prior[def.key] == null ? <span className="text-gray-300">no data</span> : fmtVal(def, w[0].prior[def.key]!)}</td>
         <td className={td}><Pct v={w[0].changes[def.key]} /></td>
+        <td className={`${td} bg-gray-50/50`}><CellView def={def} cell={w[0].lines[def.key]} />{def.key === 'gmvMaxRoi' && <RoiSub v={w[0].roiVsShopGmv} />}</td>
         {w.slice(1).map(x => <td key={x.key} className={`${td} text-gray-600`}><CellView def={def} cell={x.lines[def.key]} />{def.key === 'gmvMaxRoi' && <RoiSub v={x.roiVsShopGmv} />}</td>)}
       </tr>))}</tbody></table>
-      <p className="text-[11px] text-gray-400 mt-2 px-3">Sunday to Saturday weeks, most recent complete week first. Percent change is vs the prior week. ROI = Gross Revenue / GMV Max spend; the revenue is on TikTok's co-funded basis, so it can exceed shop GMV. ROI vs shop GMV = shop GMV / spend.</p></div>
+      <p className="text-[11px] text-gray-400 mt-2 px-3">Sunday to Saturday weeks, most recent complete week first. Percent change compares the newest week with the week in the next column. ROI = Gross Revenue / GMV Max spend; the revenue is on TikTok's co-funded basis, so it can exceed shop GMV. ROI vs shop GMV = shop GMV / spend.</p></div>
   )
 }
 
 function Monthly({ sc }: { sc: Scorecard }) {
   const cur: MonthPeriod = sc.monthly[0]
   const hist = sc.monthly.slice(1)
+  const prev: MonthPeriod | undefined = hist[0]
+  // A part month against a full month would always look like a drop, so a month in progress compares its month-end
+  // estimate with the prior month. Counts of distinct people have no estimate, so they show n/a until the month ends.
+  const change = (k: LineKey): number | null => !prev ? null : pctChange(cur.partial ? cur.projected?.[k] ?? null : cur.lines[k].value, prev.lines[k].value)
   // One table: the current month, its month-end estimate, then every earlier month on the same row
   return (
     <div className="overflow-x-auto">
       <table className="w-full"><thead><tr>
         <th className={`${th} sticky left-0 bg-white`}>Line</th>
+        <th className={th}>% change vs {prev ? prev.key : 'prior month'}{cur.partial && <Chip>from estimate</Chip>}</th>
         <th className={th}>{cur.key}{cur.partial ? ` to date (${cur.daysElapsed} of ${cur.daysInMonth} days)` : ''}</th>
         {cur.partial && <th className={th}>{cur.key} month-end <Chip>estimate</Chip></th>}
         {hist.map(m => <th key={m.key} className={th}>{m.key}</th>)}
       </tr></thead><tbody>{LINES.map(def => (
         <tr key={def.key} className="border-t border-gray-50"><LabelCol def={def} />
+          <td className={td}><Pct v={change(def.key)} /></td>
           <td className={`${td} bg-gray-50/50`}><CellView def={def} cell={cur.lines[def.key]} />{def.key === 'gmvMaxRoi' && <RoiSub v={cur.roiVsShopGmv} />}</td>
           {cur.partial && <td className={`${td} bg-gray-50/50`}>
             {def.distinct ? <span className="text-gray-400 text-xs">to date only</span>
@@ -89,7 +94,7 @@ function Monthly({ sc }: { sc: Scorecard }) {
           </td>}
           {hist.map(m => <td key={m.key} className={`${td} text-gray-600`}><CellView def={def} cell={m.lines[def.key]} />{def.key === 'gmvMaxRoi' && <RoiSub v={m.roiVsShopGmv} />}</td>)}
         </tr>))}</tbody></table>
-      {cur.partial && <p className="text-[11px] text-gray-400 mt-2 px-3">Newest month first. Estimate = (month to date / days elapsed) x days in month, recomputed on every report. ROI is projected revenue divided by projected spend. Counts of distinct people are not projected.</p>}
+      {cur.partial && <p className="text-[11px] text-gray-400 mt-2 px-3">Newest month first. While the month is in progress, percent change compares the month-end estimate with the prior full month. Estimate = (month to date / days elapsed) x days in month, recomputed on every report. ROI is projected revenue divided by projected spend. Counts of distinct people are not projected.</p>}
     </div>
   )
 }
