@@ -3,7 +3,7 @@
 name: Weekly report
 on:
   schedule:
-    - cron: '37 16 * * 1'   # Monday 16:37 UTC = 10:37 CST / 09:37 PST; after the scorecard (15:07 UTC) and the Rocio/Alyssa tasks (9:07, 9:13 Central)
+    - cron: '2 13 * * 1'    # Monday 13:02 UTC = 7:02 AM CST (8:02 AM CDT in summer; GitHub cron is UTC only). Runs before the scorecard (9:07 Central) and the Rocio/Alyssa tagging tasks, so re-engagement covers the previous lists
   workflow_dispatch:
     inputs:
       report_date:
@@ -47,7 +47,7 @@ jobs:
           EUKA_STORE_ID: ${{ secrets.EUKA_STORE_ID }}
           REPORT_PUBLISH_TOKEN: ${{ secrets.REPORT_PUBLISH_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          SCORECARD_WAIT_MINUTES: ${{ github.event_name == 'schedule' && '20' || '0' }}
+          SCORECARD_WAIT_MINUTES: '0'   # the 7 AM run is before the scorecard; check once, do not wait
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SLACK_REPORT_POSTS: ${{ vars.SLACK_REPORT_POSTS }}   # unset = no Slack post (team Slack paused Nov 16, 2026); set to 1 at rollout
       - name: Status line

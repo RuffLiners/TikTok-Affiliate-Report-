@@ -352,8 +352,8 @@ async function main() {
   setProgress({ weekWindow: `${w.week[0]}..${w.week[1]}`, d30Window: `${w.cur[0]}..${w.cur[1]}` })
 
   setProgress({ currentStep: 'scorecard check' })
-  // Scheduled run: wait up to 20 minutes for today's scorecard. Manual run: check once.
-  const scorecard = await scorecardCheck(today, Number(process.env.SCORECARD_WAIT_MINUTES ?? 20))
+  // Checks once by default (the Monday run is at 7 AM Central, before the scorecard); SCORECARD_WAIT_MINUTES can add a wait
+  const scorecard = await scorecardCheck(today, Number(process.env.SCORECARD_WAIT_MINUTES ?? 0))
   setProgress({ scorecard })
 
   E = await Euka.connect()

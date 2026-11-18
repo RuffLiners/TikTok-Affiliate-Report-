@@ -7,14 +7,14 @@ Every Monday, with no manual step and no browser, GitHub Actions pulls Euka, bui
 Claude cloud scheduled tasks cannot reach `storage.googleapis.com` (Euka CSV exports) or the dashboard host and cannot write to this repo (verified Nov 16, 2026). GitHub Actions has the Euka token, `REPORT_PUBLISH_TOKEN`, `DASHBOARD_URL` and open network. Do not move any part of the build into a chat run.
 
 ## What runs
-- Workflow: `.github/workflows/weekly-report.yml` ("Weekly report"), on the default branch `claude/friendly-gauss-AGnJ3`. Cron `37 16 * * 1` (Monday 10:37 CST / 11:37 CDT), plus `workflow_dispatch` with optional `report_date`. 60-minute job limit, report step 50 minutes, concurrency group `weekly-report`, `contents: read`, Node 22, Python 3.12.
+- Workflow: `.github/workflows/weekly-report.yml` ("Weekly report"), on the default branch `claude/friendly-gauss-AGnJ3`. Cron `2 13 * * 1` (Monday 7:02 AM CST / 8:02 AM CDT, Brandon's choice Nov 18, 2026; before the 9:07 scorecard and the Rocio/Alyssa tagging tasks, so re-engagement covers the previous week's lists and `scorecard` reads NOT PUBLISHED TODAY by design), plus `workflow_dispatch` with optional `report_date`. 60-minute job limit, report step 50 minutes, concurrency group `weekly-report`, `contents: read`, Node 22, Python 3.12.
 - Entry point: `pipeline/src/weekly-report.ts` (`npm run weekly-report`). Status email: `pipeline/src/weekly-status.ts` (`npm run weekly-status`, runs with `if: always()`).
 - Every step caches its raw result to `pipeline/.cache/<reportDate>/<step>.json` (CSV exports in `dl/`), so a re-run resumes. Each step retries 3 times; an HTTP 429 waits 60 seconds.
 - The whole `.cache/<reportDate>/` folder (inputs, draft, report JSON, controls, `audit.txt`) is uploaded as the run artifact `weekly-report-<run id>`, kept 30 days.
 
 ## Steps
 1. Windows (`weekly/windows.ts`, SKILL.md Phase 1, Pacific dates). A bad or future report date fails here, before anything is pulled or saved.
-2. Scorecard check: reads `/api/publish-report` `latest`. Scheduled runs wait up to 20 minutes for today's scorecard, manual runs check once; then it continues and says `scorecard: NOT PUBLISHED TODAY` in the email.
+2. Scorecard check: reads `/api/publish-report` `latest` once (no wait; set SCORECARD_WAIT_MINUTES to add one). At 7 AM it normally reads `NOT PUBLISHED TODAY`.
 3. Pulls (SKILL.md Phase 2): performance overview for 30 days (previous-period compare) and each of 6 months (guardrail fields kept; a 429 inside `shopGmvError` waits a minute, up to 3 times), retention summary, ads overview, level breakdown x21, `export_videos` x4 and `export_gmv_max_report` (creatives). CSVs are fetched with `fetch` and checked for their required columns. IDs stay text.
 4. Agents: `list_outreach_agents` for outreach and crm, 25 a page, until a page is entirely older than the window start; `get_outreach_agent` for every in-window agent, mapped in `weekly/agents.ts`. A field that could not be read is `not enriched`, never `none`.
 5. Build: `inputs.json` in the `references/inputs.example.json` format, `python3 -I py/build_report.py`, one `search_creators` call (100 handles per call) for the table handles, then the build again.
