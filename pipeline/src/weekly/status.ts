@@ -60,6 +60,9 @@ export function writeOutputs(s: Status, file = process.env.GITHUB_OUTPUT): void 
   const body = emailBody(s)
   const out = `subject=${subject(s)}\noutcome=${s.outcome}\nbody<<__STATUS_EOF__\n${body}\n__STATUS_EOF__\n`
   if (file) appendFileSync(file, out)
+  // Run page summary: the same subject and key: value lines, readable without email
+  const summary = process.env.GITHUB_STEP_SUMMARY
+  if (file && summary) appendFileSync(summary, `### ${subject(s)}\n\n\`\`\`\n${body}\n\`\`\`\n`)
   console.log(`\n${subject(s)}\n${body}\n`)
 }
 

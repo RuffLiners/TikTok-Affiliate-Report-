@@ -21,6 +21,8 @@ jobs:
       REPORT_DATE: ${{ inputs.report_date }}
       WEEKLY_STATUS_FILE: ${{ github.workspace }}/weekly-status.json
       DASHBOARD_URL: ${{ secrets.DASHBOARD_URL }}
+      # Email is optional: with no SMTP_SERVER secret the email steps are skipped and the status line is on the run page
+      SMTP_CONFIGURED: ${{ secrets.SMTP_SERVER != '' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -64,7 +66,7 @@ jobs:
           retention-days: 30
           if-no-files-found: ignore
       - name: Email status (every run)
-        if: always() && steps.status.outputs.subject != ''
+        if: always() && env.SMTP_CONFIGURED == 'true' && steps.status.outputs.subject != ''
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: ${{ secrets.SMTP_SERVER }}
@@ -77,7 +79,7 @@ jobs:
           body: ${{ steps.status.outputs.body }}
       # Last resort: the status step itself never ran (cancelled or timed out before it, or npm failed). Same contract.
       - name: Email FAILED (status step did not run)
-        if: (failure() || cancelled()) && steps.status.outputs.subject == ''
+        if: (failure() || cancelled()) && env.SMTP_CONFIGURED == 'true' && steps.status.outputs.subject == ''
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: ${{ secrets.SMTP_SERVER }}

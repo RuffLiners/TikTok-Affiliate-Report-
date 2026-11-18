@@ -25,7 +25,7 @@ Claude cloud scheduled tasks cannot reach `storage.googleapis.com` (Euka CSV exp
 10. Notify: status email every run (below). Slack only when the repo variable `SLACK_REPORT_POSTS=1` (unset since team Slack was paused Nov 16, 2026).
 
 ## Status email (contract; a Claude watchdog parses it)
-To brandon@ruffliners.com, same SMTP secrets as the scorecard. Subject is exactly one of:
+The same subject and `key: value` lines are written to the run page (job summary) on every run. The email to brandon@ruffliners.com is sent only when the SMTP_* secrets are set (not set as of Nov 18, 2026, by choice); without them the email steps are skipped, not failed. Subject is exactly one of:
 `Weekly TikTok report: PUBLISHED <reportDate>`, `Weekly TikTok report: PUBLISHED WITH REVIEW FLAGS <reportDate>`, `Weekly TikTok report: FAILED <reportDate>`.
 Body, one `key: value` per line, every key always present, `none` when empty, list items joined with ` | `:
 `reportDate`, `weekWindow`, `d30Window`, `d30Gmv`, `audit`, `auditFailures`, `warnings`, `reviewFlags`, `scorecard`, `failedStep`, `error`, `dashboardUrl`, `runUrl`.
