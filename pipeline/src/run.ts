@@ -18,7 +18,7 @@ const CACHE = process.env.PIPELINE_CACHE_DIR || join(process.cwd(), '.cache')
 const money = (n: number | null) => (n == null ? 'no data' : '$' + Math.round(n).toLocaleString('en-US'))
 
 function pythonAudit(reportPath: string, controlsPath: string) {
-  const r = spawnSync('python3', [join(process.cwd(), 'py', 'audit_report.py'), reportPath, controlsPath], { encoding: 'utf8' })
+  const r = spawnSync('python3', [join(process.cwd(), 'py', 'audit_scorecard.py'), reportPath, controlsPath], { encoding: 'utf8' })
   const out = (r.stdout || '') + (r.stderr || '')
   return { pass: r.status === 0 && /AUDIT: PASS/.test(out), out }
 }

@@ -52,6 +52,7 @@ export async function GET(req: NextRequest) {
 /**
  * Scheduled-run publish. Auth: Authorization: Bearer $REPORT_PUBLISH_TOKEN (Vercel env var, never in the repo).
  * Body: { meta:{reportDate}, audit:{status:'PASS',...}, scorecardRaw, scorecard, ...optional legacy report fields }.
+ * Or { reportOnly: true, audit:{status:'PASS'}, meta, d30, weeklyCharts, monthlyCharts, tables, agents, analysis }: the weekly report alone.
  * A report whose audit block is not PASS is rejected, and the scorecard is re-audited here regardless of what the sender claims.
  */
 export async function POST(req: NextRequest) {
@@ -102,6 +103,15 @@ export async function POST(req: NextRequest) {
       if (error) return NextResponse.json({ error: 'drift log: ' + error.message }, { status: 500 })
     }
     return NextResponse.json({ ok: true, saved: rows.length, final: rows.filter(r => r.final).length, contestMonths: cmOk.length, drift: drift.length })
+  }
+  // Weekly report only (GitHub "Weekly report" workflow): no scorecard, never touches the scorecards table.
+  // saveReportCore re-runs validateGeneratedReport, the review flags and reconciliation, so the sender is not trusted.
+  if (report?.reportOnly === true) {
+    if (report?.audit?.status !== 'PASS') {
+      return NextResponse.json({ error: `Rejected: audit.status is "${report?.audit?.status ?? 'missing'}", must be PASS`, failures: report?.audit?.failures ?? [] }, { status: 422 })
+    }
+    const { reportOnly: _ro, audit: _audit, ...body } = report
+    return saveReportCore(body, 'scheduled-publish')
   }
   if (report?.audit?.status !== 'PASS') {
     return NextResponse.json({ error: `Rejected: audit.status is "${report?.audit?.status ?? 'missing'}", must be PASS`, failures: report?.audit?.failures ?? [] }, { status: 422 })

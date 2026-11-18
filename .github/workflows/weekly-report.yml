@@ -1,0 +1,103 @@
+# Monday weekly report: pull Euka, build the report JSON in code, audit, publish only on PASS, email a status line every run.
+# Cron only fires from the default branch (claude/friendly-gauss-AGnJ3), which is where this file lives.
+name: Weekly report
+on:
+  schedule:
+    - cron: '37 16 * * 1'   # Monday 16:37 UTC = 10:37 CST / 09:37 PST; after the scorecard (15:07 UTC) and the Rocio/Alyssa tasks (9:07, 9:13 Central)
+  workflow_dispatch:
+    inputs:
+      report_date:
+        description: 'Report date YYYY-MM-DD (default: today, Pacific). The week is the last complete Sun to Sat before it.'
+        type: string
+        default: ''
+permissions:
+  contents: read
+concurrency: { group: weekly-report, cancel-in-progress: false }
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      REPORT_DATE: ${{ inputs.report_date }}
+      WEEKLY_STATUS_FILE: ${{ github.workspace }}/weekly-status.json
+      DASHBOARD_URL: ${{ secrets.DASHBOARD_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/friendly-gauss-AGnJ3
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: npm ci
+        working-directory: pipeline
+      - name: Unit tests
+        run: npm test
+        working-directory: pipeline
+      - name: Build, audit and publish the weekly report
+        id: report
+        timeout-minutes: 50       # leaves time for the status email inside the 60-minute job limit
+        run: npm run weekly-report
+        working-directory: pipeline
+        env:
+          EUKA_MCP_URL: ${{ secrets.EUKA_MCP_URL }}
+          EUKA_BEARER_TOKEN: ${{ secrets.EUKA_BEARER_TOKEN }}
+          EUKA_STORE_ID: ${{ secrets.EUKA_STORE_ID }}
+          REPORT_PUBLISH_TOKEN: ${{ secrets.REPORT_PUBLISH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SCORECARD_WAIT_MINUTES: ${{ github.event_name == 'schedule' && '20' || '0' }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_REPORT_POSTS: ${{ vars.SLACK_REPORT_POSTS }}   # unset = no Slack post (team Slack paused Nov 16, 2026); set to 1 at rollout
+      - name: Status line
+        id: status
+        if: always()
+        run: npm run weekly-status
+        working-directory: pipeline
+      - name: Upload report, controls and audit output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-report-${{ github.run_id }}
+          path: |
+            pipeline/.cache/
+            weekly-status.json
+          retention-days: 30
+          if-no-files-found: ignore
+      - name: Email status (every run)
+        if: always() && steps.status.outputs.subject != ''
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: ${{ steps.status.outputs.subject }}
+          to: brandon@ruffliners.com
+          from: Ruff Liners reports <${{ secrets.SMTP_USERNAME }}>
+          body: ${{ steps.status.outputs.body }}
+      # Last resort: the status step itself never ran (cancelled or timed out before it, or npm failed). Same contract.
+      - name: Email FAILED (status step did not run)
+        if: (failure() || cancelled()) && steps.status.outputs.subject == ''
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "Weekly TikTok report: FAILED ${{ inputs.report_date || 'unknown' }}"
+          to: brandon@ruffliners.com
+          from: Ruff Liners reports <${{ secrets.SMTP_USERNAME }}>
+          body: |
+            reportDate: ${{ inputs.report_date || 'unknown' }}
+            weekWindow: none
+            d30Window: none
+            d30Gmv: none
+            audit: none
+            auditFailures: none
+            warnings: none
+            reviewFlags: none
+            scorecard: none
+            failedStep: unknown (run cancelled or timed out)
+            error: the status step did not run; see the run log
+            dashboardUrl: none
+            runUrl: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

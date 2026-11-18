@@ -7,6 +7,7 @@ import { validateGeneratedReport, phasesForIssue } from '@/lib/validateReport'
 import { collectReviewFlags, splitReviewed, tierDefinitionNote } from '@/lib/sanityDiff'
 import { format, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { request as httpsRequest } from 'https'
+import { REENGAGEMENT_TAG_RULES, REENGAGEMENT_WRITING_RULES } from '@/lib/reengagement'
 
 // Use Node.js https directly to avoid undici's 300s headersTimeout limit
 function anthropicPost(apiKey: string, bodyStr: string, timeoutMs: number): Promise<{ ok: boolean; status: number; text(): Promise<string> }> {
@@ -385,18 +386,14 @@ Output ONLY: {"performance":"para1\\n\\npara2","creators":"para1\\n\\npara2","re
     prompt: w => {
       // Monthly reports do not carry these sections; skip the Euka calls.
       if ((w as any).monthName) return 'Output exactly this JSON and nothing else: {"reengagement":null}'
-      return BASE(w) + `\n\nQuery: Re-engagement results for the week ending ${w.last7.end}. Two lists are tracked weekly with CRM TAGS in Euka. Use list_member_tags (include memberCount), list_member_lists, list_outreach_agents, count_members and list_members. Never message anyone, never create or change tags, lists or agents: READ ONLY.
+      return BASE(w) + `\n\nQuery: Re-engagement results for the week ending ${w.last7.end}. Two lists are tracked weekly with CRM TAGS in Euka. Use list_member_tags (include memberCount), list_member_lists (include linkedAgents), list_outreach_agents, count_members and list_members. Never message anyone, never create or change tags, lists or agents: READ ONLY.
 
-A) MANUAL RE-ENGAGEMENTS (Alyssa list). Tags named "RE <ISO-week> G<n> <group name>" are the contacted creators of a weekly list, and "RE <ISO-week> G<n> HOLDOUT" are creators deliberately NOT messaged. The ISO week label is YYYY-Www and the list date is the MONDAY of that ISO week. Use the most recent 4 list weeks that have tags. For each week and group G1..G6: listed = member count of the group tag; heldOut = member count of the HOLDOUT tag; sent = true if an outreach/CRM agent exists whose audience (member_group_ids) contains that week's member list for the group and has total_conversations above 0, false if none, null if you cannot tell; posted = how many creators with the group tag have a last video posted date AFTER the list date; postedHoldout = the same for the HOLDOUT tag. If a tag family does not exist yet, output weeks as [].
-
-B) VIP ENGAGEMENTS (Rocio list). The tag "WATCH L5+ Silent" holds L5+ creators who were on Rocio's silent list. "WATCH first <ISO-week>" records the week a creator was first listed. "REACTIVATED <ISO-week>" marks creators who posted after being listed. "In Discord" marks creators known to be in Discord. Output: onWatchList = members with the WATCH tag; reactivated = those whose last video posted date is after the Monday of their "WATCH first" week; stillSilent = onWatchList minus reactivated; l5Reactivated = up to 10 reactivated creators as {h (TikTok handle), level, gmv30d, firstListedWeek}; inDiscord = members of the WATCH list that also carry "In Discord". If the WATCH tag does not exist yet, set onWatchList to 0 and say so in the text.
+${REENGAGEMENT_TAG_RULES}
 
 C) WRITE TWO SECTIONS of analysis text for the CEO, paragraphs separated by \\n\\n, plain and specific:
-- "manualReengagement" (2-3 paragraphs): what the manual lists were this week and last (sizes, held out), whether they were sent, reactivation rate against the holdout rate and the lift, and what to change. RULES: a post after listing is credited to a message ONLY by comparing against the holdout; when a holdout has fewer than 20 creators say the sample is too small to read lift; when no list has been sent say there are no results yet. State the window each number came from (list week).
-- "vipEngagement" (2-3 paragraphs): how many L5+ creators are on the watch list, how many started posting again and who (by handle), how long they took where known, how many are in Discord. RULES: a post after listing does not prove our outreach caused it because this list has no holdout; if tags do not exist yet say tracking has just started.
-Every figure in the prose must come from the numbers you output. If data is missing say "not tracked yet" and never invent a number.
+${REENGAGEMENT_WRITING_RULES}
 
-Output ONLY: {"reengagement":{"manual":{"weeks":[{"week":"2026-W46","groups":[{"group":"G1","name":"","listed":0,"heldOut":0,"sent":null,"posted":0,"postedHoldout":0}]}]},"vip":{"onWatchList":0,"reactivated":0,"stillSilent":0,"inDiscord":0,"l5Reactivated":[{"h":"","level":"","gmv30d":0,"firstListedWeek":""}]},"manualReengagement":"para1\\n\\npara2","vipEngagement":"para1\\n\\npara2"}}`
+Output ONLY: {"reengagement":{"manual":{"weeks":[{"week":"2026-W46","groups":[{"group":"G1","name":"","listed":0,"heldOut":0,"sent":null,"posted":0,"postedHoldout":0}]}]},"vip":{"onWatchList":0,"reactivated":0,"stillSilent":0,"inDiscord":0,"personal":{"listed":0,"reactivated":0},"agent":{"listed":0,"reactivated":0},"reactivatedCreators":[{"h":"","level":"","gmv30d":0,"firstListedWeek":"","channel":"","weeksToReactivate":null}]},"manualReengagement":"para1\\n\\npara2","vipEngagement":"para1\\n\\npara2"}}`
     }
   }
 }

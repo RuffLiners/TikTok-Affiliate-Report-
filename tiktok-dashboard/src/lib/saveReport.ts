@@ -137,7 +137,10 @@ export async function saveReportCore(report: any, source: string = 'manual-paste
       ok: true,
       reportDate: report.meta.reportDate,
       label:      report.meta.label,
-      gmv:        report.d30.gmv
+      gmv:        report.d30.gmv,
+      // Saved, but the live page was not updated: a human must confirm these first
+      needsReview: reviewFlags.map((f: any) => f.text),
+      liveUpdated: false
     })
   }
   const liveData = {
@@ -159,6 +162,8 @@ export async function saveReportCore(report: any, source: string = 'manual-paste
     ok: true,
     reportDate: report.meta.reportDate,
     label:      report.meta.label,
-    gmv:        report.d30.gmv
+    gmv:        report.d30.gmv,
+    needsReview: [],
+    liveUpdated: true
   })
 }

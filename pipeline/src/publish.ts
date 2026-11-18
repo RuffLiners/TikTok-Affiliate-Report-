@@ -31,3 +31,14 @@ export async function saveSnapshot(date: string, values: Record<string, number>)
 export async function saveStore(periods: StoredPeriod[], contestMonths: ContestMonth[], drift: DriftRow[], runDate: string): Promise<{ saved: number; final: number }> {
   return publish({ periodsOnly: true, periods, contestMonths, drift, runDate })
 }
+/**
+ * Weekly report only (no scorecard): POST { reportOnly: true, audit: { status: 'PASS' }, ...report }. The server re-runs
+ * validateGeneratedReport, the review flags and reconciliation. A 2xx with needsReview means saved, live page not updated.
+ */
+export async function publishReport(report: unknown): Promise<{ ok: boolean; reportDate: string; needsReview: string[]; liveUpdated?: boolean }> {
+  const res = await fetch(`${base()}/api/publish-report`, { method: 'POST', headers: headers(), body: JSON.stringify(report) })
+  const body: any = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(`publish ${res.status}: ${JSON.stringify(body).slice(0, 600)}`)
+  if (!Array.isArray(body.needsReview)) throw new Error('publish: the dashboard did not return needsReview (is the reportOnly route deployed?)')
+  return body
+}

@@ -8,14 +8,18 @@
     "scorecard": "tsx src/run.ts",
     "snapshot": "tsx src/snapshot.ts",
     "watchdog": "tsx src/watchdog.ts",
-    "test": "tsx --test src/pull.test.ts src/plan.test.ts src/drift.test.ts src/contests.test.ts"
+    "test": "tsx --test src/pull.test.ts src/plan.test.ts src/drift.test.ts src/contests.test.ts src/weekly/weekly.test.ts",
+    "weekly-report": "tsx src/weekly-report.ts",
+    "weekly-status": "tsx src/weekly-status.ts",
+    "test:dashboard": "cd ../tiktok-dashboard && npx vitest run src/app/api/publish-report src/lib/reengagement.test.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.10.0",
     "@modelcontextprotocol/sdk": "^1.12.0"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.6.0",
-    "@types/node": "^22.0.0"
+    "typescript": "^5.6.0"
   }
 }

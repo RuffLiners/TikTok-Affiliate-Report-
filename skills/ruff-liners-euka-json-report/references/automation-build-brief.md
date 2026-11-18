@@ -1,44 +1,41 @@
-# Build brief: fully automated weekly Euka report
+# Automation: weekly Euka report (as built, Nov 18, 2026)
 
 ## Goal
-The weekly report is produced and saved with zero manual steps, and nothing is saved unless the audit passes. The Claude model writes only the four analysis sections. Code does all data pulling, paging, bucketing, reconciliation and auditing.
+Every Monday, with no manual step and no browser, GitHub Actions pulls Euka, builds the weekly report JSON in code, audits it, publishes it to the dashboard only on PASS, and emails a status line on every run. Claude writes only the six prose sections (four analysis sections plus the two re-engagement sections). Code produces every number.
 
-## Why code, not chat
-In the Oct 12, 2026 chat run, the GMV Max creative report had 1,000+ rows: 600 rows reached only 98.4% of spend, and the dashboard rejects anything under 99%. Agent enrichment needs ~40 more calls, and heavy queries time out.
+## Why GitHub Actions only
+Claude cloud scheduled tasks cannot reach `storage.googleapis.com` (Euka CSV exports) or the dashboard host and cannot write to this repo (verified Nov 16, 2026). GitHub Actions has the Euka token, `REPORT_PUBLISH_TOKEN`, `DASHBOARD_URL` and open network. Do not move any part of the build into a chat run.
 
-## Architecture
-- Runner: a GitHub Actions workflow on a Monday-morning cron (America/Chicago), plus workflow_dispatch for the dashboard button. Not a single Vercel function, which would exceed its time limit.
-- Euka: the MCP SDK streamable HTTP client to EUKA_MCP_URL with EUKA_BEARER_TOKEN. Fallback, only with Brandon's OK: one Claude API call per page via mcp_servers, returning compact JSON rows.
-- Storage: each step's raw result is cached by report date and step so a failed run resumes. The final report and audit output are saved to Supabase only on PASS.
-- Analysis: one Claude API call (no tools) given the finished JSON, controls.json and the SKILL.md Phase 4 writing rules.
-- Notify: Slack on PASS (confirmation and audit lines) and on FAIL (the failures and which step to re-run).
+## What runs
+- Workflow: `.github/workflows/weekly-report.yml` ("Weekly report"), on the default branch `claude/friendly-gauss-AGnJ3`. Cron `37 16 * * 1` (Monday 10:37 CST / 11:37 CDT), plus `workflow_dispatch` with optional `report_date`. 60-minute job limit, report step 50 minutes, concurrency group `weekly-report`, `contents: read`, Node 22, Python 3.12.
+- Entry point: `pipeline/src/weekly-report.ts` (`npm run weekly-report`). Status email: `pipeline/src/weekly-status.ts` (`npm run weekly-status`, runs with `if: always()`).
+- Every step caches its raw result to `pipeline/.cache/<reportDate>/<step>.json` (CSV exports in `dl/`), so a re-run resumes. Each step retries 3 times; an HTTP 429 waits 60 seconds.
+- The whole `.cache/<reportDate>/` folder (inputs, draft, report JSON, controls, `audit.txt`) is uploaded as the run artifact `weekly-report-<run id>`, kept 30 days.
 
-## Pipeline (one function per step, each with retries)
-1. Windows: compute all dates (SKILL.md Phase 1, or the windows in the weekly brief).
-2. Dashboard overviews: get_dashboard_performance_overview for the 30-day window and for each of the 6 months (7 calls). Apply the shop-GMV guardrail in code.
-3. Ads overview: get_dashboard_ads_overview for the 30 days. Header spend = adKpis.currentSpend.
-4. GMV Max by age: loop get_gmv_max_creative_report (pageSize 100) until hasMore === false. Bucket with bucket_gmvmax.py logic (publish date = itemId >> 32 as unix seconds; itemId -1 = "Unknown post date"). Fail if the buckets differ from header spend by more than $0.05.
-5. query_store_data steps: use the question text in SKILL.md Phase 2, then read every row with read_sandbox_file (page with startLine/endLine).
-   - On error 57014 or a stream timeout: retry 3×, then split the period in halves.
-   - Validate every level split against its totals in code and re-run on mismatch.
-   - Reject any result whose summary says it "reconciled" or "adjusted" values to match a target.
-6. Agents: page list_outreach_agents for outreach and crm until the oldest created_time is before the window start. Call get_outreach_agent for every kept agent and map every field in the agent schema. No "not enriched" values.
-7. Assemble the JSON (SKILL.md Phase 5). Build controls.json from raw step results, never from the report.
-8. Analysis: make the Claude call, then audit check 9 (untraced dollar figures). Re-prompt once with the list; fail if anything is still untraced.
-9. Audit: audit_report.py. WARN = FAIL, except partial-month retention.
-10. Save to Supabase only on PASS, then notify.
+## Steps
+1. Windows (`weekly/windows.ts`, SKILL.md Phase 1, Pacific dates). A bad or future report date fails here, before anything is pulled or saved.
+2. Scorecard check: reads `/api/publish-report` `latest`. Scheduled runs wait up to 20 minutes for today's scorecard, manual runs check once; then it continues and says `scorecard: NOT PUBLISHED TODAY` in the email.
+3. Pulls (SKILL.md Phase 2): performance overview for 30 days (previous-period compare) and each of 6 months (guardrail fields kept; a 429 inside `shopGmvError` waits a minute, up to 3 times), retention summary, ads overview, level breakdown x21, `export_videos` x4 and `export_gmv_max_report` (creatives). CSVs are fetched with `fetch` and checked for their required columns. IDs stay text.
+4. Agents: `list_outreach_agents` for outreach and crm, 25 a page, until a page is entirely older than the window start; `get_outreach_agent` for every in-window agent, mapped in `weekly/agents.ts`. A field that could not be read is `not enriched`, never `none`.
+5. Build: `inputs.json` in the `references/inputs.example.json` format, `python3 -I py/build_report.py`, one `search_creators` call (100 handles per call) for the table handles, then the build again.
+6. Re-engagement (spec v3.2): `tiktok-dashboard/src/lib/reengagement.ts`, shared with dashboard phase 26. Reads tags `RE `, `REACTIVATED `, `ROCIO L4+`, `ROCIO PERSONAL `, `ROCIO AGENT `, `WATCH L4+ Silent` (falls back to `WATCH L5+ Silent`), `WATCH first `, `In Discord`, the members carrying them (`list_members`, 100 a page) and the `<ISO-week> G<n> <name>` member lists with their linked agents. Phase 26 uses the same tag rules and writing rules from that module.
+7. Analysis (`weekly/analysis.ts`): one Claude API call, no tools, `claude-opus-5-5` (override with `ANALYSIS_MODEL`), structured JSON output, server-side refusal fallback on. Input: the finished report, controls, derived facts (`weekly/derived.ts`: older-video share, concentration, GMV by product, new creators, inactive creators) and the re-engagement data. Every number in the derived facts and re-engagement data goes into `controls.derived_numbers`. Any dollar figure that does not trace to the data gets one re-prompt; still untraced fails the run. Em dashes are removed.
+8. Audit: `python3 -I py/audit_report.py`. FAIL stops the run. WARN is allowed only for partial-month retention and agent enrichment gaps; any other WARN counts as FAIL. On FAIL the run drops the cached pulls the failure points at, rebuilds and re-audits once, then gives up. Numbers are never edited.
+9. Publish (`publishReport()` in `pipeline/src/publish.ts`): `POST /api/publish-report` with `reportOnly: true`. The route checks the token and `audit.status === 'PASS'`, then calls `saveReportCore(report, 'scheduled-publish')`, which re-runs `validateGeneratedReport`, the review flags and reconciliation. It never touches the `scorecards` table. If it returns `needsReview`, the report is saved but the live page is not updated: PUBLISHED WITH REVIEW FLAGS.
+10. Notify: status email every run (below). Slack only when the repo variable `SLACK_REPORT_POSTS=1` (unset since team Slack was paused Nov 16, 2026).
 
-## Dashboard changes
-- The "Generate This Week's Report" button triggers the workflow via GITHUB_DISPATCH_TOKEN and shows run status.
-- /admin/upload stays as a fallback and runs the same audit before saving. The existing 1% GMV Max check stays.
-- Monthly ml1–ml7 can be null (no message data before Jul 2026). Charts show a gap instead of crashing.
+## Status email (contract; a Claude watchdog parses it)
+To brandon@ruffliners.com, same SMTP secrets as the scorecard. Subject is exactly one of:
+`Weekly TikTok report: PUBLISHED <reportDate>`, `Weekly TikTok report: PUBLISHED WITH REVIEW FLAGS <reportDate>`, `Weekly TikTok report: FAILED <reportDate>`.
+Body, one `key: value` per line, every key always present, `none` when empty, list items joined with ` | `:
+`reportDate`, `weekWindow`, `d30Window`, `d30Gmv`, `audit`, `auditFailures`, `warnings`, `reviewFlags`, `scorecard`, `failedStep`, `error`, `dashboardUrl`, `runUrl`.
+The run writes a progress file at every step; a cancelled or timed-out run is sent as FAILED with `failedStep: unknown (run cancelled or timed out)` and the last step it was in under `error`. If even the status step cannot run, a static FAILED email with all keys is sent.
 
-## Acceptance test (report date 2026-10-12)
-- gmvMaxByAge spend equals the same run's ads-overview spend (±$0.05) after paging to hasMore === false. Also report the difference from $132,393.37.
-- Monthly level posting arrays sum to the monthly totals for all 6 months.
-- 31 outreach and 8 CRM agents in the window, all fully enriched.
-- The audit prints PASS (only the partial-month retention warning is allowed).
-- The report saves to the dashboard with no manual step.
+## Secrets
+Existing: EUKA_MCP_URL, EUKA_BEARER_TOKEN, EUKA_STORE_ID, DASHBOARD_URL, REPORT_PUBLISH_TOKEN, SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, SLACK_WEBHOOK_URL. New: ANTHROPIC_API_KEY. Optional repo variable: SLACK_REPORT_POSTS.
 
-## Scorecard (added)
-The scorecard run replaces the `query_store_data` / `get_gmv_max_creative_report` / `read_sandbox_file` pulls with typed tools. See `SKILL.md` in the parent folder for line-by-line sources, rules and controls. Code: `pipeline/src/run.ts` (Monday), `pipeline/src/snapshot.ts` and `pipeline/src/watchdog.ts` (daily), `tiktok-dashboard/src/lib/scorecard/` (shared rules). Workflows: `.github/workflows/weekly-scorecard.yml`, `scorecard-daily.yml`. Required secrets: EUKA_MCP_URL, EUKA_BEARER_TOKEN, EUKA_STORE_ID, SLACK_WEBHOOK_URL, DASHBOARD_URL, REPORT_PUBLISH_TOKEN, SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD. Vercel env var: REPORT_PUBLISH_TOKEN (same value).
+## Tests
+`cd pipeline && npm test` (windows, CSV IDs as text, status email builder and cancelled path, dollar tracing, agent mapping; runs in the workflow before the report). `cd tiktok-dashboard && npx vitest run` (the `reportOnly` route: 401, 422 on audit FAIL, 422 on server validation failure, 200 on the golden report; the shared re-engagement module).
+
+## Scorecard
+Unchanged and separate: `pipeline/src/run.ts`, `.github/workflows/weekly-scorecard.yml` (Monday 15:07 UTC) and `scorecard-daily.yml`. Its Python audit is `pipeline/py/audit_scorecard.py` (the older combined audit, kept because the org skill's `audit_report.py` no longer has the scorecard checks).
