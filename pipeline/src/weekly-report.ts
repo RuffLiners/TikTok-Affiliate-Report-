@@ -356,7 +356,10 @@ async function main() {
   const scorecard = await scorecardCheck(today, Number(process.env.SCORECARD_WAIT_MINUTES ?? 0))
   setProgress({ scorecard })
 
-  E = await Euka.connect()
+  setProgress({ currentStep: 'euka connect' })
+  E = await Euka.connect().catch((e: Error) => {
+    throw new Error(/401|invalid_token|authorization/i.test(e.message) ? `Euka rejected EUKA_BEARER_TOKEN (expired or not a long-lived token): ${e.message}` : e.message)
+  })
   try {
     let run = await produce(w)
     if (!run.audit.pass) {
